@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitPlay-Project-Blazor", "FitPlay-Project\FitPlay-Project-Blazor.csproj", "{9A4157BA-5F26-4BB9-A85A-5750672FAA89}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitPlay.Api", "FitPlay.Api\FitPlay.Api.csproj", "{CD1A8458-EE25-4148-9198-3B0CF462D03C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitPlay.tests", "FitPlay.tests\FitPlay.tests.csproj", "{D00F8E9D-18A2-49DD-B1BF-A3628A345928}"
@@ -13,16 +11,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitPlay.Domain", "FitPlay.D
 EndProject
 Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "FitPlay.UI.React", "FitPlay.UI.React\FitPlay.UI.React.esproj", "{B3524DC2-EDEC-4C78-893C-75DE84252F0B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitPlay.Blazor", "FitPlay.Blazor\FitPlay.Blazor.csproj", "{BE100D06-9031-4768-8208-2D6FB5352190}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{9A4157BA-5F26-4BB9-A85A-5750672FAA89}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9A4157BA-5F26-4BB9-A85A-5750672FAA89}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9A4157BA-5F26-4BB9-A85A-5750672FAA89}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9A4157BA-5F26-4BB9-A85A-5750672FAA89}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CD1A8458-EE25-4148-9198-3B0CF462D03C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{CD1A8458-EE25-4148-9198-3B0CF462D03C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CD1A8458-EE25-4148-9198-3B0CF462D03C}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -41,6 +37,10 @@ Global
 		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{BE100D06-9031-4768-8208-2D6FB5352190}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE100D06-9031-4768-8208-2D6FB5352190}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE100D06-9031-4768-8208-2D6FB5352190}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE100D06-9031-4768-8208-2D6FB5352190}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
