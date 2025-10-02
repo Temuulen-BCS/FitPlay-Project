@@ -36,6 +36,44 @@ app.MapGet("/weatherforecast", () =>
 .WithName("GetWeatherForecast")
 .WithOpenApi();
 
+app.MapGet("/exercice", () =>
+{
+
+})
+.WithName("Getexercices")
+.WithOpenApi();
+
+app.MapGet("/user", () =>
+{
+
+})
+.WithName("Getuser")
+.WithOpenApi();
+
+app.MapGet("/training", () =>
+{
+
+})
+.WithName("Gettraining")
+.WithOpenApi();
+
+
+app.MapGet("/level", () =>
+{
+
+})
+.WithName("Getlevel")
+.WithOpenApi();
+
+app.MapGet("/ranking", () =>
+{
+
+})
+.WithName("Getranking")
+.WithOpenApi();
+
+
+
 app.Run();
 
 internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
