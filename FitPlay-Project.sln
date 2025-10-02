@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitPlay.tests", "FitPlay.te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FitPlay.Domain", "FitPlay.Domain\FitPlay.Domain.csproj", "{72766D38-8B45-4687-B873-69864204A599}"
 EndProject
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "FitPlay.UI.React", "FitPlay.UI.React\FitPlay.UI.React.esproj", "{B3524DC2-EDEC-4C78-893C-75DE84252F0B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,12 @@ Global
 		{72766D38-8B45-4687-B873-69864204A599}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{72766D38-8B45-4687-B873-69864204A599}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{72766D38-8B45-4687-B873-69864204A599}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3524DC2-EDEC-4C78-893C-75DE84252F0B}.Release|Any CPU.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
