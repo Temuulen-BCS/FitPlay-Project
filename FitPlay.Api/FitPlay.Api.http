@@ -1,0 +1,6 @@
+@FitPlay.Api_HostAddress = http://localhost:5179
+
+GET {{FitPlay.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
