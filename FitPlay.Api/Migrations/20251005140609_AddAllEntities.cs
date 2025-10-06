@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore.Migrations;
-
+using Microsoft.AspNetCore.Identity;
 #nullable disable
 
 namespace FitPlay.Api.Migrations
