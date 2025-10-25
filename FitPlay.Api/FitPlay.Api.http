@@ -1,6 +1,12 @@
 @FitPlay.Api_HostAddress = http://localhost:5179
 
 GET {{FitPlay.Api_HostAddress}}/weatherforecast/
+GET {{FitPlay.Api_HostAddress}}/exercices/
+GET {{FitPlay.Api_HostAddress}}/users/
+GET {{FitPlay.Api_HostAddress}}/training/
+GET {{FitPlay.Api_HostAddress}}/level/
+GET {{FitPlay.Api_HostAddress}}/ranking/
+
 Accept: application/json
 
 ###
