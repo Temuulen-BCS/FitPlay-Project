@@ -2,14 +2,14 @@
 {
     public class Training
     {
-        public string NAME { get; set; }
-        public int ID { get; set; }
-        public string DESCRIPTION { get; set; }
-        public int DURATION { get; set; }
+        public string Name { get; set; }
+        public int Id { get; set; }
+        public string Description{ get; set; }
+        public int Duration { get; set; }
 
-        public int POINTS { get; set; }
+        public int Points { get; set; }
 
-        public string ATHLETES { get; set; }
+        public string Athletes { get; set; }
 
         public int MyProperty { get; set; }
 
