@@ -1,0 +1,167 @@
+﻿@page "/userCadaster"
+@rendermode InteractiveServer
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <EditForm Model="user" OnValidSubmit="AddUser">
+                        <div class="hstack gap-2">
+                            <label class="label-control">Name</label>
+                            <InputText @bind-Value="user.Name" class="form-control" />
+
+                            <label class="label-control">Email</label>
+                            <InputText @bind-Value="user.Email" class="form-control" />
+
+                 
+                            <label class="label-control">Training</label>
+                            <InputSelect @bind-Value="user.Training" class="form-control">
+                                @foreach (var t in Enum.GetValues<User.MyTraining>())
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </InputSelect>
+
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </EditForm>
+                </div>
+
+                <div class="card-body">
+                    <div class="mb-3">
+                        <input type="search"
+                               class="form-control"
+                               placeholder="Search user name..."
+                               @oninput="SearchUser" />
+                    </div>
+
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Training</th>
+                                <th>Level</th>
+                                <th>Xp</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (FilteredUsers.Any())
+                            {
+                                @foreach (var u in FilteredUsers)
+                                {
+                                    <tr>
+                                        <td>@u.Id</td>
+                                        <td>@u.Name</td>
+                                        <td>@u.Email</td>
+                                        <td>@u.Training</td>
+                                        <td>@u.Level</td>
+                                        <td>@u.Xp</td>
+                                        <td>
+                                            <button class="btn btn-info btn-sm" @onclick="() => Edit(u)">Edit</button>
+                                            <button class="btn btn-danger btn-sm" @onclick="() => Delete(u)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">No data available</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<User> UsersList = new();
+    private List<User> FilteredUsers = new();
+    private User user = new();
+    private DateOnly SelectedDate = DateOnly.FromDateTime(DateTime.Now);
+
+    protected override void OnInitialized()
+    {
+        FilteredUsers = UsersList.ToList();
+    }
+
+    private void AddUser()
+    {
+        if (string.IsNullOrWhiteSpace(user.Name))
+            return;
+
+
+
+        // Update existing
+        if (user.Id > 0)
+        {
+            var existing = UsersList.FirstOrDefault(u => u.Id == user.Id);
+            if (existing != null)
+            {
+                existing.Name = user.Name;
+                existing.Email = user.Email;
+                existing.Training = user.Training;
+                existing.Level = user.Level;
+                existing.Xp = user.Xp;
+
+            }
+        }
+        else
+        {
+            user.Id = UsersList.Count > 0 ? UsersList.Max(u => u.Id) + 1 : 1;
+            UsersList.Add(new User
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                Training = user.Training,
+                Level = user.Level,
+                Xp = user.Xp,
+
+            });
+        }
+
+        user = new();
+        FilteredUsers = UsersList.ToList();
+    }
+
+    private void Edit(User incoming)
+    {
+        user = new User
+        {
+            Id = incoming.Id,
+            Name = incoming.Name,
+            Email = incoming.Email,
+            Training = incoming.Training,
+            Level = incoming.Level,
+            Xp = incoming.Xp,
+            Description = incoming.Description
+        };
+
+
+    }
+
+    private void Delete(User u)
+    {
+        UsersList.Remove(u);
+        FilteredUsers = UsersList.ToList();
+    }
+
+    private void SearchUser(ChangeEventArgs e)
+    {
+        var term = e.Value?.ToString()?.Trim() ?? string.Empty;
+
+        FilteredUsers = string.IsNullOrEmpty(term)
+            ? UsersList.ToList()
+            : UsersList
+                .Where(x => x.Name.Contains(term, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+    }
+}
