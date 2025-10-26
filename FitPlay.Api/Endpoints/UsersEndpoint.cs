@@ -1,5 +1,5 @@
 ﻿using FitPlay.Api.Data;
-using FitPlay.Domain.model;
+using FitPlay.Domain.Model;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 namespace FitPlay.Api.Endpoints;
@@ -26,24 +26,23 @@ public static class UsersEndpoints
         .WithOpenApi(op => new(op)
        );
 
-        app.MapPost("/users", async (Users user, [FromServices] ApplicationDbContext db) =>
+        app.MapPost("/users", async (User user, [FromServices] ApplicationDbContext db) =>
         {
             db.Users.Add(user);
             await db.SaveChangesAsync();
-            return Results.Created($"/users/{user.ID}", user);
+            return Results.Created($"/users/{user.Id}", user);
         })
         .WithName("CreateUser")
         .WithOpenApi(op => new(op)
        );
 
-        app.MapPut("/users/{id}", async (int id, Users inputUser, [FromServices] ApplicationDbContext db) =>
+        app.MapPut("/users/{id}", async (int id, User inputUser, [FromServices] ApplicationDbContext db) =>
         {
             var user = await db.Users.FindAsync(id);
             if (user is null) return Results.NotFound();
 
             user.Name = inputUser.Name;
             user.Email = inputUser.Email;
-            user.Phone = inputUser.Phone;
 
             await db.SaveChangesAsync();
             return Results.Ok(user);

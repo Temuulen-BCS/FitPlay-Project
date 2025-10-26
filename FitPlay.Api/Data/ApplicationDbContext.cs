@@ -1,4 +1,4 @@
-﻿using FitPlay.Domain.model;
+﻿using FitPlay.Domain.Model;
 using Microsoft.EntityFrameworkCore;
 
 namespace FitPlay.Api.Data
@@ -8,8 +8,7 @@ namespace FitPlay.Api.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options) { }
 
-        public DbSet<Users> Users { get; set; }
-        public DbSet<Teachers> Teachers  { get; set; }
+        public DbSet<User> Users { get; set; }
     
     }
 }
