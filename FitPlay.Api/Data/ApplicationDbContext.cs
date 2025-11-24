@@ -1,4 +1,5 @@
-﻿using FitPlay.Domain.Model;
+﻿using FitPlay.Domain.model;
+using FitPlay.Domain.Model;
 using Microsoft.EntityFrameworkCore;
 
 namespace FitPlay.Api.Data
@@ -9,6 +10,8 @@ namespace FitPlay.Api.Data
             : base(options) { }
 
         public DbSet<User> Users { get; set; }
-    
+        public DbSet<Training> Trainings { get; set; }
+
+
     }
 }
