@@ -1,16 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using FitPlay.Api.Data;
 using FitPlay.Api.Endpoints;
-
+using System.Security.Claims;
+using System.Text.Json;
 var builder = WebApplication.CreateBuilder(args);
+
 
 // Add services to the container.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-// Add Entity Framework Core
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+
 
 var app = builder.Build();
 
@@ -29,5 +31,7 @@ app.MapLevelEndpoints();
 app.MapUserEndpoints();
 app.MapExerciseEndpoints();
 app.MapTrainingEndpoints();
+
+
 
 app.Run();

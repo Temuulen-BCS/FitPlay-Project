@@ -1,0 +1,166 @@
+﻿@page "/"
+@layout EmptyLayout
+
+<!-- 🔹 NAVBAR -->
+<nav class="navbar">
+    <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="#classes">Classes</a></li>
+        <li><a href="#trainers">Trainers</a></li>
+        <li><a href="userCadaster">Users Cadaster</a></li>
+    </ul>
+    <button class="btn-join">Join Now</button>
+</nav>
+
+<!-- 🔹 HERO -->
+<div class="hero">
+    <div class="overlay">
+        <h1>Welcome to FitPlay</h1>
+        <p>Where fitness meets nightlife.</p>
+        <button class="btn-join">Join Now</button>
+    </div>
+</div>
+
+<!-- 🔹 FEATURES -->
+<section class="features" id="classes">
+    <div class="feature">
+        <h2>🔥 Classes</h2>
+        <p>From HIIT to Yoga, experience workouts that push limits.</p>
+    </div>
+    <div class="feature">
+        <h2>🎧 Live DJs</h2>
+        <p>Train with energy — our DJs spin every night.</p>
+    </div>
+    <div class="feature">
+        <h2>🥊 Combat Zone</h2>
+        <p>Step into the ring — boxing, MMA, and more.</p>
+    </div>
+</section>
+
+<!-- 🔹 FOOTER -->
+<footer>
+    <p>© 2025 FitPlay. Inspired by Gymbox. All rights reserved.</p>
+</footer>
+
+<style>
+    /* === GLOBAL === */
+    body {
+        margin: 0;
+        background-color: #000;
+        color: #fff;
+        font-family: 'Montserrat', sans-serif;
+    }
+
+    /* === NAVBAR === */
+    .navbar {
+        padding-left: 1237px;
+        left: 187px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.85);
+        position: fixed;
+        top: 0;
+        width: 100%;
+        z-index: 100;
+        box-shadow: 0 2px 10px rgba(255, 0, 127, 0.3);
+    }
+
+    .logo {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #FF007F;
+        letter-spacing: 2px;
+    }
+
+    .nav-links {
+        list-style: none;
+        display: flex;
+        gap: 2rem;
+        margin: 0;
+        padding: 0;
+    }
+
+        .nav-links li a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+            .nav-links li a:hover {
+                color: #FF007F;
+            }
+
+    .btn-join {
+        background-color: #FF007F;
+        color: #fff;
+        border: none;
+        padding: 0.8rem 1.6rem;
+        font-size: 1rem;
+        border-radius: 30px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+        .btn-join:hover {
+            background-color: #e60073;
+        }
+
+    /* === HERO === */
+    .hero {
+        position: relative;
+        background-image: url('images/gym-hero.jpg');
+        background-size: cover;
+        background-position: center;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 80px; /* Ajusta abaixo da navbar */
+    }
+
+    .overlay {
+        background-color: rgba(0,0,0,0.6);
+        padding: 3rem;
+        text-align: center;
+        border-radius: 10px;
+    }
+
+        .overlay h1 {
+            font-size: 4rem;
+            color: #FF007F;
+            margin: 0;
+        }
+
+        .overlay p {
+            font-size: 1.2rem;
+            margin: 1rem 0 2rem 0;
+        }
+
+    /* === FEATURES === */
+    .features {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 2rem;
+        background-color: #111;
+        padding: 4rem 1rem;
+    }
+
+    .feature {
+        width: 300px;
+        text-align: center;
+    }
+
+    /* === FOOTER === */
+    footer {
+        background-color: #000;
+        text-align: center;
+        padding: 1rem;
+        font-size: 0.9rem;
+        color: #aaa;
+    }
+
+
+</style>

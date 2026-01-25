@@ -1,0 +1,32 @@
+﻿@inherits LayoutComponentBase
+
+<div class="layout-container">
+    <NavMenu />
+    <div class="main-content">
+        @Body
+    </div>
+</div>
+
+<style>
+    /* Container principal em flex para sidebar + conteúdo */
+    .layout-container {
+        display: flex;
+        min-height: 100vh;
+    }
+
+        /* NavMenu (barra lateral) */
+        .layout-container > NavMenu {
+            width: 250px; /* largura da barra lateral */
+            margin-top: 80px; /* distância do topo */
+            position: fixed; /* fixa a barra lateral na tela */
+            height: calc(100vh - 80px); /* altura total menos o offset do topo */
+            overflow-y: auto; /* rolagem interna se houver muitos links */
+        }
+
+    /* Conteúdo principal */
+    .main-content {
+        flex: 1;
+        margin-left: 250px; /* deixa espaço para a barra lateral */
+        padding: 20px; /* padding interno */
+    }
+</style>
