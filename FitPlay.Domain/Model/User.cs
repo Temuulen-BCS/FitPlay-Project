@@ -32,5 +32,3 @@ namespace FitPlay.Domain.Model
         Admin
     }
 }
-    }
-}
