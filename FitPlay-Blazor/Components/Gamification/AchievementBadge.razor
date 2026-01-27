@@ -1,0 +1,128 @@
+@using FitPlay.Blazor.Services
+
+<div class="achievement-badge @(IsEarned ? "earned" : "locked")">
+    <div class="badge-icon">
+        @if (IsEarned)
+        {
+            <span class="icon">@GetIcon()</span>
+        }
+        else
+        {
+            <span class="icon locked-icon">?</span>
+        }
+    </div>
+    <div class="badge-info">
+        <span class="badge-name">@Name</span>
+        <span class="badge-description">@Description</span>
+        @if (IsEarned && EarnedAt.HasValue)
+        {
+            <span class="earned-date">Earned @EarnedAt.Value.ToString("MMM d, yyyy")</span>
+        }
+    </div>
+</div>
+
+<style>
+    .achievement-badge {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        border-radius: 12px;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .achievement-badge.earned {
+        background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+        border: 2px solid #9f7aea;
+    }
+
+    .achievement-badge.locked {
+        background: #f7fafc;
+        border: 2px solid #e2e8f0;
+        opacity: 0.7;
+    }
+
+    .achievement-badge.earned:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(159, 122, 234, 0.3);
+    }
+
+    .badge-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+
+    .earned .badge-icon {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .locked .badge-icon {
+        background: #cbd5e0;
+    }
+
+    .icon {
+        color: white;
+    }
+
+    .locked-icon {
+        opacity: 0.5;
+    }
+
+    .badge-info {
+        flex: 1;
+    }
+
+    .badge-name {
+        display: block;
+        font-weight: bold;
+        color: #1a202c;
+        margin-bottom: 4px;
+    }
+
+    .locked .badge-name {
+        color: #718096;
+    }
+
+    .badge-description {
+        display: block;
+        font-size: 13px;
+        color: #718096;
+    }
+
+    .earned-date {
+        display: block;
+        font-size: 11px;
+        color: #9f7aea;
+        margin-top: 4px;
+    }
+</style>
+
+@code {
+    [Parameter] public string AchievementType { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public bool IsEarned { get; set; }
+    [Parameter] public DateTime? EarnedAt { get; set; }
+
+    private string GetIcon()
+    {
+        return AchievementType switch
+        {
+            "first_training" => "1",
+            "7_day_streak" => "7",
+            "30_day_streak" => "30",
+            "10_trainings" => "10",
+            "50_trainings" => "50",
+            "100_trainings" => "C",
+            "level_up" => "^",
+            "level_5" => "5",
+            "level_10" => "M",
+            _ => "*"
+        };
+    }
+}

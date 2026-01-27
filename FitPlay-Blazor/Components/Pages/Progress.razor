@@ -1,0 +1,371 @@
+@page "/progress"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Gamification
+@inject ApiClient Api
+
+<PageTitle>My Progress - FitPlay</PageTitle>
+
+<div class="progress-page">
+    <div class="page-header">
+        <h1>My Progress</h1>
+        <p class="subtitle">Track your fitness journey</p>
+    </div>
+
+    <div class="content-grid">
+        <div class="left-column">
+            <ProgressCard Progress="@_progress" IsLoading="@_isLoading" />
+
+            <div class="history-section">
+                <h3>Recent Activity</h3>
+                @if (_xpHistory.Any())
+                {
+                    <div class="history-list">
+                        @foreach (var transaction in _xpHistory.Take(10))
+                        {
+                            <div class="history-item @(transaction.XpDelta >= 0 ? "positive" : "negative")">
+                                <div class="history-icon">
+                                    @(transaction.XpDelta >= 0 ? "+" : "-")
+                                </div>
+                                <div class="history-content">
+                                    <span class="history-reason">@(transaction.Reason ?? transaction.TransactionType)</span>
+                                    <span class="history-date">@transaction.CreatedAt.ToString("MMM d, h:mm tt")</span>
+                                </div>
+                                <div class="history-xp @(transaction.XpDelta >= 0 ? "positive" : "negative")">
+                                    @(transaction.XpDelta >= 0 ? "+" : "")@transaction.XpDelta XP
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (!_isLoading)
+                {
+                    <p class="no-history">No activity yet. Complete a training to earn XP!</p>
+                }
+            </div>
+        </div>
+
+        <div class="right-column">
+            <div class="completions-section">
+                <h3>Recent Completions</h3>
+                @if (_completions.Any())
+                {
+                    <div class="completions-list">
+                        @foreach (var completion in _completions.Take(5))
+                        {
+                            <div class="completion-item">
+                                <div class="completion-info">
+                                    <span class="completion-name">@completion.TrainingName</span>
+                                    <span class="completion-date">@completion.CompletedAt.ToString("MMM d")</span>
+                                </div>
+                                <div class="completion-xp">+@completion.XpGranted XP</div>
+                                <span class="completion-status @completion.Status.ToLower()">@completion.Status</span>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (!_isLoading)
+                {
+                    <p class="no-completions">No trainings completed yet.</p>
+                }
+            </div>
+
+            <div class="level-guide">
+                <h3>Level Guide</h3>
+                <div class="levels-list">
+                    @foreach (var level in _levelGuide)
+                    {
+                        <div class="level-item @(level.Level <= (_progress?.CurrentLevel ?? 0) ? "reached" : "")">
+                            <span class="level-number">L@level.Level</span>
+                            <span class="level-name">@level.Label</span>
+                            <span class="level-xp">@level.MinXp XP</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .progress-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: #1a202c;
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #718096;
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 24px;
+    }
+
+    .history-section, .completions-section, .level-guide {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-top: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .history-section h3, .completions-section h3, .level-guide h3 {
+        margin: 0 0 20px 0;
+        font-size: 18px;
+        color: #1a202c;
+    }
+
+    .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .history-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #f7fafc;
+        border-radius: 8px;
+    }
+
+    .history-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+    }
+
+    .history-item.positive .history-icon {
+        background: #48bb78;
+    }
+
+    .history-item.negative .history-icon {
+        background: #f56565;
+    }
+
+    .history-content {
+        flex: 1;
+    }
+
+    .history-reason {
+        display: block;
+        font-size: 14px;
+        color: #1a202c;
+    }
+
+    .history-date {
+        display: block;
+        font-size: 12px;
+        color: #a0aec0;
+    }
+
+    .history-xp {
+        font-weight: bold;
+    }
+
+    .history-xp.positive {
+        color: #48bb78;
+    }
+
+    .history-xp.negative {
+        color: #f56565;
+    }
+
+    .completions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .completion-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #f7fafc;
+        border-radius: 8px;
+    }
+
+    .completion-info {
+        flex: 1;
+    }
+
+    .completion-name {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #1a202c;
+    }
+
+    .completion-date {
+        display: block;
+        font-size: 12px;
+        color: #a0aec0;
+    }
+
+    .completion-xp {
+        color: #667eea;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .completion-status {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .completion-status.autoapproved, .completion-status.validated {
+        background: #c6f6d5;
+        color: #276749;
+    }
+
+    .completion-status.pending {
+        background: #fefcbf;
+        color: #975a16;
+    }
+
+    .completion-status.rejected {
+        background: #fed7d7;
+        color: #c53030;
+    }
+
+    .levels-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .level-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        border-radius: 8px;
+        background: #f7fafc;
+        opacity: 0.6;
+    }
+
+    .level-item.reached {
+        background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+        opacity: 1;
+    }
+
+    .level-number {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 12px;
+        color: #718096;
+    }
+
+    .level-item.reached .level-number {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .level-name {
+        flex: 1;
+        font-size: 14px;
+        color: #1a202c;
+    }
+
+    .level-xp {
+        font-size: 12px;
+        color: #a0aec0;
+    }
+
+    .no-history, .no-completions {
+        text-align: center;
+        color: #a0aec0;
+        padding: 20px;
+    }
+
+    @@media (max-width: 900px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private ApiClient.UserProgress? _progress;
+    private List<ApiClient.XpTransaction> _xpHistory = new();
+    private List<ApiClient.TrainingCompletion> _completions = new();
+    private bool _isLoading = true;
+
+    // Level guide data
+    private readonly List<(int Level, string Label, int MinXp)> _levelGuide = new()
+    {
+        (1, "Beginner", 0),
+        (2, "Novice", 500),
+        (3, "Intermediate", 1500),
+        (4, "Advanced", 3000),
+        (5, "Expert", 5000),
+        (6, "Master", 7500),
+        (7, "Elite", 10500),
+        (8, "Champion", 15000),
+        (9, "Legend", 20000),
+        (10, "Mythic", 30000)
+    };
+
+    // TODO: Get from auth
+    private int _currentUserId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            var progressTask = Api.GetUserProgress(_currentUserId);
+            var historyTask = Api.GetXpHistory(_currentUserId, 20);
+            var completionsTask = Api.GetUserCompletions(_currentUserId, 10);
+
+            await Task.WhenAll(progressTask, historyTask, completionsTask);
+
+            _progress = await progressTask;
+            _xpHistory = await historyTask;
+            _completions = await completionsTask;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading progress: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

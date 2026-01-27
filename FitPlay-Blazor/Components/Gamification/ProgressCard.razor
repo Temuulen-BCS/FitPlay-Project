@@ -1,0 +1,114 @@
+@using FitPlay.Blazor.Services
+
+<div class="progress-card">
+    <div class="card-header">
+        <h3>Your Progress</h3>
+        @if (Progress?.CurrentStreak > 0)
+        {
+            <span class="streak-badge">@Progress.CurrentStreak day streak</span>
+        }
+    </div>
+
+    @if (Progress != null)
+    {
+        <LevelProgressBar 
+            Level="@Progress.CurrentLevel"
+            LevelLabel="@Progress.LevelLabel"
+            CurrentXp="@Progress.TotalXp"
+            NextLevelXp="@Progress.XpForNextLevel"
+            ProgressPercent="@Progress.ProgressPercent" />
+
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-value">@Progress.TotalXp</span>
+                <span class="stat-label">Total XP</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">@Progress.TotalTrainingsCompleted</span>
+                <span class="stat-label">Trainings</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">@Progress.CurrentStreak</span>
+                <span class="stat-label">Streak</span>
+            </div>
+        </div>
+    }
+    else if (IsLoading)
+    {
+        <div class="loading">Loading progress...</div>
+    }
+    else
+    {
+        <div class="no-data">No progress data available</div>
+    }
+</div>
+
+<style>
+    .progress-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .card-header h3 {
+        margin: 0;
+        color: #1a202c;
+        font-size: 18px;
+    }
+
+    .streak-badge {
+        background: linear-gradient(135deg, #f6ad55 0%, #ed8936 100%);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 20px;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 12px;
+        background: #f7fafc;
+        border-radius: 8px;
+    }
+
+    .stat-value {
+        display: block;
+        font-size: 24px;
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .stat-label {
+        display: block;
+        font-size: 12px;
+        color: #718096;
+        margin-top: 4px;
+    }
+
+    .loading, .no-data {
+        text-align: center;
+        padding: 40px;
+        color: #718096;
+    }
+</style>
+
+@code {
+    [Parameter] public ApiClient.UserProgress? Progress { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+}
