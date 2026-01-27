@@ -1,0 +1,124 @@
+@page "/achievements"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Gamification
+@inject ApiClient Api
+
+<PageTitle>Achievements - FitPlay</PageTitle>
+
+<div class="achievements-page">
+    <div class="page-header">
+        <h1>Achievements</h1>
+        <p class="subtitle">Collect badges by completing challenges</p>
+        @if (_earnedCount > 0)
+        {
+            <div class="earned-count">
+                <span class="count">@_earnedCount</span> / <span class="total">@_totalCount</span> earned
+            </div>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading achievements...</div>
+    }
+    else
+    {
+        <div class="achievements-grid">
+            @foreach (var achievement in _achievements)
+            {
+                <AchievementBadge 
+                    AchievementType="@achievement.Type"
+                    Name="@achievement.Name"
+                    Description="@achievement.Description"
+                    IsEarned="@achievement.Earned"
+                    EarnedAt="@achievement.EarnedAt" />
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .achievements-page {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: #1a202c;
+    }
+
+    .subtitle {
+        margin: 0 0 16px 0;
+        color: #718096;
+    }
+
+    .earned-count {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+    }
+
+    .earned-count .count {
+        font-weight: bold;
+        font-size: 18px;
+    }
+
+    .achievements-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 60px;
+        color: #718096;
+        background: white;
+        border-radius: 16px;
+    }
+</style>
+
+@code {
+    private List<ApiClient.AchievementStatus> _achievements = new();
+    private bool _isLoading = true;
+    private int _earnedCount;
+    private int _totalCount;
+
+    // TODO: Get from auth
+    private int _currentUserId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAchievements();
+    }
+
+    private async Task LoadAchievements()
+    {
+        _isLoading = true;
+        try
+        {
+            _achievements = await Api.GetAllAchievementsStatus(_currentUserId);
+            _earnedCount = _achievements.Count(a => a.Earned);
+            _totalCount = _achievements.Count;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading achievements: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
