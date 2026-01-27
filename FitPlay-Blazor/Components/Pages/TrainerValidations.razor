@@ -1,0 +1,344 @@
+@page "/trainer/validations"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+
+<PageTitle>Pending Validations - FitPlay</PageTitle>
+
+<div class="validations-page">
+    <div class="page-header">
+        <h1>Pending Validations</h1>
+        <p class="subtitle">Review and validate training completions from your users</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading pending validations...</div>
+    }
+    else if (_pendingCompletions.Any())
+    {
+        <div class="validations-list">
+            @foreach (var completion in _pendingCompletions)
+            {
+                <div class="validation-card">
+                    <div class="card-header">
+                        <div class="user-info">
+                            <span class="user-avatar">U</span>
+                            <span class="user-name">User #@completion.UserId</span>
+                        </div>
+                        <span class="completion-date">@completion.CompletedAt.ToString("MMM d, h:mm tt")</span>
+                    </div>
+
+                    <div class="card-content">
+                        <h4>@completion.TrainingName</h4>
+                        <div class="xp-info">
+                            <span class="label">XP to award:</span>
+                            <input type="number" @bind="_xpAdjustments[completion.Id]" min="0" max="10000" class="xp-input" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(completion.Notes))
+                        {
+                            <p class="completion-notes">User notes: @completion.Notes</p>
+                        }
+                        <div class="trainer-notes">
+                            <label>Your notes (optional):</label>
+                            <textarea @bind="_trainerNotes[completion.Id]" placeholder="Add feedback..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="card-actions">
+                        <button class="btn-reject" @onclick="() => ValidateCompletion(completion.Id, false)" disabled="@_processing">
+                            Reject
+                        </button>
+                        <button class="btn-approve" @onclick="() => ValidateCompletion(completion.Id, true)" disabled="@_processing">
+                            Approve (+@(_xpAdjustments.GetValueOrDefault(completion.Id, completion.XpGranted)) XP)
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="no-validations">
+            <p>No pending validations</p>
+            <span>All training completions have been reviewed</span>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="message @(_isError ? "error" : "success")">@_message</div>
+    }
+</div>
+
+<style>
+    .validations-page {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: #1a202c;
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #718096;
+    }
+
+    .validations-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .validation-card {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: #f7fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .user-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+
+    .user-name {
+        font-weight: 500;
+        color: #1a202c;
+    }
+
+    .completion-date {
+        font-size: 13px;
+        color: #a0aec0;
+    }
+
+    .card-content {
+        padding: 20px;
+    }
+
+    .card-content h4 {
+        margin: 0 0 16px 0;
+        font-size: 18px;
+        color: #1a202c;
+    }
+
+    .xp-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .xp-info .label {
+        font-size: 14px;
+        color: #718096;
+    }
+
+    .xp-input {
+        width: 100px;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .completion-notes {
+        margin: 0 0 16px 0;
+        padding: 12px;
+        background: #f7fafc;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #718096;
+        font-style: italic;
+    }
+
+    .trainer-notes label {
+        display: block;
+        font-size: 14px;
+        color: #718096;
+        margin-bottom: 8px;
+    }
+
+    .trainer-notes textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 14px;
+        resize: vertical;
+        min-height: 60px;
+    }
+
+    .card-actions {
+        display: flex;
+        gap: 12px;
+        padding: 16px 20px;
+        background: #f7fafc;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .btn-reject, .btn-approve {
+        flex: 1;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: opacity 0.2s;
+    }
+
+    .btn-reject {
+        background: #fed7d7;
+        color: #c53030;
+    }
+
+    .btn-approve {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        color: white;
+    }
+
+    .btn-reject:hover:not(:disabled), .btn-approve:hover:not(:disabled) {
+        opacity: 0.9;
+    }
+
+    .btn-reject:disabled, .btn-approve:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .loading, .no-validations {
+        text-align: center;
+        padding: 60px;
+        color: #718096;
+        background: white;
+        border-radius: 16px;
+    }
+
+    .no-validations span {
+        display: block;
+        margin-top: 8px;
+        font-size: 14px;
+    }
+
+    .message {
+        margin-top: 20px;
+        padding: 16px;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .message.success {
+        background: #c6f6d5;
+        color: #276749;
+    }
+
+    .message.error {
+        background: #fed7d7;
+        color: #c53030;
+    }
+</style>
+
+@code {
+    private List<ApiClient.TrainingCompletion> _pendingCompletions = new();
+    private Dictionary<int, int> _xpAdjustments = new();
+    private Dictionary<int, string> _trainerNotes = new();
+    private bool _isLoading = true;
+    private bool _processing;
+    private string? _message;
+    private bool _isError;
+
+    // TODO: Get from auth
+    private int _currentTrainerId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPendingValidations();
+    }
+
+    private async Task LoadPendingValidations()
+    {
+        _isLoading = true;
+        try
+        {
+            _pendingCompletions = await Api.GetPendingValidations(_currentTrainerId);
+            
+            // Initialize adjustment values
+            foreach (var completion in _pendingCompletions)
+            {
+                _xpAdjustments[completion.Id] = completion.XpGranted;
+                _trainerNotes[completion.Id] = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading validations: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ValidateCompletion(int completionId, bool approved)
+    {
+        _processing = true;
+        _message = null;
+        
+        try
+        {
+            var xpAdjustment = approved ? _xpAdjustments.GetValueOrDefault(completionId) : (int?)null;
+            var notes = _trainerNotes.GetValueOrDefault(completionId);
+
+            await Api.ValidateCompletion(completionId, approved, _currentTrainerId, xpAdjustment, notes);
+            
+            _message = approved ? "Training completion approved!" : "Training completion rejected.";
+            _isError = false;
+
+            // Refresh the list
+            await LoadPendingValidations();
+        }
+        catch (Exception ex)
+        {
+            _message = $"Error: {ex.Message}";
+            _isError = true;
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+}
