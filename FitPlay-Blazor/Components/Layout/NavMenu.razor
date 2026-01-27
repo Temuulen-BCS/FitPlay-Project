@@ -1,10 +1,10 @@
-﻿@implements IDisposable
+@implements IDisposable
 
 @inject NavigationManager NavigationManager
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">FitPlay-Blazor</a>
+        <a class="navbar-brand" href="">FitPlay</a>
     </div>
 </div>
 
@@ -19,20 +19,36 @@
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+            <NavLink class="nav-link" href="trainings">
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Trainings
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
+            <NavLink class="nav-link" href="progress">
+                <span class="bi bi-graph-up-nav-menu" aria-hidden="true"></span> My Progress
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="auth">
-                <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Auth Required
+            <NavLink class="nav-link" href="achievements">
+                <span class="bi bi-trophy-nav-menu" aria-hidden="true"></span> Achievements
+            </NavLink>
+        </div>
+
+        <div class="nav-section-header px-3">
+            <span>Trainer</span>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="trainer/validations">
+                <span class="bi bi-check-circle-nav-menu" aria-hidden="true"></span> Validations
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="trainer/users/1">
+                <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Manage Users
             </NavLink>
         </div>
 
@@ -68,6 +84,21 @@
         </AuthorizeView>
     </nav>
 </div>
+
+<style>
+    .nav-section-header {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-section-header span {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.5);
+        letter-spacing: 0.5px;
+    }
+</style>
 
 @code {
     private string? currentUrl;
