@@ -1,0 +1,421 @@
+@page "/trainer/users/{UserId:int}"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Gamification
+@inject ApiClient Api
+
+<PageTitle>User Management - FitPlay</PageTitle>
+
+<div class="user-management-page">
+    <div class="page-header">
+        <h1>User #@UserId</h1>
+        <p class="subtitle">Manage user progress and awards</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading user data...</div>
+    }
+    else if (_progress != null)
+    {
+        <div class="content-grid">
+            <div class="user-progress-section">
+                <ProgressCard Progress="@_progress" IsLoading="false" />
+            </div>
+
+            <div class="actions-section">
+                <div class="action-card">
+                    <h3>Award Bonus XP</h3>
+                    <p class="action-description">Reward the user for exceptional performance or achievements outside the platform.</p>
+                    
+                    <div class="form-group">
+                        <label>XP Amount</label>
+                        <input type="number" @bind="_bonusXp" min="1" max="10000" placeholder="Enter XP amount" />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Reason</label>
+                        <textarea @bind="_bonusReason" placeholder="Why are you awarding this bonus?"></textarea>
+                    </div>
+                    
+                    <button class="btn-award" @onclick="AwardBonusXp" disabled="@(_processing || _bonusXp <= 0 || string.IsNullOrWhiteSpace(_bonusReason))">
+                        Award +@_bonusXp XP
+                    </button>
+                </div>
+
+                <div class="action-card danger">
+                    <h3>Reset XP</h3>
+                    <p class="action-description">Reset the user's XP to a specific value. Use with caution.</p>
+                    
+                    <div class="form-group">
+                        <label>New XP Value</label>
+                        <input type="number" @bind="_resetXpValue" min="0" placeholder="Enter new XP value (0 to reset)" />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Reason (required)</label>
+                        <textarea @bind="_resetReason" placeholder="Why are you resetting this user's XP?"></textarea>
+                    </div>
+                    
+                    <button class="btn-reset" @onclick="ResetXp" disabled="@(_processing || string.IsNullOrWhiteSpace(_resetReason))">
+                        Reset to @_resetXpValue XP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <h3>Recent XP History</h3>
+            @if (_xpHistory.Any())
+            {
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Change</th>
+                            <th>Result</th>
+                            <th>Reason</th>
+                            <th>By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tx in _xpHistory)
+                        {
+                            <tr>
+                                <td>@tx.CreatedAt.ToString("MMM d, h:mm tt")</td>
+                                <td>@tx.TransactionType</td>
+                                <td class="@(tx.XpDelta >= 0 ? "positive" : "negative")">
+                                    @(tx.XpDelta >= 0 ? "+" : "")@tx.XpDelta
+                                </td>
+                                <td>@tx.XpBefore → @tx.XpAfter</td>
+                                <td>@(tx.Reason ?? "-")</td>
+                                <td>@(tx.AwardedByTrainerName ?? "System")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="no-history">No XP history available.</p>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="not-found">User not found</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="message @(_isError ? "error" : "success")">@_message</div>
+    }
+</div>
+
+<style>
+    .user-management-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: #1a202c;
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #718096;
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+
+    .actions-section {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .action-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .action-card.danger {
+        border: 2px solid #fed7d7;
+    }
+
+    .action-card h3 {
+        margin: 0 0 8px 0;
+        font-size: 18px;
+        color: #1a202c;
+    }
+
+    .action-card.danger h3 {
+        color: #c53030;
+    }
+
+    .action-description {
+        margin: 0 0 20px 0;
+        font-size: 14px;
+        color: #718096;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #4a5568;
+        margin-bottom: 8px;
+    }
+
+    .form-group input, .form-group textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+
+    .form-group textarea {
+        min-height: 80px;
+        resize: vertical;
+    }
+
+    .btn-award, .btn-reset {
+        width: 100%;
+        padding: 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: opacity 0.2s;
+    }
+
+    .btn-award {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        color: white;
+    }
+
+    .btn-reset {
+        background: #c53030;
+        color: white;
+    }
+
+    .btn-award:hover:not(:disabled), .btn-reset:hover:not(:disabled) {
+        opacity: 0.9;
+    }
+
+    .btn-award:disabled, .btn-reset:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .history-section {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .history-section h3 {
+        margin: 0 0 20px 0;
+        font-size: 18px;
+        color: #1a202c;
+    }
+
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .history-table th, .history-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .history-table th {
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #718096;
+        font-weight: 600;
+    }
+
+    .history-table td {
+        font-size: 14px;
+        color: #4a5568;
+    }
+
+    .history-table .positive {
+        color: #48bb78;
+        font-weight: bold;
+    }
+
+    .history-table .negative {
+        color: #f56565;
+        font-weight: bold;
+    }
+
+    .loading, .not-found, .no-history {
+        text-align: center;
+        padding: 40px;
+        color: #718096;
+    }
+
+    .message {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .message.success {
+        background: #c6f6d5;
+        color: #276749;
+    }
+
+    .message.error {
+        background: #fed7d7;
+        color: #c53030;
+    }
+
+    @@media (max-width: 900px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public int UserId { get; set; }
+
+    private ApiClient.UserProgress? _progress;
+    private List<ApiClient.XpTransaction> _xpHistory = new();
+    private bool _isLoading = true;
+    private bool _processing;
+    private string? _message;
+    private bool _isError;
+
+    // Bonus form
+    private int _bonusXp = 100;
+    private string _bonusReason = "";
+
+    // Reset form
+    private int _resetXpValue = 0;
+    private string _resetReason = "";
+
+    // TODO: Get from auth
+    private int _currentTrainerId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserData();
+    }
+
+    private async Task LoadUserData()
+    {
+        _isLoading = true;
+        try
+        {
+            _progress = await Api.GetUserProgress(UserId);
+            _xpHistory = await Api.GetXpHistory(UserId, 20);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task AwardBonusXp()
+    {
+        if (_bonusXp <= 0 || string.IsNullOrWhiteSpace(_bonusReason)) return;
+
+        _processing = true;
+        _message = null;
+
+        try
+        {
+            await Api.AwardBonusXp(UserId, _bonusXp, _bonusReason, _currentTrainerId);
+            _message = $"Successfully awarded +{_bonusXp} XP!";
+            _isError = false;
+            _bonusXp = 100;
+            _bonusReason = "";
+            await LoadUserData();
+            HideMessageAfterDelay();
+        }
+        catch (Exception ex)
+        {
+            _message = $"Error: {ex.Message}";
+            _isError = true;
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task ResetXp()
+    {
+        if (string.IsNullOrWhiteSpace(_resetReason)) return;
+
+        _processing = true;
+        _message = null;
+
+        try
+        {
+            await Api.ResetXp(UserId, _resetReason, _resetXpValue, _currentTrainerId);
+            _message = $"XP reset to {_resetXpValue}";
+            _isError = false;
+            _resetXpValue = 0;
+            _resetReason = "";
+            await LoadUserData();
+            HideMessageAfterDelay();
+        }
+        catch (Exception ex)
+        {
+            _message = $"Error: {ex.Message}";
+            _isError = true;
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private void HideMessageAfterDelay()
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            _message = null;
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+}
