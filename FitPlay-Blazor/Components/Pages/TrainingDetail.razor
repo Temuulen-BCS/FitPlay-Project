@@ -1,0 +1,393 @@
+@page "/trainings/{TrainingId:int}"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Gamification
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(_training?.Name ?? "Training") - FitPlay</PageTitle>
+
+<div class="training-detail-page">
+    @if (_isLoading)
+    {
+        <div class="loading">Loading training...</div>
+    }
+    else if (_training != null)
+    {
+        <div class="back-link">
+            <a href="/trainings">&lt; Back to Trainings</a>
+        </div>
+
+        <div class="training-header">
+            <div class="header-content">
+                <div class="difficulty">
+                    @for (int i = 0; i < _training.Difficulty; i++)
+                    {
+                        <span class="difficulty-dot filled"></span>
+                    }
+                    @for (int i = _training.Difficulty; i < 5; i++)
+                    {
+                        <span class="difficulty-dot"></span>
+                    }
+                    <span class="difficulty-label">Difficulty</span>
+                </div>
+                <h1>@_training.Name</h1>
+                <p class="description">@_training.Description</p>
+                
+                <div class="meta-row">
+                    <span class="meta-item">@_training.DurationMin min</span>
+                    <span class="meta-item">@_training.Exercises.Count exercises</span>
+                    <span class="meta-item">by @_training.TrainerName</span>
+                </div>
+            </div>
+            <div class="header-xp">
+                <span class="xp-value">+@_training.XpReward</span>
+                <span class="xp-label">XP</span>
+            </div>
+        </div>
+
+        <div class="exercises-section">
+            <h2>Exercises</h2>
+            <div class="exercises-list">
+                @foreach (var exercise in _training.Exercises.OrderBy(e => e.SortOrder))
+                {
+                    <div class="exercise-item">
+                        <div class="exercise-order">@(exercise.SortOrder + 1)</div>
+                        <div class="exercise-content">
+                            <span class="exercise-name">@exercise.ExerciseTitle</span>
+                            <span class="exercise-category">@exercise.Category</span>
+                            <div class="exercise-params">
+                                <span>@exercise.Sets sets</span>
+                                <span>@exercise.Reps reps</span>
+                                <span>@exercise.RestSeconds s rest</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(exercise.Notes))
+                            {
+                                <p class="exercise-notes">@exercise.Notes</p>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="action-bar">
+            @if (_training.RequiresValidation)
+            {
+                <p class="validation-notice">This training requires trainer validation</p>
+            }
+            <button class="btn-complete" @onclick="CompleteTraining" disabled="@_isCompleting">
+                @if (_isCompleting)
+                {
+                    <span>Completing...</span>
+                }
+                else
+                {
+                    <span>Complete Training (+@_training.XpReward XP)</span>
+                }
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="not-found">Training not found</div>
+    }
+
+    <XpToast 
+        Show="@_showToast" 
+        XpAwarded="@_toastXp" 
+        LeveledUp="@_toastLeveledUp" 
+        NewLevel="@_toastNewLevel"
+        NewAchievements="@_toastAchievements" />
+</div>
+
+<style>
+    .training-detail-page {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .back-link {
+        margin-bottom: 24px;
+    }
+
+    .back-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-size: 14px;
+    }
+
+    .training-header {
+        background: white;
+        border-radius: 16px;
+        padding: 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .header-content {
+        flex: 1;
+    }
+
+    .difficulty {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 12px;
+    }
+
+    .difficulty-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #e2e8f0;
+    }
+
+    .difficulty-dot.filled {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .difficulty-label {
+        margin-left: 8px;
+        font-size: 12px;
+        color: #a0aec0;
+    }
+
+    .training-header h1 {
+        margin: 0 0 12px 0;
+        font-size: 28px;
+        color: #1a202c;
+    }
+
+    .description {
+        margin: 0 0 16px 0;
+        color: #718096;
+        line-height: 1.6;
+    }
+
+    .meta-row {
+        display: flex;
+        gap: 16px;
+    }
+
+    .meta-item {
+        font-size: 14px;
+        color: #a0aec0;
+    }
+
+    .header-xp {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 24px;
+        border-radius: 12px;
+        text-align: center;
+        min-width: 100px;
+    }
+
+    .xp-value {
+        display: block;
+        font-size: 32px;
+        font-weight: bold;
+    }
+
+    .xp-label {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+
+    .exercises-section {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .exercises-section h2 {
+        margin: 0 0 20px 0;
+        font-size: 20px;
+        color: #1a202c;
+    }
+
+    .exercises-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .exercise-item {
+        display: flex;
+        gap: 16px;
+        padding: 16px;
+        background: #f7fafc;
+        border-radius: 12px;
+    }
+
+    .exercise-order {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+
+    .exercise-content {
+        flex: 1;
+    }
+
+    .exercise-name {
+        display: block;
+        font-weight: bold;
+        color: #1a202c;
+        margin-bottom: 4px;
+    }
+
+    .exercise-category {
+        display: block;
+        font-size: 12px;
+        color: #a0aec0;
+        margin-bottom: 8px;
+    }
+
+    .exercise-params {
+        display: flex;
+        gap: 12px;
+        font-size: 13px;
+        color: #718096;
+    }
+
+    .exercise-notes {
+        margin: 8px 0 0 0;
+        font-size: 13px;
+        color: #718096;
+        font-style: italic;
+    }
+
+    .action-bar {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .validation-notice {
+        margin: 0 0 16px 0;
+        color: #ed8936;
+        font-size: 14px;
+    }
+
+    .btn-complete {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 16px 48px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .btn-complete:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-2px);
+    }
+
+    .btn-complete:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .loading, .not-found {
+        text-align: center;
+        padding: 60px;
+        color: #718096;
+        background: white;
+        border-radius: 16px;
+    }
+</style>
+
+@code {
+    [Parameter] public int TrainingId { get; set; }
+
+    private ApiClient.TrainingDetail? _training;
+    private bool _isLoading = true;
+    private bool _isCompleting;
+    
+    // Toast state
+    private bool _showToast;
+    private int _toastXp;
+    private bool _toastLeveledUp;
+    private int _toastNewLevel;
+    private List<ApiClient.Achievement>? _toastAchievements;
+
+    // TODO: Get from auth
+    private int _currentUserId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTraining();
+    }
+
+    private async Task LoadTraining()
+    {
+        _isLoading = true;
+        try
+        {
+            _training = await Api.GetTraining(TrainingId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading training: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CompleteTraining()
+    {
+        if (_training == null) return;
+
+        _isCompleting = true;
+        try
+        {
+            var result = await Api.CompleteTraining(_training.Id, _currentUserId);
+            if (result != null)
+            {
+                _toastXp = result.XpAwarded;
+                _toastLeveledUp = result.LeveledUp;
+                _toastNewLevel = result.NewLevel;
+                _toastAchievements = result.NewAchievements;
+                _showToast = true;
+
+                // Hide toast after 3 seconds and navigate
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(3000);
+                    _showToast = false;
+                    await InvokeAsync(() => Navigation.NavigateTo("/trainings"));
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error completing training: {ex.Message}");
+        }
+        finally
+        {
+            _isCompleting = false;
+        }
+    }
+}
