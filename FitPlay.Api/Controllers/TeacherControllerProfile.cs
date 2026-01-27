@@ -1,5 +1,4 @@
-﻿using FitPlay.Domain.Data;
-using FitPlay.Domain.model;
+using FitPlay.Domain.Data;
 using FitPlay.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

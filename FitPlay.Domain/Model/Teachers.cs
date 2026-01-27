@@ -1,12 +1,10 @@
-﻿namespace FitPlay.Domain.model
+namespace FitPlay.Domain.Models
 {
-    public class Teachers
+    public class Teacher
     {
-        public string name { get; set; }
-        public int ID { get; set; }
-        public string email { get; set; }
-
-        public int phone { get; set; }
-
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
     }
 }

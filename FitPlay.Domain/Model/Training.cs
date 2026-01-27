@@ -1,17 +1,12 @@
-﻿namespace FitPlay.Domain.model
+namespace FitPlay.Domain.Models
 {
     public class Training
     {
-        public string NAME { get; set; }
-        public int ID { get; set; }
-        public string DESCRIPTION { get; set; }
-        public int DURATION { get; set; }
-
-        public int POINTS { get; set; }
-
-        public string ATHLETES { get; set; }
-
-        public int MyProperty { get; set; }
-
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int DurationMin { get; set; }
+        public int Points { get; set; }
+        public string Athletes { get; set; } = string.Empty;
     }
 }

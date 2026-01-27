@@ -1,8 +1,9 @@
-﻿namespace FitPlay.Domain.model
+namespace FitPlay.Domain.Models
 {
     public class Level
     {
-        public string level { get; set; }
-        public int xp { get; set; }
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int ExperiencePoints { get; set; }
     }
 }

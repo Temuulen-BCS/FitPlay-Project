@@ -1,4 +1,4 @@
-﻿using FitPlay.Domain.Models;
+using FitPlay.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace FitPlay.Domain.Data;
@@ -12,6 +12,11 @@ public class FitPlayContext : DbContext
     public DbSet<TeacherProfile> TeacherProfiles => Set<TeacherProfile>();
     public DbSet<ClientProfile> ClientProfiles => Set<ClientProfile>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Teacher> Teachers => Set<Teacher>();
+    public DbSet<Training> Trainings => Set<Training>();
+    public DbSet<Ranking> Rankings => Set<Ranking>();
+    public DbSet<Level> Levels => Set<Level>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
