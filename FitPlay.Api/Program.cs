@@ -2,12 +2,13 @@ using FitPlay.Api.Data;
 //using FitPlay.Api.Endpoints;
 using FitPlay.Api.Auth;                
 using FitPlay.Domain.Data;
+using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer; 
 using Microsoft.AspNetCore.Identity;        
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;       
 using Microsoft.OpenApi.Models;             
-using System.Text;                          
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +54,12 @@ builder.Services.AddDbContext<FitPlayContext>(options =>
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Register gamification services
+builder.Services.AddScoped<ProgressService>();
+builder.Services.AddScoped<AchievementService>();
+builder.Services.AddScoped<TrainingCompletionService>();
+builder.Services.AddScoped<TrainingService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
