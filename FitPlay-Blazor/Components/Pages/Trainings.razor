@@ -1,0 +1,164 @@
+@page "/trainings"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Gamification
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Trainings - FitPlay</PageTitle>
+
+<div class="trainings-page">
+    <div class="page-header">
+        <h1>Trainings</h1>
+        <p class="subtitle">Complete trainings to earn XP and level up!</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading trainings...</div>
+    }
+    else if (_trainings.Any())
+    {
+        <div class="trainings-grid">
+            @foreach (var training in _trainings)
+            {
+                <TrainingCard 
+                    Id="@training.Id"
+                    Name="@training.Name"
+                    Description="@training.Description"
+                    DurationMin="@training.DurationMin"
+                    XpReward="@training.XpReward"
+                    Difficulty="@training.Difficulty"
+                    TrainerName="@training.TrainerName"
+                    ExerciseCount="@training.ExerciseCount"
+                    IsCompleted="@training.IsCompleted"
+                    OnView="ViewTraining"
+                    OnStart="StartTraining" />
+            }
+        </div>
+    }
+    else
+    {
+        <div class="no-trainings">
+            <p>No trainings available yet.</p>
+        </div>
+    }
+
+    <XpToast 
+        Show="@_showToast" 
+        XpAwarded="@_toastXp" 
+        LeveledUp="@_toastLeveledUp" 
+        NewLevel="@_toastNewLevel"
+        NewAchievements="@_toastAchievements" />
+</div>
+
+<style>
+    .trainings-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: #1a202c;
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #718096;
+        font-size: 16px;
+    }
+
+    .trainings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 24px;
+    }
+
+    .loading, .no-trainings {
+        text-align: center;
+        padding: 60px;
+        color: #718096;
+        background: white;
+        border-radius: 16px;
+    }
+</style>
+
+@code {
+    private List<ApiClient.TrainingSummary> _trainings = new();
+    private bool _isLoading = true;
+    
+    // Toast state
+    private bool _showToast;
+    private int _toastXp;
+    private bool _toastLeveledUp;
+    private int _toastNewLevel;
+    private List<ApiClient.Achievement>? _toastAchievements;
+
+    // TODO: Get from auth
+    private int _currentUserId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTrainings();
+    }
+
+    private async Task LoadTrainings()
+    {
+        _isLoading = true;
+        try
+        {
+            _trainings = await Api.GetTrainings(_currentUserId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading trainings: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ViewTraining(int trainingId)
+    {
+        Navigation.NavigateTo($"/trainings/{trainingId}");
+    }
+
+    private async Task StartTraining(int trainingId)
+    {
+        try
+        {
+            var result = await Api.CompleteTraining(trainingId, _currentUserId);
+            if (result != null)
+            {
+                _toastXp = result.XpAwarded;
+                _toastLeveledUp = result.LeveledUp;
+                _toastNewLevel = result.NewLevel;
+                _toastAchievements = result.NewAchievements;
+                _showToast = true;
+
+                // Refresh trainings to show completed status
+                await LoadTrainings();
+
+                // Hide toast after 3 seconds
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(3000);
+                    _showToast = false;
+                    await InvokeAsync(StateHasChanged);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error completing training: {ex.Message}");
+        }
+    }
+}
