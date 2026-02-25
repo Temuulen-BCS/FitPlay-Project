@@ -10,6 +10,7 @@
 @using FitPlay_Blazor.Components.Layout
 
 @inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
 @inject ILogger<Login> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
@@ -142,7 +143,10 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectManager.RedirectTo(string.IsNullOrWhiteSpace(ReturnUrl) ? "/dashboard" : ReturnUrl);
+
+            var user = await UserManager.FindByEmailAsync(Input.Email);
+            var isTrainer = user != null && await UserManager.IsInRoleAsync(user, "Trainer");
+            RedirectManager.RedirectTo(isTrainer ? "/trainer/dashboard" : "/dashboard");
         }
         else if (result.RequiresTwoFactor)
         {

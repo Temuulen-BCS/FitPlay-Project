@@ -10,6 +10,7 @@
 @using FitPlay_Blazor.Data
 @using Microsoft.AspNetCore.Authorization
 @using FitPlay_Blazor.Components.Layout
+@using FitPlay.Blazor.Services
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IUserStore<ApplicationUser> UserStore
@@ -18,6 +19,7 @@
 @inject ILogger<Register> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
+@inject ApiClient Api
 
 <PageTitle>Register - FitPlay</PageTitle>
 
@@ -40,17 +42,17 @@
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
     </div>
-    
+
     <div class="auth-container">
         <!-- LEFT: Welcome content -->
         <div class="auth-welcome">
             <h1>Join the <span class="highlight">Movement</span></h1>
             <p class="auth-subtitle">Create your account and start your fitness journey with us.</p>
-            
+
             <div class="perks-list">
                 <div class="perk">
                     <span class="perk-icon">XP</span>
-                    <span>Earn XP & level up with every workout</span>
+                    <span>Earn XP &amp; level up with every workout</span>
                 </div>
                 <div class="perk">
                     <span class="perk-icon">24/7</span>
@@ -61,48 +63,79 @@
                     <span>Train with live DJ sessions</span>
                 </div>
             </div>
-            
+
             <p class="auth-login-prompt">
                 Already have an account? <a href="Account/Login" data-enhanced-nav="false">Login here</a>
             </p>
         </div>
-        
+
         <!-- RIGHT: Registration form -->
         <div class="auth-card">
             <h2>Create Account</h2>
-            <p class="card-subtitle">Fill in your details to get started</p>
-            
-            <StatusMessage Message="@Message" />
-            
-            <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register">
+            <p class="card-subtitle">Choose your role to get started</p>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="validation-errors" role="alert">@errorMessage</div>
+            }
+
+            <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+
+                <!-- Account type tabs (radio inputs styled as tabs) -->
+                <InputRadioGroup @bind-Value="Input.AccountType">
+                <div class="account-type-tabs">
+                    <label class="tab-btn">
+                        <InputRadio Value='"User"' />
+                        I am a User
+                    </label>
+                    <label class="tab-btn">
+                        <InputRadio Value='"Trainer"' />
+                        I am a Trainer
+                    </label>
+                </div>
+                </InputRadioGroup>
                 <DataAnnotationsValidator />
                 <ValidationSummary class="validation-errors" role="alert" />
-                
+
                 <div class="form-group">
-                    <label for="email">Email</label>
+                    <label>Full Name</label>
+                    <InputText @bind-Value="Input.Name" class="form-input" autocomplete="name" aria-required="true" placeholder="Your full name" />
+                    <ValidationMessage For="() => Input.Name" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
                     <InputText @bind-Value="Input.Email" class="form-input" autocomplete="username" aria-required="true" placeholder="name@example.com" />
                     <ValidationMessage For="() => Input.Email" class="field-error" />
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="password">Password</label>
+                    <label>Phone</label>
+                    <InputText @bind-Value="Input.Phone" class="form-input" autocomplete="tel" aria-required="true" placeholder="+1 234 567 8900" />
+                    <ValidationMessage For="() => Input.Phone" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
                     <InputText type="password" @bind-Value="Input.Password" class="form-input" autocomplete="new-password" aria-required="true" placeholder="Create a password" />
                     <ValidationMessage For="() => Input.Password" class="field-error" />
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="confirm-password">Confirm Password</label>
+                    <label>Confirm Password</label>
                     <InputText type="password" @bind-Value="Input.ConfirmPassword" class="form-input" autocomplete="new-password" aria-required="true" placeholder="Confirm your password" />
                     <ValidationMessage For="() => Input.ConfirmPassword" class="field-error" />
                 </div>
-                
-                <button type="submit" class="btn-primary btn-full">Create Account</button>
+
+                <button type="submit" class="btn-primary btn-full">
+                    Create @Input.AccountType Account
+                </button>
             </EditForm>
-            
+
             <div class="divider">
                 <span>or continue with</span>
             </div>
-            
+
             <div class="external-logins">
                 <ExternalLoginPicker />
             </div>
@@ -115,8 +148,55 @@
     <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
 </footer>
 
+<style>
+    .account-type-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        background: rgba(255,255,255,0.05);
+        border-radius: 10px;
+        padding: 4px;
+    }
+
+    .tab-btn {
+        flex: 1;
+        padding: 0.6rem 1rem;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: rgba(255,255,255,0.6);
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        user-select: none;
+    }
+
+    /* hide the actual radio input */
+    .tab-btn input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+    }
+
+    .tab-btn:has(input[type="radio"]:checked) {
+        background: linear-gradient(135deg, #a855f7, #ec4899);
+        color: #fff;
+        font-weight: 600;
+        box-shadow: 0 2px 12px rgba(168,85,247,0.4);
+    }
+
+    .tab-btn:hover:not(.active) {
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+    }
+</style>
+
 @code {
-    private IEnumerable<IdentityError>? identityErrors;
+    private string? errorMessage;
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
@@ -124,12 +204,12 @@
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
-    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
-
     public async Task RegisterUser(EditContext editContext)
     {
-        var user = CreateUser();
+        errorMessage = null;
 
+        // 1. Create the Identity user
+        var user = CreateUser();
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
         var emailStore = GetEmailStore();
         await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
@@ -137,13 +217,47 @@
 
         if (!result.Succeeded)
         {
-            identityErrors = result.Errors;
+            errorMessage = $"Error: {string.Join(", ", result.Errors.Select(e => e.Description))}";
             return;
         }
 
         Logger.LogInformation("User created a new account with password.");
-
         var userId = await UserManager.GetUserIdAsync(user);
+
+        // 2. Assign the role
+        var role = Input.AccountType == "Trainer" ? "Trainer" : "User";
+        var roleResult = await UserManager.AddToRoleAsync(user, role);
+        if (!roleResult.Succeeded)
+        {
+            // Rollback: delete the Identity user
+            await UserManager.DeleteAsync(user);
+            errorMessage = $"Error assigning role: {string.Join(", ", roleResult.Errors.Select(e => e.Description))}";
+            return;
+        }
+
+        // 3. Create the domain record via API
+        try
+        {
+            if (Input.AccountType == "Trainer")
+            {
+                await Api.RegisterDomainTrainer(Input.Name, Input.Email, Input.Phone, userId);
+                Logger.LogInformation("Teacher domain record created for Identity user {UserId}.", userId);
+            }
+            else
+            {
+                await Api.RegisterDomainUser(Input.Name, Input.Email, Input.Phone, userId);
+                Logger.LogInformation("User domain record created for Identity user {UserId}.", userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Rollback: delete the Identity user (role is also removed by cascade)
+            await UserManager.DeleteAsync(user);
+            errorMessage = $"Registration failed while creating your profile. Please try again. ({ex.Message})";
+            return;
+        }
+
+        // 4. Send confirmation email
         var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = NavigationManager.GetUriWithQueryParameters(
@@ -159,8 +273,11 @@
                 new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
         }
 
+        // 5. Sign in and redirect based on role
         await SignInManager.SignInAsync(user, isPersistent: false);
-        RedirectManager.RedirectTo(ReturnUrl ?? "/dashboard");
+
+        var destination = Input.AccountType == "Trainer" ? "/trainer/dashboard" : "/dashboard";
+        RedirectManager.RedirectTo(ReturnUrl ?? destination);
     }
 
     private ApplicationUser CreateUser()
@@ -187,10 +304,22 @@
 
     private sealed class InputModel
     {
+        public string AccountType { get; set; } = "User";
+
+        [Required]
+        [MaxLength(100)]
+        [Display(Name = "Full Name")]
+        public string Name { get; set; } = "";
+
         [Required]
         [EmailAddress]
         [Display(Name = "Email")]
         public string Email { get; set; } = "";
+
+        [Required]
+        [Phone]
+        [Display(Name = "Phone")]
+        public string Phone { get; set; } = "";
 
         [Required]
         [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
