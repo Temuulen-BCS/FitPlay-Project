@@ -7,7 +7,7 @@ public class ApiClient
     private readonly HttpClient _http;
     public ApiClient(HttpClient http) => _http = http;
 
-    private const string BaseUrl = "https://localhost:5000/api";
+    private const string BaseUrl = "https://localhost:7148/api";
 
     #region Records
     public record Exercise(int Id, int TeacherId, string Title, string Category, int Difficulty, int BasePoints, int SuggestedDurationMin, bool IsActive);
@@ -251,6 +251,28 @@ public class ApiClient
     public async Task<List<AchievementStatus>> GetAllAchievementsStatus(int userId)
     {
         return await _http.GetFromJsonAsync<List<AchievementStatus>>($"{BaseUrl}/achievements/user/{userId}/all") ?? new();
+    }
+    #endregion
+
+    #region Registration - Domain Records
+    public record DomainUserRead(int Id, string Name, string Email, string Phone, string? IdentityUserId);
+
+    /// <summary>Creates a User domain record linked to the given Identity user ID.</summary>
+    public async Task<DomainUserRead?> RegisterDomainUser(string name, string email, string phone, string identityUserId)
+    {
+        var body = new { Name = name, Email = email, Phone = phone, IdentityUserId = identityUserId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/users", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<DomainUserRead>();
+    }
+
+    /// <summary>Creates a Teacher domain record linked to the given Identity user ID.</summary>
+    public async Task<DomainUserRead?> RegisterDomainTrainer(string name, string email, string phone, string identityUserId)
+    {
+        var body = new { Name = name, Email = email, Phone = phone, IdentityUserId = identityUserId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/teachers", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<DomainUserRead>();
     }
     #endregion
 }
