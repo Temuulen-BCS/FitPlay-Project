@@ -22,7 +22,8 @@ public class UsersController : ControllerBase
             Id = u.Id,
             Name = u.Name,
             Email = u.Email,
-            Phone = u.Phone
+            Phone = u.Phone,
+            IdentityUserId = u.IdentityUserId
         });
         return Ok(dtos);
     }
@@ -38,7 +39,8 @@ public class UsersController : ControllerBase
             Id = user.Id,
             Name = user.Name,
             Email = user.Email,
-            Phone = user.Phone
+            Phone = user.Phone,
+            IdentityUserId = user.IdentityUserId
         };
         return Ok(dto);
     }
@@ -50,7 +52,8 @@ public class UsersController : ControllerBase
         {
             Name = dto.Name,
             Email = dto.Email,
-            Phone = dto.Phone
+            Phone = dto.Phone,
+            IdentityUserId = dto.IdentityUserId
         };
 
         _db.Users.Add(user);
@@ -61,7 +64,8 @@ public class UsersController : ControllerBase
             Id = user.Id,
             Name = user.Name,
             Email = user.Email,
-            Phone = user.Phone
+            Phone = user.Phone,
+            IdentityUserId = user.IdentityUserId
         };
 
         return CreatedAtAction(nameof(GetById), new { id = user.Id }, readDto);

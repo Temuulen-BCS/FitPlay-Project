@@ -22,7 +22,8 @@ public class TeachersController : ControllerBase
             Id = t.Id,
             Name = t.Name,
             Email = t.Email,
-            Phone = t.Phone
+            Phone = t.Phone,
+            IdentityUserId = t.IdentityUserId
         });
         return Ok(dtos);
     }
@@ -38,7 +39,8 @@ public class TeachersController : ControllerBase
             Id = teacher.Id,
             Name = teacher.Name,
             Email = teacher.Email,
-            Phone = teacher.Phone
+            Phone = teacher.Phone,
+            IdentityUserId = teacher.IdentityUserId
         };
         return Ok(dto);
     }
@@ -50,7 +52,8 @@ public class TeachersController : ControllerBase
         {
             Name = dto.Name,
             Email = dto.Email,
-            Phone = dto.Phone
+            Phone = dto.Phone,
+            IdentityUserId = dto.IdentityUserId
         };
 
         _db.Teachers.Add(teacher);
@@ -61,7 +64,8 @@ public class TeachersController : ControllerBase
             Id = teacher.Id,
             Name = teacher.Name,
             Email = teacher.Email,
-            Phone = teacher.Phone
+            Phone = teacher.Phone,
+            IdentityUserId = teacher.IdentityUserId
         };
 
         return CreatedAtAction(nameof(GetById), new { id = teacher.Id }, readDto);
