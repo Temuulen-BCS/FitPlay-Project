@@ -1,6 +1,7 @@
 @page "/trainer/exercises"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
 @using Microsoft.AspNetCore.Authorization
 @inject ApiClient Api
 
@@ -116,12 +117,12 @@
     .page-header h1 {
         margin: 0 0 8px 0;
         font-size: 28px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .subtitle {
         margin: 0;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .content-grid {
@@ -132,17 +133,18 @@
 
     .form-card,
     .list-card {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     }
 
     .form-card h3,
     .list-card h3 {
         margin: 0 0 16px 0;
         font-size: 18px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .form-group {
@@ -154,15 +156,17 @@
 
     .form-group label {
         font-size: 13px;
-        color: #4a5568;
+        color: var(--text-muted);
         font-weight: 600;
     }
 
     .form-group input {
         padding: 10px 12px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--glass-border);
         border-radius: 8px;
         font-size: 14px;
+        background: rgba(255,255,255,0.03);
+        color: var(--text-primary);
     }
 
     .form-row {
@@ -179,7 +183,7 @@
     }
 
     .btn-primary {
-        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-magenta) 100%);
         color: white;
         border: none;
         padding: 10px 16px;
@@ -193,14 +197,15 @@
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .btn-secondary {
-        background: #edf2f7;
-        color: #4a5568;
+        background: rgba(255,255,255,0.06);
+        color: var(--text-primary);
         border: none;
         padding: 8px 12px;
         border-radius: 8px;
         cursor: pointer;
         font-size: 12px;
         font-weight: 600;
+        border: 1px solid var(--glass-border);
     }
 
     .list-header {
@@ -219,7 +224,7 @@
     .exercise-item {
         padding: 12px 14px;
         border-radius: 10px;
-        background: #f7fafc;
+        background: rgba(255,255,255,0.04);
         display: flex;
         justify-content: space-between;
         gap: 12px;
@@ -234,12 +239,12 @@
     .exercise-title {
         font-size: 14px;
         font-weight: 600;
-        color: #2d3748;
+        color: var(--text-primary);
     }
 
     .exercise-category {
         font-size: 12px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .exercise-meta {
@@ -247,17 +252,17 @@
         flex-direction: column;
         gap: 4px;
         font-size: 12px;
-        color: #718096;
+        color: var(--text-muted);
         text-align: right;
     }
 
-    .status.active { color: #2f855a; font-weight: 600; }
-    .status.inactive { color: #a0aec0; }
+    .status.active { color: var(--accent-teal); font-weight: 600; }
+    .status.inactive { color: var(--text-muted); }
 
     .list-empty {
         text-align: center;
         padding: 30px;
-        color: #a0aec0;
+        color: var(--text-muted);
     }
 
     .message {
@@ -268,7 +273,8 @@
     }
 
     .message.success { background: #c6f6d5; color: #276749; }
-    .message.error { background: #fed7d7; color: #c53030; }
+    .message.success { background: rgba(14,240,255,0.12); color: var(--accent-teal); }
+    .message.error { background: rgba(255,77,109,0.2); color: #ff9aa2; }
 
     @@media (max-width: 900px) {
         .content-grid { grid-template-columns: 1fr; }

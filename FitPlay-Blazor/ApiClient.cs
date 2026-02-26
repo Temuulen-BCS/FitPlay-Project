@@ -372,6 +372,14 @@ public class ApiClient
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
+
+    public async Task<ClassSchedule?> UpdateClassSchedule(int scheduleId, string modality, DateTime scheduledAt, string status, string? notes)
+    {
+        var body = new { Modality = modality, ScheduledAt = scheduledAt, Status = status, Notes = notes };
+        var res = await _http.PutAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
     #endregion
 
     #region Exercise Logs API
