@@ -281,6 +281,12 @@
         justify-content: space-between;
     }
 
+    .list-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
     .section-title {
         font-size: 1.4rem;
         font-weight: 700;
@@ -594,6 +600,26 @@
             color: var(--text-primary);
         }
 
+        .neon-dropdown {
+            background: rgba(57, 255, 20, 0.55);
+            color: #000;
+            font-weight: 700;
+            border: 1px solid rgba(182, 255, 0, 0.9);
+            box-shadow: 0 0 12px rgba(57, 255, 20, 0.45);
+        }
+
+        .neon-dropdown:focus {
+            outline: none;
+            border-color: rgba(234, 255, 106, 1);
+            box-shadow: 0 0 16px rgba(57, 255, 20, 0.65);
+        }
+
+        .neon-dropdown option {
+            background: rgba(57, 255, 20, 0.2);
+            color: #000;
+            font-weight: 700;
+        }
+
         .form-group textarea {
             padding: 10px 12px;
             border: 1px solid var(--glass-border);
@@ -802,7 +828,10 @@
         <div class="list-card">
             <div class="list-header">
                 <h2 class="section-title">Upcoming Sessions</h2>
-                <button type="button" class="stat-link header-action" @onclick="OpenScheduleModal">Schedule &rarr;</button>
+                <div class="list-actions">
+                    <a href="/trainer/schedules" class="stat-link header-action">View all</a>
+                    <button type="button" class="stat-link header-action" @onclick="OpenScheduleModal">Schedule &rarr;</button>
+                </div>
             </div>
             @if (!string.IsNullOrEmpty(_scheduleListError))
             {
@@ -810,7 +839,7 @@
             }
             else if (!_upcomingSessions.Any())
             {
-                <div class="empty-state">No upcoming sessions in the next 14 days.</div>
+                <div class="empty-state">No upcoming sessions yet.</div>
             }
             else
             {
@@ -937,7 +966,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Modality</label>
-                        <select @bind="_scheduleForm.Modality">
+                        <select class="neon-dropdown" @bind="_scheduleForm.Modality">
                             <option value="">Select a modality</option>
                             <option value="Boxing">Boxing</option>
                             <option value="Muay Thai">Muay Thai</option>
@@ -1173,10 +1202,7 @@
 
         try
         {
-            var from = DateTime.UtcNow;
-            var to = DateTime.UtcNow.AddDays(14);
-
-            var schedules = await Api.GetTrainerSchedule(_currentTrainerId.Value, from, to);
+            var schedules = await Api.GetTrainerSchedule(_currentTrainerId.Value);
 
             _upcomingSessions = schedules
                 .Where(s => string.Equals(s.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
