@@ -4,7 +4,7 @@ namespace FitPlay.Domain.DTOs;
 
 public record ClassScheduleDto(
     int Id,
-    int UserId,
+    int? UserId,
     string Modality,
     DateTime ScheduledAt,
     string Status,
@@ -12,7 +12,7 @@ public record ClassScheduleDto(
 );
 
 public record CreateClassScheduleRequest(
-    [Required] int UserId,
+    int? UserId,
     [Required][MaxLength(20)] string Modality,
     DateTime ScheduledAt,
     string? Notes
@@ -31,7 +31,7 @@ public record BookClassRequest(
 
 public record ClassScheduleWithTrainerDto(
     int Id,
-    int TrainerId,
+    int? TrainerId,
     string Modality,
     DateTime ScheduledAt,
     string Status,

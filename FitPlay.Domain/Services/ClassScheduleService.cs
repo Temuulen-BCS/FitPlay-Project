@@ -49,7 +49,7 @@ public class ClassScheduleService
     {
         var schedule = new ClassSchedule
         {
-            UserId = request.UserId,
+            UserId = request.UserId.HasValue && request.UserId.Value > 0 ? request.UserId : null,
             Modality = request.Modality.Trim(),
             ScheduledAt = request.ScheduledAt,
             Notes = request.Notes,
@@ -89,7 +89,9 @@ public class ClassScheduleService
     public async Task<List<ClassScheduleWithTrainerDto>> GetPublicSchedulesAsync(DateTime? from = null, DateTime? to = null)
     {
         var query = _db.ClassSchedules
-            .Where(s => s.Status == ClassScheduleStatus.Scheduled && s.ScheduledAt > DateTime.UtcNow)
+            .Where(s => s.Status == ClassScheduleStatus.Scheduled &&
+                        s.ScheduledAt > DateTime.UtcNow &&
+                        (s.UserId == null || s.UserId == 0))
             .AsQueryable();
 
         if (from.HasValue)
@@ -117,9 +119,10 @@ public class ClassScheduleService
         var schedule = await _db.ClassSchedules.FindAsync(scheduleId);
         if (schedule == null) return null;
 
-        if (schedule.UserId == userId)
+        if (schedule.UserId.HasValue && schedule.UserId.Value != 0)
             return null;
 
+        schedule.UserId = userId;
         schedule.Status = ClassScheduleStatus.Scheduled;
         await _db.SaveChangesAsync();
 

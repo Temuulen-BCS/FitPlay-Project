@@ -35,7 +35,6 @@
         overflow-x: hidden;
     }
 
-    /* === HERO / TOP SECTION === */
     .hero-section {
         position: relative;
         min-height: 260px;
@@ -44,15 +43,15 @@
         padding: 2rem 2rem 2.5rem;
         overflow: hidden;
     }
+
     .hero-bg {
         position: absolute;
         inset: 0;
         z-index: 0;
-        background: radial-gradient(ellipse at 20% 50%, rgba(255,47,180,0.15) 0%, transparent 50%),
-                    radial-gradient(ellipse at 80% 30%, rgba(14,240,255,0.10) 0%, transparent 50%),
-                    var(--bg-dark);
+        background: radial-gradient(ellipse at 20% 50%, rgba(255,47,180,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 30%, rgba(14,240,255,0.10) 0%, transparent 50%), var(--bg-dark);
         pointer-events: none;
     }
+
     .orb {
         position: absolute;
         border-radius: 50%;
@@ -60,20 +59,32 @@
         opacity: 0.35;
         animation: float 10s ease-in-out infinite;
     }
+
     .orb-1 {
-        width: 350px; height: 350px;
+        width: 350px;
+        height: 350px;
         background: var(--accent-magenta);
-        top: -60px; left: -60px;
+        top: -60px;
+        left: -60px;
     }
+
     .orb-2 {
-        width: 280px; height: 280px;
+        width: 280px;
+        height: 280px;
         background: var(--accent-teal);
-        bottom: -40px; right: -40px;
+        bottom: -40px;
+        right: -40px;
         animation-delay: 3s;
     }
+
     @@keyframes float {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50%       { transform: translateY(-18px) scale(1.03); }
+        0%, 100% {
+            transform: translateY(0) scale(1);
+        }
+
+        50% {
+            transform: translateY(-18px) scale(1.03);
+        }
     }
 
     .hero-inner {
@@ -91,12 +102,14 @@
         gap: 2rem;
         flex-wrap: wrap;
     }
+
     .page-title {
         font-size: 2.6rem;
         font-weight: 700;
         margin: 0 0 0.75rem;
         line-height: 1.15;
     }
+
     .page-subtitle {
         color: var(--text-muted);
         font-size: 1.15rem;
@@ -114,8 +127,10 @@
         padding: 0.85rem 1.5rem;
         flex-shrink: 0;
     }
+
     .role-icon {
-        width: 40px; height: 40px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
         background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
         display: flex;
@@ -125,6 +140,7 @@
         font-size: 1rem;
         color: #fff;
     }
+
     .role-label {
         font-size: 0.9rem;
         font-weight: 600;
@@ -133,20 +149,19 @@
         letter-spacing: 1px;
     }
 
-    /* === LOWER SECTION === */
     .dashboard-content {
         padding: 1.5rem 2rem 4rem;
         max-width: 1400px;
         margin: 0 auto;
     }
 
-    /* stats strip */
     .stats-strip {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 1.25rem;
         margin-bottom: 2.5rem;
     }
+
     .stat-card {
         background: var(--glass-bg);
         border: 1px solid var(--glass-border);
@@ -157,32 +172,54 @@
         gap: 0.4rem;
         transition: transform 0.2s, border-color 0.3s;
     }
-    .stat-card:hover { transform: translateY(-3px); }
-    .stat-card.magenta:hover { border-color: var(--accent-magenta); box-shadow: 0 0 24px rgba(255,47,180,0.18); }
-    .stat-card.teal:hover   { border-color: var(--accent-teal);    box-shadow: 0 0 24px rgba(14,240,255,0.18); }
-    .stat-card.gold:hover   { border-color: var(--accent-gold);    box-shadow: 0 0 24px rgba(255,215,0,0.18); }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .stat-card.magenta:hover {
+            border-color: var(--accent-magenta);
+            box-shadow: 0 0 24px rgba(255,47,180,0.18);
+        }
+
+        .stat-card.teal:hover {
+            border-color: var(--accent-teal);
+            box-shadow: 0 0 24px rgba(14,240,255,0.18);
+        }
+
     .stat-badge {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 44px; height: 44px;
+        width: 44px;
+        height: 44px;
         border-radius: 12px;
         font-size: 0.75rem;
         font-weight: 700;
         margin-bottom: 0.25rem;
     }
-    .stat-card.magenta .stat-badge { background: rgba(255,47,180,0.15); color: var(--accent-magenta); }
-    .stat-card.teal    .stat-badge { background: rgba(14,240,255,0.12); color: var(--accent-teal); }
-    .stat-card.gold    .stat-badge { background: rgba(255,215,0,0.12);  color: var(--accent-gold); }
+
+    .stat-card.magenta .stat-badge {
+        background: rgba(255,47,180,0.15);
+        color: var(--accent-magenta);
+    }
+
+    .stat-card.teal .stat-badge {
+        background: rgba(14,240,255,0.12);
+        color: var(--accent-teal);
+    }
+
     .stat-value {
         font-size: 2rem;
         font-weight: 700;
         line-height: 1;
     }
+
     .stat-label {
         font-size: 0.88rem;
         color: var(--text-muted);
     }
+
     .stat-trend {
         margin-top: 0.4rem;
         font-size: 0.78rem;
@@ -192,76 +229,42 @@
         gap: 0.35rem;
         font-weight: 600;
     }
-    .stat-trend.neutral { color: var(--text-muted); }
+
     .stat-link {
         margin-top: 0.5rem;
         font-size: 0.82rem;
         font-weight: 600;
         text-decoration: none;
     }
-    .stat-card.magenta .stat-link { color: var(--accent-magenta); }
-    .stat-card.teal    .stat-link { color: var(--accent-teal); }
-    .stat-link:hover { text-decoration: underline; }
+
+    .stat-card.magenta .stat-link {
+        color: var(--accent-magenta);
+    }
+
+    .stat-card.teal .stat-link {
+        color: var(--accent-teal);
+    }
+
+    .stat-link:hover {
+        text-decoration: underline;
+    }
+
     .stat-card.schedule {
         cursor: pointer;
     }
-    .stat-card.schedule:hover {
-        border-color: var(--accent-teal);
-        box-shadow: 0 0 24px rgba(14,240,255,0.18);
-        transform: translateY(-3px);
-    }
 
-    /* charts */
-    .charts-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1.25rem;
-        margin-bottom: 2rem;
-    }
-    .chart-card {
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        border-radius: 20px;
-        padding: 1.5rem;
-        min-height: 300px;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-    .chart-title {
-        font-size: 1.05rem;
-        font-weight: 600;
-        margin: 0;
-    }
-    .chart-placeholder {
-        flex: 1;
-        border-radius: 16px;
-        background:
-            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
-            repeating-linear-gradient(
-                90deg,
-                rgba(255,255,255,0.06) 0,
-                rgba(255,255,255,0.06) 1px,
-                transparent 1px,
-                transparent 40px
-            );
-        border: 1px dashed rgba(255,255,255,0.12);
-        position: relative;
-        overflow: hidden;
-    }
-    .chart-line {
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(120deg, transparent 30%, rgba(14,240,255,0.18) 50%, transparent 70%);
-        opacity: 0.7;
-    }
+        .stat-card.schedule:hover {
+            border-color: var(--accent-teal);
+            box-shadow: 0 0 24px rgba(14,240,255,0.18);
+            transform: translateY(-3px);
+        }
 
-    /* lists */
     .bottom-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 1.25rem;
     }
+
     .list-card {
         background: var(--glass-bg);
         border: 1px solid var(--glass-border);
@@ -271,16 +274,19 @@
         flex-direction: column;
         gap: 1rem;
     }
+
     .list-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
     }
+
     .section-title {
         font-size: 1.4rem;
         font-weight: 700;
         margin: 0;
     }
+
     .list-item {
         display: flex;
         align-items: center;
@@ -290,6 +296,7 @@
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 14px;
     }
+
     .list-icon {
         width: 44px;
         height: 44px;
@@ -303,27 +310,35 @@
         background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
         flex-shrink: 0;
     }
-    .list-content { flex: 1; }
+
+    .list-content {
+        flex: 1;
+    }
+
     .list-title {
         margin: 0 0 0.2rem;
         font-size: 0.95rem;
         font-weight: 600;
     }
+
     .list-meta {
         margin: 0;
         font-size: 0.82rem;
         color: var(--text-muted);
     }
+
     .list-time {
         text-align: right;
         font-size: 0.85rem;
         font-weight: 600;
         color: var(--text-primary);
     }
+
     .list-date {
         font-size: 0.76rem;
         color: var(--text-muted);
     }
+
     .list-action {
         color: var(--accent-teal);
         text-decoration: none;
@@ -336,16 +351,19 @@
         background: transparent;
         cursor: pointer;
     }
-    .list-action:hover {
-        background: var(--accent-teal);
-        color: var(--bg-dark);
-    }
+
+        .list-action:hover {
+            background: var(--accent-teal);
+            color: var(--bg-dark);
+        }
+
     .header-action {
         background: transparent;
         border: none;
         padding: 0;
         cursor: pointer;
     }
+
     .empty-state,
     .error-state {
         padding: 1rem;
@@ -355,28 +373,24 @@
         color: var(--text-muted);
         font-size: 0.85rem;
     }
+
     .error-state {
         color: #fecaca;
         border-color: rgba(127, 29, 29, 0.5);
         background: rgba(127, 29, 29, 0.2);
     }
 
-    /* My Trainings Section */
     .trainings-section {
         margin-top: 2.5rem;
     }
+
     .section-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 1.25rem;
     }
-    .header-action {
-        background: none;
-        border: none;
-        cursor: pointer;
-        color: var(--accent-teal);
-    }
+
     .empty-state-card {
         background: var(--glass-bg);
         border: 1px solid var(--glass-border);
@@ -385,15 +399,18 @@
         text-align: center;
         color: var(--text-muted);
     }
-    .empty-state-card p {
-        margin: 0 0 1.25rem;
-        font-size: 1rem;
-    }
+
+        .empty-state-card p {
+            margin: 0 0 1.25rem;
+            font-size: 1rem;
+        }
+
     .trainings-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
         gap: 1.25rem;
     }
+
     .training-card {
         background: var(--glass-bg);
         border: 1px solid var(--glass-border);
@@ -401,11 +418,13 @@
         padding: 1.25rem;
         transition: transform 0.2s, border-color 0.3s;
     }
-    .training-card:hover {
-        transform: translateY(-3px);
-        border-color: var(--accent-magenta);
-        box-shadow: 0 0 24px rgba(255,47,180,0.18);
-    }
+
+        .training-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent-magenta);
+            box-shadow: 0 0 24px rgba(255,47,180,0.18);
+        }
+
     .training-card-header {
         display: flex;
         justify-content: space-between;
@@ -413,12 +432,14 @@
         margin-bottom: 0.75rem;
         gap: 0.5rem;
     }
+
     .training-name {
         margin: 0;
         font-size: 1.15rem;
         font-weight: 600;
         color: var(--text-primary);
     }
+
     .training-difficulty {
         font-size: 0.7rem;
         font-weight: 700;
@@ -427,11 +448,32 @@
         text-transform: uppercase;
         flex-shrink: 0;
     }
-    .difficulty-1 { background: rgba(34,197,94,0.15); color: #22c55e; }
-    .difficulty-2 { background: rgba(234,179,8,0.15); color: #eab308; }
-    .difficulty-3 { background: rgba(249,115,22,0.15); color: #f97316; }
-    .difficulty-4 { background: rgba(239,68,68,0.15); color: #ef4444; }
-    .difficulty-5 { background: rgba(220,38,38,0.2); color: #dc2626; }
+
+    .difficulty-1 {
+        background: rgba(34,197,94,0.15);
+        color: #22c55e;
+    }
+
+    .difficulty-2 {
+        background: rgba(234,179,8,0.15);
+        color: #eab308;
+    }
+
+    .difficulty-3 {
+        background: rgba(249,115,22,0.15);
+        color: #f97316;
+    }
+
+    .difficulty-4 {
+        background: rgba(239,68,68,0.15);
+        color: #ef4444;
+    }
+
+    .difficulty-5 {
+        background: rgba(220,38,38,0.2);
+        color: #dc2626;
+    }
+
     .training-description {
         margin: 0 0 1rem;
         font-size: 0.85rem;
@@ -442,12 +484,14 @@
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
+
     .training-meta {
         display: flex;
         gap: 1rem;
         margin-bottom: 1rem;
         flex-wrap: wrap;
     }
+
     .meta-item {
         display: flex;
         align-items: center;
@@ -455,13 +499,16 @@
         font-size: 0.8rem;
         color: var(--text-muted);
     }
+
     .meta-icon {
         font-size: 0.9rem;
     }
+
     .training-actions {
         display: flex;
         gap: 0.5rem;
     }
+
     .btn-small {
         padding: 0.5rem 1rem;
         font-size: 0.8rem;
@@ -496,11 +543,11 @@
         margin-bottom: 12px;
     }
 
-    .create-modal-header h3 {
-        margin: 0;
-        font-size: 20px;
-        color: var(--text-primary);
-    }
+        .create-modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            color: var(--text-primary);
+        }
 
     .create-modal-close {
         background: rgba(255,255,255,0.08);
@@ -531,32 +578,32 @@
         gap: 6px;
     }
 
-    .form-group label {
-        font-size: 13px;
-        color: var(--text-muted);
-        font-weight: 600;
-    }
+        .form-group label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
 
-    .form-group input,
-    .form-group select {
-        padding: 10px 12px;
-        border: 1px solid var(--glass-border);
-        border-radius: 8px;
-        font-size: 14px;
-        background: rgba(255,255,255,0.04);
-        color: var(--text-primary);
-    }
+        .form-group input,
+        .form-group select {
+            padding: 10px 12px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.04);
+            color: var(--text-primary);
+        }
 
-    .form-group textarea {
-        padding: 10px 12px;
-        border: 1px solid var(--glass-border);
-        border-radius: 8px;
-        font-size: 14px;
-        background: rgba(255,255,255,0.04);
-        color: var(--text-primary);
-        min-height: 90px;
-        resize: vertical;
-    }
+        .form-group textarea {
+            padding: 10px 12px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.04);
+            color: var(--text-primary);
+            min-height: 90px;
+            resize: vertical;
+        }
 
     .create-modal-actions {
         display: flex;
@@ -607,11 +654,11 @@
         flex-wrap: wrap;
     }
 
-    .inline-warning a {
-        color: var(--accent-gold);
-        text-decoration: none;
-        font-weight: 600;
-    }
+        .inline-warning a {
+            color: var(--accent-gold);
+            text-decoration: none;
+            font-weight: 600;
+        }
 
     .exercise-picker {
         display: flex;
@@ -638,9 +685,9 @@
         gap: 12px;
     }
 
-    .exercise-row-header input {
-        margin: 0;
-    }
+        .exercise-row-header input {
+            margin: 0;
+        }
 
     .exercise-title {
         font-weight: 600;
@@ -657,12 +704,11 @@
         gap: 10px;
     }
 
-    .exercise-config input,
-    .exercise-config textarea {
-        width: 100%;
-    }
+        .exercise-config input,
+        .exercise-config textarea {
+            width: 100%;
+        }
 
-    /* === FOOTER === */
     .site-footer {
         text-align: center;
         padding: 2rem;
@@ -672,26 +718,34 @@
         font-size: 0.85rem;
     }
 
-    /* === RESPONSIVE === */
     @@media (max-width: 1024px) {
-        .stats-strip { grid-template-columns: repeat(2, 1fr); }
-        .charts-grid { grid-template-columns: 1fr; }
-        .bottom-grid { grid-template-columns: 1fr; }
+        .stats-strip {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .bottom-grid {
+            grid-template-columns: 1fr;
+        }
     }
+
     @@media (max-width: 768px) {
-        .page-title { font-size: 2rem; }
-        .stats-strip { grid-template-columns: 1fr; }
+        .page-title {
+            font-size: 2rem;
+        }
+
+        .stats-strip {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
 
-<!-- HERO / TOP SECTION -->
+<!-- HERO -->
 <section class="hero-section">
     <div class="hero-bg">
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
     </div>
-
     <div class="hero-inner">
         <div class="dashboard-header">
             <div>
@@ -708,29 +762,21 @@
 
 <!-- MAIN CONTENT -->
 <div class="dashboard-content">
-    <!-- Stats strip -->
+
+    <!-- Stats Strip -->
     <div class="stats-strip">
         <div class="stat-card magenta">
             <div class="stat-badge">VAL</div>
-            <span class="stat-value">—</span>
+            <span class="stat-value">@_pendingValidations</span>
             <span class="stat-label">Pending Validations</span>
-            <span class="stat-trend">+2 this week</span>
             <a href="/trainer/validations" class="stat-link">Review now &rarr;</a>
         </div>
 
         <div class="stat-card teal">
             <div class="stat-badge">USR</div>
-            <span class="stat-value">—</span>
+            <span class="stat-value">@_activeStudents</span>
             <span class="stat-label">Active Students</span>
-            <span class="stat-trend">+3 this month</span>
             <a href="/trainer/users/1" class="stat-link">Manage &rarr;</a>
-        </div>
-
-        <div class="stat-card gold">
-            <div class="stat-badge">XP</div>
-            <span class="stat-value">—</span>
-            <span class="stat-label">XP Awarded This Month</span>
-            <span class="stat-trend neutral">Tracked monthly</span>
         </div>
 
         <div class="stat-card teal schedule" @onclick="OpenScheduleModal" role="button" tabindex="0">
@@ -738,22 +784,6 @@
             <span class="stat-value">Schedule</span>
             <span class="stat-label">Create Class</span>
             <span class="stat-trend">Open &rarr;</span>
-        </div>
-    </div>
-
-    <!-- Charts Row -->
-    <div class="charts-grid">
-        <div class="chart-card">
-            <h3 class="chart-title">Weekly Sessions</h3>
-            <div class="chart-placeholder">
-                <div class="chart-line"></div>
-            </div>
-        </div>
-        <div class="chart-card">
-            <h3 class="chart-title">Revenue Trend</h3>
-            <div class="chart-placeholder">
-                <div class="chart-line"></div>
-            </div>
         </div>
     </div>
 
@@ -837,7 +867,7 @@
             <h2 class="section-title">My Trainings</h2>
             <button type="button" class="stat-link header-action" @onclick="OpenTrainingModal">Create New &rarr;</button>
         </div>
-        
+
         @if (!_myTrainings.Any())
         {
             <div class="empty-state-card">
@@ -896,16 +926,6 @@
             <div class="create-modal-body">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>User (optional)</label>
-                        <select @bind="_scheduleForm.UserId">
-                            <option value="0">Select user (optional)</option>
-                            @foreach (var user in _users)
-                            {
-                                <option value="@user.Id">@user.Name (@user.Email)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="form-group">
                         <label>Modality</label>
                         <select @bind="_scheduleForm.Modality">
                             <option value="">Select a modality</option>
@@ -936,7 +956,6 @@
                         <input type="text" @bind="_scheduleForm.Notes" placeholder="Optional notes" />
                     </div>
                 </div>
-
                 @if (!string.IsNullOrEmpty(_scheduleError))
                 {
                     <div class="inline-error">@_scheduleError</div>
@@ -951,6 +970,7 @@
                     }
                     else
                     {
+
                         <span>Create Schedule</span>
                     }
                 </button>
@@ -995,7 +1015,6 @@
                         <input type="checkbox" @bind="_trainingForm.RequiresValidation" /> Requires validation
                     </label>
                 </div>
-
                 <div class="form-group">
                     <label>Exercises</label>
                     @if (!_exerciseSelections.Any())
@@ -1044,7 +1063,6 @@
                         </div>
                     }
                 </div>
-
                 @if (!string.IsNullOrEmpty(_trainingError))
                 {
                     <div class="inline-error">@_trainingError</div>
@@ -1066,6 +1084,7 @@
                     }
                     else
                     {
+
                         <span>Create Training</span>
                     }
                 </button>
@@ -1075,22 +1094,30 @@
 }
 
 @code {
+    // ── state ──────────────────────────────────────────────────────────────
     private List<ApiClient.DomainUserRead> _users = new();
     private List<UpcomingSessionItem> _upcomingSessions = new();
     private string? _scheduleListError;
+
+    private int _pendingValidations;
+    private int _activeStudents;
+
     private bool _showScheduleModal;
     private bool _scheduling;
     private string? _scheduleError;
     private ScheduleForm _scheduleForm = new();
+
     private bool _showTrainingModal;
     private bool _creatingTraining;
     private string? _trainingError;
     private TrainingForm _trainingForm = new();
     private List<ApiClient.Exercise> _exerciseCatalog = new();
     private List<TrainingExerciseSelection> _exerciseSelections = new();
+
     private int? _currentTrainerId;
     private List<ApiClient.TrainingSummary> _myTrainings = new();
 
+    // ── lifecycle ──────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         _currentTrainerId = await ResolveCurrentTrainerIdAsync();
@@ -1099,6 +1126,7 @@
         await LoadMyTrainings();
     }
 
+    // ── data loading ───────────────────────────────────────────────────────
     private async Task LoadScheduleData()
     {
         try
@@ -1111,7 +1139,13 @@
                 _upcomingSessions = new();
                 return;
             }
+
             _users = await Api.GetUsers();
+            _activeStudents = _users.Count;
+
+            var pending = await Api.GetPendingValidations(_currentTrainerId.Value);
+            _pendingValidations = pending.Count;
+
             _exerciseCatalog = await Api.GetExercises();
             BuildExerciseSelections();
         }
@@ -1135,9 +1169,7 @@
         try
         {
             if (!_users.Any())
-            {
                 _users = await Api.GetUsers();
-            }
 
             if (!_users.Any())
             {
@@ -1147,6 +1179,7 @@
 
             var from = DateTime.UtcNow;
             var to = DateTime.UtcNow.AddDays(14);
+
             var scheduleTasks = _users.Select(async user => new
             {
                 User = user,
@@ -1154,27 +1187,26 @@
             });
 
             var results = await Task.WhenAll(scheduleTasks);
-            var sessions = results
-                .SelectMany(result => result.Schedules.Select(schedule => new { result.User, Schedule = schedule }))
+
+            _upcomingSessions = results
+                .SelectMany(r => r.Schedules.Select(s => new { r.User, Schedule = s }))
                 .Where(x => string.Equals(x.Schedule.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(x => x.Schedule.ScheduledAt)
                 .Take(5)
                 .Select(x =>
                 {
-                    var localTime = x.Schedule.ScheduledAt.ToLocalTime();
+                    var local = x.Schedule.ScheduledAt.ToLocalTime();
                     return new UpcomingSessionItem
                     {
                         DisplayName = x.User.Name,
                         Modality = x.Schedule.Modality,
                         ModalityCode = ToModalityCode(x.Schedule.Modality),
                         ScheduledAt = x.Schedule.ScheduledAt,
-                        TimeLabel = localTime.ToString("HH:mm"),
-                        DateLabel = localTime.ToString("MMM dd", System.Globalization.CultureInfo.InvariantCulture)
+                        TimeLabel = local.ToString("HH:mm"),
+                        DateLabel = local.ToString("MMM dd", System.Globalization.CultureInfo.InvariantCulture)
                     };
                 })
                 .ToList();
-
-            _upcomingSessions = sessions;
         }
         catch (Exception ex)
         {
@@ -1185,7 +1217,6 @@
     private async Task LoadMyTrainings()
     {
         if (_currentTrainerId is null) return;
-
         try
         {
             _myTrainings = await Api.GetTrainerTrainings(_currentTrainerId.Value);
@@ -1209,16 +1240,9 @@
         }).ToList();
     }
 
-    private void OpenScheduleModal()
-    {
-        _scheduleError = null;
-        _showScheduleModal = true;
-    }
-
-    private void CloseScheduleModal()
-    {
-        _showScheduleModal = false;
-    }
+    // ── modal helpers ──────────────────────────────────────────────────────
+    private void OpenScheduleModal() { _scheduleError = null; _showScheduleModal = true; }
+    private void CloseScheduleModal() { _showScheduleModal = false; }
 
     private void OpenTrainingModal()
     {
@@ -1229,18 +1253,12 @@
             _showTrainingModal = true;
             return;
         }
-        if (!_exerciseCatalog.Any())
-        {
-            _ = LoadScheduleData();
-        }
+        if (!_exerciseCatalog.Any()) _ = LoadScheduleData();
         _showTrainingModal = true;
     }
+    private void CloseTrainingModal() { _showTrainingModal = false; }
 
-    private void CloseTrainingModal()
-    {
-        _showTrainingModal = false;
-    }
-
+    // ── actions ────────────────────────────────────────────────────────────
     private async Task CreateSchedule()
     {
         _scheduleError = ValidateScheduleForm();
@@ -1249,44 +1267,23 @@
         _scheduling = true;
         try
         {
-            var targetUserId = _scheduleForm.UserId > 0
-                ? _scheduleForm.UserId
-                : (_users.FirstOrDefault()?.Id ?? 0);
-
-            if (targetUserId <= 0)
-            {
-                _scheduleError = "Select a user to continue.";
-                return;
-            }
+            int? targetUserId = null;
 
             var scheduledAt = _scheduleForm.GetScheduledAtUtc();
-            if (!scheduledAt.HasValue)
-            {
-                _scheduleError = "Select date and time.";
-                return;
-            }
+            if (!scheduledAt.HasValue) { _scheduleError = "Select date and time."; return; }
+
             await Api.CreateClassSchedule(targetUserId, _scheduleForm.Modality.Trim(), scheduledAt.Value, _scheduleForm.Notes?.Trim());
             _showScheduleModal = false;
             ResetScheduleForm();
             await LoadUpcomingSessions();
         }
-        catch (Exception ex)
-        {
-            _scheduleError = $"Error creating schedule: {ex.Message}";
-        }
-        finally
-        {
-            _scheduling = false;
-        }
+        catch (Exception ex) { _scheduleError = $"Error creating schedule: {ex.Message}"; }
+        finally { _scheduling = false; }
     }
 
     private async Task CreateTraining()
     {
-        if (_currentTrainerId is null)
-        {
-            _trainingError = "Trainer profile not found. Please sign in with a trainer account.";
-            return;
-        }
+        if (_currentTrainerId is null) { _trainingError = "Trainer profile not found."; return; }
         _trainingError = ValidateTrainingForm();
         if (!string.IsNullOrEmpty(_trainingError)) return;
 
@@ -1295,57 +1292,51 @@
         {
             var selectedExercises = _exerciseSelections
                 .Where(ex => ex.Selected)
-                .Select((ex, index) => new
+                .Select((ex, i) => new
                 {
                     ExerciseId = ex.ExerciseId,
-                    SortOrder = index,
-                    Sets = ex.Sets,
-                    Reps = ex.Reps,
-                    RestSeconds = ex.RestSeconds,
+                    SortOrder = i,
+                    ex.Sets,
+                    ex.Reps,
+                    ex.RestSeconds,
                     Notes = string.IsNullOrWhiteSpace(ex.Notes) ? null : ex.Notes.Trim()
-                })
-                .ToList();
+                }).ToList();
 
             var request = new
             {
                 Name = _trainingForm.Name.Trim(),
                 Description = string.IsNullOrWhiteSpace(_trainingForm.Description) ? null : _trainingForm.Description.Trim(),
-                DurationMin = _trainingForm.DurationMin,
-                XpReward = _trainingForm.XpReward,
-                Difficulty = _trainingForm.Difficulty,
-                RequiresValidation = _trainingForm.RequiresValidation,
+                _trainingForm.DurationMin,
+                _trainingForm.XpReward,
+                _trainingForm.Difficulty,
+                _trainingForm.RequiresValidation,
                 Exercises = selectedExercises
             };
 
             await Api.CreateTraining(request, _currentTrainerId.Value);
             ResetTrainingForm();
             _showTrainingModal = false;
+            await LoadMyTrainings();
         }
-        catch (Exception ex)
-        {
-            _trainingError = $"Error creating training: {ex.Message}";
-        }
-        finally
-        {
-            _creatingTraining = false;
-        }
+        catch (Exception ex) { _trainingError = $"Error creating training: {ex.Message}"; }
+        finally { _creatingTraining = false; }
     }
 
+    // ── validation ─────────────────────────────────────────────────────────
     private string? ValidateScheduleForm()
     {
         if (string.IsNullOrWhiteSpace(_scheduleForm.Modality)) return "Select a modality.";
         if (_scheduleForm.Modality.Trim().Length > 20) return "Modality must be 20 characters or less.";
-        var scheduledLocal = _scheduleForm.GetScheduledAtLocal();
-        if (!scheduledLocal.HasValue) return "Select date and time.";
-        var scheduledUtc = _scheduleForm.GetScheduledAtUtc();
-        if (!scheduledUtc.HasValue) return "Select date and time.";
-        if (scheduledUtc.Value <= DateTime.UtcNow) return "Scheduled time must be in the future.";
+        if (!_scheduleForm.GetScheduledAtLocal().HasValue) return "Select date and time.";
+        var utc = _scheduleForm.GetScheduledAtUtc();
+        if (!utc.HasValue) return "Select date and time.";
+        if (utc.Value <= DateTime.UtcNow) return "Scheduled time must be in the future.";
         return null;
     }
 
     private string? ValidateTrainingForm()
     {
-        if (_currentTrainerId is null) return "Trainer profile not found. Please sign in with a trainer account.";
+        if (_currentTrainerId is null) return "Trainer profile not found.";
         if (string.IsNullOrWhiteSpace(_trainingForm.Name)) return "Training name is required.";
         if (_trainingForm.Name.Trim().Length > 200) return "Training name must be 200 characters or less.";
         if (_trainingForm.DurationMin < 1 || _trainingForm.DurationMin > 480) return "Duration must be between 1 and 480 minutes.";
@@ -1362,17 +1353,14 @@
         return null;
     }
 
+    // ── misc helpers ───────────────────────────────────────────────────────
     private void OnScheduleDateTimeChanged(ChangeEventArgs e)
-    {
-        _scheduleForm.ScheduledAtLocalText = e.Value?.ToString() ?? string.Empty;
-    }
+        => _scheduleForm.ScheduledAtLocalText = e.Value?.ToString() ?? string.Empty;
 
     private void ViewTraining(int trainingId)
-    {
-        Navigation.NavigateTo($"/training/{trainingId}");
-    }
+        => Navigation.NavigateTo($"/training/{trainingId}");
 
-    private static string GetDifficultyLabel(int difficulty) => difficulty switch
+    private static string GetDifficultyLabel(int d) => d switch
     {
         1 => "Beginner",
         2 => "Easy",
@@ -1387,34 +1375,22 @@
         if (string.IsNullOrWhiteSpace(modality)) return "N/A";
         var cleaned = modality.Trim();
         if (cleaned.Length <= 3) return cleaned.ToUpperInvariant();
-
         var parts = cleaned
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(part => part[0])
-            .ToArray();
-
-        if (parts.Length >= 2)
-        {
-            return string.Concat(parts).ToUpperInvariant();
-        }
-
-        return cleaned[..3].ToUpperInvariant();
+            .Select(p => p[0]).ToArray();
+        return parts.Length >= 2
+            ? string.Concat(parts).ToUpperInvariant()
+            : cleaned[..3].ToUpperInvariant();
     }
 
     private async Task<int?> ResolveCurrentTrainerIdAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-        if (user?.Identity?.IsAuthenticated != true)
-        {
-            return null;
-        }
+        if (user?.Identity?.IsAuthenticated != true) return null;
 
         var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(identityId))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(identityId)) return null;
 
         var trainer = await Api.GetTrainerByIdentity(identityId);
         if (trainer is null)
@@ -1425,11 +1401,7 @@
         return trainer?.Id;
     }
 
-    private void ResetScheduleForm()
-    {
-        _scheduleForm = new ScheduleForm();
-        _scheduleError = null;
-    }
+    private void ResetScheduleForm() { _scheduleForm = new ScheduleForm(); _scheduleError = null; }
 
     private void ResetTrainingForm()
     {
@@ -1437,56 +1409,34 @@
         _trainingError = null;
         foreach (var ex in _exerciseSelections)
         {
-            ex.Selected = false;
-            ex.Sets = 3;
-            ex.Reps = 10;
-            ex.RestSeconds = 60;
-            ex.Notes = string.Empty;
+            ex.Selected = false; ex.Sets = 3; ex.Reps = 10; ex.RestSeconds = 60; ex.Notes = string.Empty;
         }
     }
 
+    // ── inner types ────────────────────────────────────────────────────────
     private class ScheduleForm
     {
-        public int UserId { get; set; }
         public string Modality { get; set; } = string.Empty;
         public string ScheduledAtLocalText { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
 
         public DateTime? GetScheduledAtLocal()
         {
-            if (string.IsNullOrWhiteSpace(ScheduledAtLocalText))
-            {
-                return null;
-            }
-
-            var formats = new[]
-            {
-                "yyyy-MM-ddTHH:mm",
-                "yyyy-MM-ddTHH:mm:ss"
-            };
-
-            if (DateTime.TryParseExact(
-                    ScheduledAtLocalText,
-                    formats,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.None,
-                    out var scheduledLocal))
-            {
-                return scheduledLocal;
-            }
-
-            return null;
+            if (string.IsNullOrWhiteSpace(ScheduledAtLocalText)) return null;
+            return DateTime.TryParseExact(
+                ScheduledAtLocalText,
+                new[] { "yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss" },
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var dt) ? dt : null;
         }
 
         public DateTime? GetScheduledAtUtc()
         {
             var local = GetScheduledAtLocal();
-            if (!local.HasValue)
-            {
-                return null;
-            }
-
-            return DateTime.SpecifyKind(local.Value, DateTimeKind.Local).ToUniversalTime();
+            return local.HasValue
+                ? DateTime.SpecifyKind(local.Value, DateTimeKind.Local).ToUniversalTime()
+                : null;
         }
     }
 

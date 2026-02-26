@@ -109,7 +109,7 @@ public class ApiClient
 
     public record ClassSchedule(
         int Id,
-        int UserId,
+        int? UserId,
         string Modality,
         DateTime ScheduledAt,
         string Status,
@@ -301,7 +301,7 @@ public class ApiClient
         return await _http.GetFromJsonAsync<List<ClassSchedule>>($"{BaseUrl}/classeschedules/user/{userId}{queryString}") ?? new();
     }
 
-    public async Task<ClassSchedule?> CreateClassSchedule(int userId, string modality, DateTime scheduledAt, string? notes)
+    public async Task<ClassSchedule?> CreateClassSchedule(int? userId, string modality, DateTime scheduledAt, string? notes)
     {
         var body = new { UserId = userId, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
@@ -311,7 +311,7 @@ public class ApiClient
 
     public record ClassScheduleWithTrainer(
         int Id,
-        int TrainerId,
+        int? TrainerId,
         string Modality,
         DateTime ScheduledAt,
         string Status,
