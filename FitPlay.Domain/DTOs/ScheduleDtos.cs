@@ -24,3 +24,16 @@ public record UpdateClassScheduleRequest(
     string Status,
     string? Notes
 );
+
+public record BookClassRequest(
+    [Required] int UserId
+);
+
+public record ClassScheduleWithTrainerDto(
+    int Id,
+    int TrainerId,
+    string Modality,
+    DateTime ScheduledAt,
+    string Status,
+    string? Notes
+);

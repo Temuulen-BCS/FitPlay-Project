@@ -15,6 +15,15 @@ public class ClassSchedulesController : ControllerBase
         _scheduleService = scheduleService;
     }
 
+    [HttpGet("public")]
+    public async Task<ActionResult<List<ClassScheduleWithTrainerDto>>> GetPublicSchedules(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+    {
+        var result = await _scheduleService.GetPublicSchedulesAsync(from, to);
+        return Ok(result);
+    }
+
     [HttpGet("user/{userId:int}")]
     public async Task<ActionResult<List<ClassScheduleDto>>> GetUserSchedule(
         int userId,
@@ -40,10 +49,26 @@ public class ClassSchedulesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
+    [HttpPost("{id:int}/book")]
+    public async Task<ActionResult<ClassScheduleDto>> BookClass(int id, [FromBody] BookClassRequest request)
+    {
+        var result = await _scheduleService.BookClassAsync(id, request.UserId);
+        if (result == null) return NotFound("Class not found or you are already booked");
+        return Ok(result);
+    }
+
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ClassScheduleDto>> Update(int id, [FromBody] UpdateClassScheduleRequest request)
     {
         var result = await _scheduleService.UpdateAsync(id, request);
+        if (result == null) return NotFound();
+        return Ok(result);
+    }
+
+    [HttpPut("{id:int}/status")]
+    public async Task<ActionResult<ClassScheduleDto>> UpdateStatus(int id, [FromBody] UpdateStatusRequest request)
+    {
+        var result = await _scheduleService.UpdateStatusAsync(id, request.Status);
         if (result == null) return NotFound();
         return Ok(result);
     }
@@ -56,3 +81,5 @@ public class ClassSchedulesController : ControllerBase
         return NoContent();
     }
 }
+
+public record UpdateStatusRequest(string Status);

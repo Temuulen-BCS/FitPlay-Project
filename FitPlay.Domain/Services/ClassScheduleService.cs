@@ -86,6 +86,57 @@ public class ClassScheduleService
         return true;
     }
 
+    public async Task<List<ClassScheduleWithTrainerDto>> GetPublicSchedulesAsync(DateTime? from = null, DateTime? to = null)
+    {
+        var query = _db.ClassSchedules
+            .Where(s => s.Status == ClassScheduleStatus.Scheduled && s.ScheduledAt > DateTime.UtcNow)
+            .AsQueryable();
+
+        if (from.HasValue)
+            query = query.Where(s => s.ScheduledAt >= from.Value);
+
+        if (to.HasValue)
+            query = query.Where(s => s.ScheduledAt <= to.Value);
+
+        var items = await query
+            .OrderBy(s => s.ScheduledAt)
+            .ToListAsync();
+
+        return items.Select(s => new ClassScheduleWithTrainerDto(
+            s.Id,
+            s.UserId,
+            s.Modality,
+            s.ScheduledAt,
+            s.Status.ToString(),
+            s.Notes
+        )).ToList();
+    }
+
+    public async Task<ClassScheduleDto?> BookClassAsync(int scheduleId, int userId)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(scheduleId);
+        if (schedule == null) return null;
+
+        if (schedule.UserId == userId)
+            return null;
+
+        schedule.Status = ClassScheduleStatus.Scheduled;
+        await _db.SaveChangesAsync();
+
+        return ToDto(schedule);
+    }
+
+    public async Task<ClassScheduleDto?> UpdateStatusAsync(int id, string status)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(id);
+        if (schedule == null) return null;
+
+        schedule.Status = ParseStatus(status);
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
     private static ClassScheduleDto ToDto(ClassSchedule schedule)
     {
         return new ClassScheduleDto(

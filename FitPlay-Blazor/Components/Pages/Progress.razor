@@ -1,8 +1,12 @@
-@page "/user/progress"
+﻿@page "/user/progress"
 @rendermode InteractiveServer
 @layout UserLayout
 @using FitPlay.Blazor.Services
 @using FitPlay_Blazor.Components.Gamification
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ApiClient Api
 
 <PageTitle>My Progress - FitPlay</PageTitle>
@@ -99,11 +103,11 @@
         margin-bottom: 32px;
     }
 
-    .page-header h1 {
-        margin: 0 0 8px 0;
-        font-size: 28px;
-        color: #1a202c;
-    }
+        .page-header h1 {
+            margin: 0 0 8px 0;
+            font-size: 28px;
+            color: #1a202c;
+        }
 
     .subtitle {
         margin: 0;
@@ -124,11 +128,11 @@
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
 
-    .history-section h3, .completions-section h3, .level-guide h3 {
-        margin: 0 0 20px 0;
-        font-size: 18px;
-        color: #1a202c;
-    }
+        .history-section h3, .completions-section h3, .level-guide h3 {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            color: #1a202c;
+        }
 
     .history-list {
         display: flex;
@@ -184,13 +188,13 @@
         font-weight: bold;
     }
 
-    .history-xp.positive {
-        color: #48bb78;
-    }
+        .history-xp.positive {
+            color: #48bb78;
+        }
 
-    .history-xp.negative {
-        color: #f56565;
-    }
+        .history-xp.negative {
+            color: #f56565;
+        }
 
     .completions-list {
         display: flex;
@@ -238,20 +242,20 @@
         text-transform: uppercase;
     }
 
-    .completion-status.autoapproved, .completion-status.validated {
-        background: #c6f6d5;
-        color: #276749;
-    }
+        .completion-status.autoapproved, .completion-status.validated {
+            background: #c6f6d5;
+            color: #276749;
+        }
 
-    .completion-status.pending {
-        background: #fefcbf;
-        color: #975a16;
-    }
+        .completion-status.pending {
+            background: #fefcbf;
+            color: #975a16;
+        }
 
-    .completion-status.rejected {
-        background: #fed7d7;
-        color: #c53030;
-    }
+        .completion-status.rejected {
+            background: #fed7d7;
+            color: #c53030;
+        }
 
     .levels-list {
         display: flex;
@@ -269,10 +273,10 @@
         opacity: 0.6;
     }
 
-    .level-item.reached {
-        background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
-        opacity: 1;
-    }
+        .level-item.reached {
+            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            opacity: 1;
+        }
 
     .level-number {
         width: 32px;
@@ -321,8 +325,8 @@
     private List<ApiClient.XpTransaction> _xpHistory = new();
     private List<ApiClient.TrainingCompletion> _completions = new();
     private bool _isLoading = true;
+    private int? _currentUserId;
 
-    // Level guide data
     private readonly List<(int Level, string Label, int MinXp)> _levelGuide = new()
     {
         (1, "Beginner", 0),
@@ -337,22 +341,35 @@
         (10, "Mythic", 30000)
     };
 
-    // TODO: Get from auth
-    private int _currentUserId = 1;
-
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!string.IsNullOrWhiteSpace(identityId))
+        {
+            var domainUser = await Api.GetUserByIdentity(identityId);
+            _currentUserId = domainUser?.Id;
+        }
+
         await LoadData();
     }
 
     private async Task LoadData()
     {
+        if (_currentUserId is null)
+        {
+            _isLoading = false;
+            return;
+        }
+
         _isLoading = true;
         try
         {
-            var progressTask = Api.GetUserProgress(_currentUserId);
-            var historyTask = Api.GetXpHistory(_currentUserId, 20);
-            var completionsTask = Api.GetUserCompletions(_currentUserId, 10);
+            var progressTask = Api.GetUserProgress(_currentUserId.Value);
+            var historyTask = Api.GetXpHistory(_currentUserId.Value, 20);
+            var completionsTask = Api.GetUserCompletions(_currentUserId.Value, 10);
 
             await Task.WhenAll(progressTask, historyTask, completionsTask);
 
