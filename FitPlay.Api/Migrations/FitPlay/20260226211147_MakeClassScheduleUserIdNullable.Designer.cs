@@ -4,6 +4,7 @@ using FitPlay.Domain.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FitPlay.Api.Migrations.FitPlay
 {
     [DbContext(typeof(FitPlayContext))]
-    partial class FitPlayContextModelSnapshot : ModelSnapshot
+    [Migration("20260226211147_MakeClassScheduleUserIdNullable")]
+    partial class MakeClassScheduleUserIdNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -83,15 +86,10 @@ namespace FitPlay.Api.Migrations.FitPlay
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.Property<int?>("TrainerId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("UserId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TrainerId", "ScheduledAt");
 
                     b.HasIndex("UserId", "ScheduledAt");
 
@@ -602,15 +600,9 @@ namespace FitPlay.Api.Migrations.FitPlay
 
             modelBuilder.Entity("FitPlay.Domain.Models.ClassSchedule", b =>
                 {
-                    b.HasOne("FitPlay.Domain.Models.Teacher", "Trainer")
-                        .WithMany()
-                        .HasForeignKey("TrainerId");
-
                     b.HasOne("FitPlay.Domain.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId");
-
-                    b.Navigation("Trainer");
 
                     b.Navigation("User");
                 });

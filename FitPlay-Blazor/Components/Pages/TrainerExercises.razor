@@ -1,0 +1,371 @@
+@page "/trainer/exercises"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+@using Microsoft.AspNetCore.Authorization
+@inject ApiClient Api
+
+<PageTitle>Exercises - FitPlay</PageTitle>
+
+<div class="trainer-exercises">
+    <div class="page-header">
+        <h1>Exercises</h1>
+        <p class="subtitle">Create and manage your exercise library</p>
+    </div>
+
+    <div class="content-grid">
+        <div class="form-card">
+            <h3>Create Exercise</h3>
+
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" @bind="_form.Title" placeholder="Exercise name" />
+            </div>
+
+            <div class="form-group">
+                <label>Category</label>
+                <input type="text" @bind="_form.Category" placeholder="Strength, Cardio..." />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Difficulty</label>
+                    <input type="number" @bind="_form.Difficulty" min="1" max="10" />
+                </div>
+                <div class="form-group">
+                    <label>Base Points</label>
+                    <input type="number" @bind="_form.BasePoints" min="0" max="100000" />
+                </div>
+                <div class="form-group">
+                    <label>Suggested Duration (min)</label>
+                    <input type="number" @bind="_form.SuggestedDurationMin" min="1" max="1000" />
+                </div>
+            </div>
+
+            <div class="form-group checkbox">
+                <label>
+                    <input type="checkbox" @bind="_form.IsActive" /> Active
+                </label>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_message))
+            {
+                <div class="message @(_isError ? "error" : "success")">@_message</div>
+            }
+
+            <button class="btn-primary" @onclick="CreateExercise" disabled="@_saving">
+                @if (_saving)
+                {
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Create Exercise</span>
+                }
+            </button>
+        </div>
+
+        <div class="list-card">
+            <div class="list-header">
+                <h3>My Exercises</h3>
+                <button class="btn-secondary" @onclick="LoadExercises" disabled="@_loading">Refresh</button>
+            </div>
+
+            @if (_loading)
+            {
+                <div class="list-empty">Loading exercises...</div>
+            }
+            else if (_exercises.Any())
+            {
+                <div class="exercise-list">
+                    @foreach (var ex in _exercises)
+                    {
+                        <div class="exercise-item">
+                            <div class="exercise-main">
+                                <span class="exercise-title">@ex.Title</span>
+                                <span class="exercise-category">@ex.Category</span>
+                            </div>
+                            <div class="exercise-meta">
+                                <span>Diff @ex.Difficulty</span>
+                                <span>@ex.BasePoints pts</span>
+                                <span>@ex.SuggestedDurationMin min</span>
+                                <span class="status @(ex.IsActive ? "active" : "inactive")">@(ex.IsActive ? "Active" : "Inactive")</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="list-empty">No exercises created yet.</div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .trainer-exercises {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: var(--text-primary);
+    }
+
+    .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.3fr;
+        gap: 24px;
+    }
+
+    .form-card,
+    .list-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    }
+
+    .form-card h3,
+    .list-card h3 {
+        margin: 0 0 16px 0;
+        font-size: 18px;
+        color: var(--text-primary);
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+
+    .form-group label {
+        font-size: 13px;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    .form-group input {
+        padding: 10px 12px;
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        font-size: 14px;
+        background: rgba(255,255,255,0.03);
+        color: var(--text-primary);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    .form-group.checkbox label {
+        font-weight: 500;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-magenta) 100%);
+        color: white;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        transition: opacity 0.2s;
+    }
+
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-secondary {
+        background: rgba(255,255,255,0.06);
+        color: var(--text-primary);
+        border: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid var(--glass-border);
+    }
+
+    .list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .exercise-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .exercise-item {
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.04);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .exercise-main {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .exercise-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .exercise-category {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .exercise-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text-muted);
+        text-align: right;
+    }
+
+    .status.active { color: var(--accent-teal); font-weight: 600; }
+    .status.inactive { color: var(--text-muted); }
+
+    .list-empty {
+        text-align: center;
+        padding: 30px;
+        color: var(--text-muted);
+    }
+
+    .message {
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+    }
+
+    .message.success { background: #c6f6d5; color: #276749; }
+    .message.success { background: rgba(14,240,255,0.12); color: var(--accent-teal); }
+    .message.error { background: rgba(255,77,109,0.2); color: #ff9aa2; }
+
+    @@media (max-width: 900px) {
+        .content-grid { grid-template-columns: 1fr; }
+        .form-row { grid-template-columns: 1fr; }
+        .exercise-item { flex-direction: column; align-items: flex-start; }
+        .exercise-meta { text-align: left; }
+    }
+</style>
+
+@code {
+    private List<ApiClient.Exercise> _exercises = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string? _message;
+    private bool _isError;
+
+    private ExerciseForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExercises();
+    }
+
+    private async Task LoadExercises()
+    {
+        _loading = true;
+        try
+        {
+            _exercises = await Api.GetExercises();
+        }
+        catch (Exception ex)
+        {
+            _message = $"Error loading exercises: {ex.Message}";
+            _isError = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateExercise()
+    {
+        _message = null;
+        _isError = false;
+
+        if (string.IsNullOrWhiteSpace(_form.Title))
+        {
+            _message = "Title is required.";
+            _isError = true;
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var exercise = new ApiClient.Exercise(
+                0,
+                0,
+                _form.Title.Trim(),
+                _form.Category.Trim(),
+                _form.Difficulty,
+                _form.BasePoints,
+                _form.SuggestedDurationMin,
+                _form.IsActive
+            );
+
+            await Api.CreateExercise(exercise);
+            _message = "Exercise created successfully.";
+            _isError = false;
+            _form = new ExerciseForm();
+            await LoadExercises();
+        }
+        catch (Exception ex)
+        {
+            _message = $"Error creating exercise: {ex.Message}";
+            _isError = true;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private class ExerciseForm
+    {
+        public string Title { get; set; } = "";
+        public string Category { get; set; } = "";
+        public int Difficulty { get; set; } = 3;
+        public int BasePoints { get; set; } = 100;
+        public int SuggestedDurationMin { get; set; } = 20;
+        public bool IsActive { get; set; } = true;
+    }
+}

@@ -1,0 +1,394 @@
+@page "/trainer/schedules"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ApiClient Api
+
+<PageTitle>All Sessions - FitPlay</PageTitle>
+
+<div class="trainer-schedules">
+    <div class="page-header">
+        <h1>All Sessions</h1>
+        <p class="subtitle">Every class you have scheduled</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading sessions...</div>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="error-state">@_error</div>
+    }
+    else if (!_sessions.Any())
+    {
+        <div class="empty-state">No sessions scheduled yet.</div>
+    }
+    else
+    {
+        <div class="sessions-list">
+            @foreach (var session in _sessions)
+            {
+                var local = session.ScheduledAt.ToLocalTime();
+                <div class="list-item">
+                    <div class="list-icon">@ToModalityCode(session.Modality)</div>
+                    <div class="list-content">
+                        <p class="list-title">@session.Modality</p>
+                        <p class="list-meta">Status: @session.Status</p>
+                        <p class="list-meta">@GetSlotsLabel(session.Notes)</p>
+                    </div>
+                    <div class="list-time">
+                        @local.ToString("HH:mm")
+                        <div class="list-date">@local.ToString("MMM dd", System.Globalization.CultureInfo.InvariantCulture)</div>
+                    </div>
+                    <div class="slot-editor">
+                        <label for="slots-@session.Id">Slots</label>
+                        <select id="slots-@session.Id" class="slot-select" value="@GetSelectedSlot(session.Id)" @onchange="e => OnSlotChanged(session.Id, e)">
+                            @foreach (var option in _slotOptions)
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </select>
+                        <button type="button" class="slot-save" @onclick="() => SaveSlots(session)" disabled="@IsSlotSaving(session.Id)">
+                            @(IsSlotSaving(session.Id) ? "Saving..." : "Save")
+                        </button>
+                        @if (_slotErrors.TryGetValue(session.Id, out var slotError))
+                        {
+                            <span class="slot-error">@slotError</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .trainer-schedules {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: var(--text-primary);
+    }
+
+    .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+    }
+
+    .sessions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .list-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.9rem 1rem;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+    }
+
+    .list-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.8rem;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
+        flex-shrink: 0;
+    }
+
+    .list-content {
+        flex: 1;
+    }
+
+    .list-title {
+        margin: 0 0 0.2rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .list-meta {
+        margin: 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+    }
+
+    .list-time {
+        text-align: right;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-left: auto;
+    }
+
+    .list-date {
+        font-size: 0.76rem;
+        color: var(--text-muted);
+    }
+
+    .slot-editor {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+        min-width: 120px;
+    }
+
+    .slot-editor label {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    .slot-select {
+        padding: 6px 8px;
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.06);
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 0.82rem;
+    }
+
+    .slot-save {
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--accent-teal);
+        background: transparent;
+        color: var(--accent-teal);
+        font-size: 0.75rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .slot-save:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .slot-error {
+        font-size: 0.72rem;
+        color: #ff9aa2;
+    }
+
+    .loading,
+    .empty-state,
+    .error-state {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-muted);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+    }
+
+    .error-state {
+        color: #ff9aa2;
+        border-color: rgba(255, 77, 109, 0.4);
+        background: rgba(255, 77, 109, 0.15);
+    }
+</style>
+
+@code {
+    private List<ApiClient.ClassSchedule> _sessions = new();
+    private bool _isLoading = true;
+    private string? _error;
+    private int? _currentTrainerId;
+    private readonly List<int> _slotOptions = new() { 5, 8, 10, 12, 15, 20, 25, 30 };
+    private readonly Dictionary<int, int> _slotSelections = new();
+    private readonly HashSet<int> _slotSaving = new();
+    private readonly Dictionary<int, string> _slotErrors = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentTrainerId = await ResolveCurrentTrainerIdAsync();
+        await LoadSessions();
+    }
+
+    private async Task LoadSessions()
+    {
+        if (_currentTrainerId is null)
+        {
+            _error = "Trainer profile not found. Please sign in with a trainer account.";
+            _isLoading = false;
+            return;
+        }
+
+        _isLoading = true;
+        try
+        {
+            _sessions = await Api.GetTrainerSchedule(_currentTrainerId.Value);
+            SyncSlotSelections();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error loading sessions: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task<int?> ResolveCurrentTrainerIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            return null;
+        }
+
+        var trainer = await Api.GetTrainerByIdentity(identityId);
+        return trainer?.Id;
+    }
+
+    private void SyncSlotSelections()
+    {
+        foreach (var session in _sessions)
+        {
+            var slots = TryExtractSlots(session.Notes) ?? 10;
+            _slotSelections[session.Id] = slots;
+        }
+    }
+
+    private int GetSelectedSlot(int sessionId)
+        => _slotSelections.TryGetValue(sessionId, out var value) ? value : 10;
+
+    private void OnSlotChanged(int sessionId, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+        {
+            _slotSelections[sessionId] = value;
+        }
+    }
+
+    private bool IsSlotSaving(int sessionId)
+        => _slotSaving.Contains(sessionId);
+
+    private async Task SaveSlots(ApiClient.ClassSchedule session)
+    {
+        _slotErrors.Remove(session.Id);
+        var slots = GetSelectedSlot(session.Id);
+
+        _slotSaving.Add(session.Id);
+        try
+        {
+            var updatedNotes = BuildNotesWithSlots(session.Notes, slots);
+            var updated = await Api.UpdateClassSchedule(session.Id, session.Modality, session.ScheduledAt, session.Status, updatedNotes);
+            if (updated is null)
+            {
+                _slotErrors[session.Id] = "Failed to update slots.";
+                return;
+            }
+
+            var index = _sessions.FindIndex(s => s.Id == session.Id);
+            if (index >= 0)
+            {
+                _sessions[index] = updated;
+            }
+        }
+        catch (Exception ex)
+        {
+            _slotErrors[session.Id] = ex.Message;
+        }
+        finally
+        {
+            _slotSaving.Remove(session.Id);
+        }
+    }
+
+    private static string GetSlotsLabel(string? notes)
+    {
+        var slots = TryExtractSlots(notes);
+        return slots.HasValue ? $"Slots: {slots.Value}" : "Slots: n/a";
+    }
+
+    private static int? TryExtractSlots(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes)) return null;
+        var tokens = notes.Replace("|", " ")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(t => t.Trim(':', ';', ',', '.'))
+            .ToArray();
+
+        for (var i = 0; i < tokens.Length; i++)
+        {
+            var token = tokens[i];
+            if (token.Equals("slots", StringComparison.OrdinalIgnoreCase) || token.Equals("slot", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i > 0 && int.TryParse(tokens[i - 1], out var value)) return value;
+                if (i + 1 < tokens.Length && int.TryParse(tokens[i + 1], out value)) return value;
+            }
+            if (token.EndsWith("slots", StringComparison.OrdinalIgnoreCase) || token.EndsWith("slot", StringComparison.OrdinalIgnoreCase))
+            {
+                var digits = new string(token.TakeWhile(char.IsDigit).ToArray());
+                if (int.TryParse(digits, out var value)) return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string BuildNotesWithSlots(string? notes, int slots)
+    {
+        var slotText = $"{slots} slots";
+        if (string.IsNullOrWhiteSpace(notes)) return slotText;
+
+        var parts = notes.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        for (var i = 0; i < parts.Count; i++)
+        {
+            if (parts[i].Contains("slot", StringComparison.OrdinalIgnoreCase))
+            {
+                parts[i] = slotText;
+                return string.Join(" | ", parts);
+            }
+        }
+
+        parts.Add(slotText);
+        return string.Join(" | ", parts);
+    }
+
+    private static string ToModalityCode(string? modality)
+    {
+        if (string.IsNullOrWhiteSpace(modality)) return "N/A";
+        var cleaned = modality.Trim();
+        if (cleaned.Length <= 3) return cleaned.ToUpperInvariant();
+        var parts = cleaned
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => p[0]).ToArray();
+        return parts.Length >= 2
+            ? string.Concat(parts).ToUpperInvariant()
+            : cleaned[..3].ToUpperInvariant();
+    }
+}

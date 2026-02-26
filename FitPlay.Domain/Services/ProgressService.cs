@@ -39,7 +39,8 @@ public class ProgressService
     {
         var userLevel = await GetOrCreateUserLevelAsync(userId);
         var completionsCount = await _db.TrainingCompletions
-            .CountAsync(tc => tc.UserId == userId && tc.Status == ValidationStatus.AutoApproved || tc.Status == ValidationStatus.Validated);
+            .CountAsync(tc => tc.UserId == userId &&
+                              (tc.Status == ValidationStatus.AutoApproved || tc.Status == ValidationStatus.Validated));
         
         var streak = await CalculateCurrentStreakAsync(userId);
         

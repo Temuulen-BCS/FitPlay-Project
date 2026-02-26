@@ -22,7 +22,8 @@ public class TeachersController : ControllerBase
             Id = t.Id,
             Name = t.Name,
             Email = t.Email,
-            Phone = t.Phone
+            Phone = t.Phone,
+            IdentityUserId = t.IdentityUserId
         });
         return Ok(dtos);
     }
@@ -38,7 +39,27 @@ public class TeachersController : ControllerBase
             Id = teacher.Id,
             Name = teacher.Name,
             Email = teacher.Email,
-            Phone = teacher.Phone
+            Phone = teacher.Phone,
+            IdentityUserId = teacher.IdentityUserId
+        };
+        return Ok(dto);
+    }
+
+    [HttpGet("by-identity/{identityUserId}")]
+    public async Task<ActionResult<TeacherReadDto>> GetByIdentity(string identityUserId)
+    {
+        var normalizedId = identityUserId.Trim();
+        var teacher = await _db.Teachers.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.IdentityUserId != null && t.IdentityUserId == normalizedId);
+        if (teacher is null) return NotFound();
+
+        var dto = new TeacherReadDto
+        {
+            Id = teacher.Id,
+            Name = teacher.Name,
+            Email = teacher.Email,
+            Phone = teacher.Phone,
+            IdentityUserId = teacher.IdentityUserId
         };
         return Ok(dto);
     }
@@ -50,7 +71,8 @@ public class TeachersController : ControllerBase
         {
             Name = dto.Name,
             Email = dto.Email,
-            Phone = dto.Phone
+            Phone = dto.Phone,
+            IdentityUserId = dto.IdentityUserId
         };
 
         _db.Teachers.Add(teacher);
@@ -61,7 +83,8 @@ public class TeachersController : ControllerBase
             Id = teacher.Id,
             Name = teacher.Name,
             Email = teacher.Email,
-            Phone = teacher.Phone
+            Phone = teacher.Phone,
+            IdentityUserId = teacher.IdentityUserId
         };
 
         return CreatedAtAction(nameof(GetById), new { id = teacher.Id }, readDto);

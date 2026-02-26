@@ -1,0 +1,554 @@
+@page "/user/book-class"
+@rendermode InteractiveServer
+@layout UserLayout
+@using FitPlay.Blazor.Services
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Book a Class - FitPlay</PageTitle>
+
+<div class="book-class-page">
+    <div class="page-header">
+        <h1>Book a Class</h1>
+        <p class="subtitle">Find and book classes with our trainers!</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading available classes...</div>
+    }
+    else if (!_publicClasses.Any() && !_userClasses.Any())
+    {
+        <div class="no-classes">
+            <p>No classes available at the moment. Check back later!</p>
+        </div>
+    }
+    else
+    {
+        @if (_publicClasses.Any())
+        {
+          
+            <section class="section classes-section" id="classes">
+                <h2 class="section-title">Class's Line-Up</h2>
+                <p class="section-sub">From HIIT to Yoga — experience workouts that push limits.</p>
+                <div class="classes-grid">
+                    @foreach (var classItem in _publicClasses)
+                    {
+                        var intensity = GetIntensity(classItem.Modality, classItem.Notes);
+                        <div class="class-card">
+                            <div class="class-header">
+                                <span class="class-time">@classItem.ScheduledAt.ToString("HH:mm")</span>
+                                <span class="intensity @intensity.CssClass">@intensity.Label</span>
+                            </div>
+                            <h3 class="class-name">@classItem.Modality</h3>
+                            <p class="class-meta">@GetClassMeta(classItem)</p>
+                            <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
+                            <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@isBooking">
+                                @(isBooking ? "Booking..." : "Book Now")
+                            </button>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_userClasses.Any())
+        {
+            <section class="section classes-section">
+                <h2 class="section-title">My Booked Classes</h2>
+       
+                <div class="classes-grid">
+                    @foreach (var classItem in _userClasses)
+                    {
+                        var intensity = GetIntensity(classItem.Modality, classItem.Notes);
+                        <div class="class-card booked">
+                            <div class="class-header">
+                                <span class="class-time">@classItem.ScheduledAt.ToString("ddd, MMM dd")</span>
+                                <span class="intensity @intensity.CssClass">@intensity.Label</span>
+                            </div>
+                            <h3 class="class-name">@classItem.Modality</h3>
+                            <p class="class-meta">Status: @classItem.Status</p>
+                            <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
+                            <button class="btn-cancel" @onclick="() => PromptCancel(classItem)">Cancel Booking</button>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    }
+</div>
+
+<style>
+    .book-class-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: var(--text-primary);
+    }
+
+    .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 16px;
+    }
+
+    .section {
+        margin-bottom: 40px;
+    }
+
+    .section-title {
+        margin: 0 0 8px 0;
+        font-size: 22px;
+        color: var(--text-primary);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+
+    .section-sub {
+        margin: 0 0 20px 0;
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    .classes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 20px;
+    }
+
+    .class-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 10px 28px rgba(0,0,0,0.24);
+        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .class-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(255,255,255,0.2);
+        box-shadow: 0 14px 36px rgba(0,0,0,0.3);
+    }
+
+    .class-card.booked {
+        border-color: rgba(14,240,255,0.5);
+        box-shadow: 0 12px 30px rgba(14,240,255,0.12);
+    }
+
+    .class-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+
+    .class-time {
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--accent-teal);
+    }
+
+    .intensity {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+    }
+
+    .intensity.high {
+        background: rgba(255,47,180,0.2);
+        color: var(--accent-magenta);
+        border: 1px solid rgba(255,47,180,0.4);
+    }
+
+    .intensity.medium {
+        background: rgba(255,215,0,0.2);
+        color: var(--accent-gold);
+        border: 1px solid rgba(255,215,0,0.4);
+    }
+
+    .intensity.low {
+        background: rgba(14,240,255,0.15);
+        color: var(--accent-teal);
+        border: 1px solid rgba(14,240,255,0.35);
+    }
+
+    .class-name {
+        margin: 0 0 6px 0;
+        font-size: 18px;
+        color: var(--text-primary);
+    }
+
+    .class-meta {
+        margin: 0 0 14px 0;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .slots {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 14px;
+    }
+
+    .btn-book {
+        width: 100%;
+        padding: 12px 14px;
+        background: linear-gradient(135deg, var(--accent-teal), var(--accent-magenta));
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 6px 20px rgba(255,47,180,0.25);
+    }
+
+    .btn-book:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 28px rgba(255,47,180,0.35);
+    }
+
+    .btn-book:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .btn-cancel {
+        width: 100%;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.06);
+        color: var(--text-primary);
+        border: 1px solid rgba(255,47,180,0.45);
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        margin-top: 12px;
+    }
+
+    .btn-cancel:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent-magenta);
+        box-shadow: 0 8px 22px rgba(255,47,180,0.2);
+    }
+
+    .loading, .no-classes {
+        text-align: center;
+        padding: 60px;
+        color: var(--text-muted);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+    }
+
+    .confirm-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 6, 10, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 16px;
+    }
+
+    .confirm-card {
+        width: min(420px, 100%);
+        position: relative;
+        overflow: hidden;
+        background:
+            radial-gradient(120% 140% at 10% 15%, rgba(16, 255, 224, 0.22), transparent 60%),
+            radial-gradient(120% 140% at 90% 20%, rgba(255, 71, 246, 0.2), transparent 55%),
+            radial-gradient(130% 120% at 20% 85%, rgba(255, 214, 77, 0.18), transparent 60%),
+            radial-gradient(120% 140% at 85% 90%, rgba(92, 255, 150, 0.16), transparent 58%),
+            rgba(18, 18, 28, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow:
+            0 20px 50px rgba(0, 0, 0, 0.35),
+            0 0 30px rgba(14, 240, 255, 0.18),
+            0 0 40px rgba(255, 47, 180, 0.2);
+    }
+
+    .confirm-card::before,
+    .confirm-card::after {
+        content: "";
+        position: absolute;
+        inset: -20% -10%;
+        pointer-events: none;
+        border-radius: 28px;
+        filter: blur(18px);
+        opacity: 0.75;
+    }
+
+    .confirm-card::before {
+        background:
+            radial-gradient(35% 40% at 25% 20%, rgba(0, 255, 216, 0.45), transparent 70%),
+            radial-gradient(40% 45% at 80% 25%, rgba(255, 94, 220, 0.45), transparent 68%),
+            radial-gradient(40% 45% at 30% 80%, rgba(120, 245, 110, 0.42), transparent 70%),
+            radial-gradient(45% 50% at 85% 85%, rgba(255, 214, 96, 0.35), transparent 72%);
+    }
+
+    .confirm-card::after {
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.18'/%3E%3C/svg%3E");
+        mix-blend-mode: soft-light;
+        opacity: 0.25;
+        filter: none;
+    }
+
+    .confirm-title {
+        margin: 0 0 8px 0;
+        font-size: 18px;
+        color: var(--text-primary);
+    }
+
+    .confirm-text {
+        margin: 0 0 18px 0;
+        color: var(--text-muted);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .confirm-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn-secondary {
+        flex: 1;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+        border-color: rgba(255,255,255,0.3);
+    }
+
+    .btn-danger {
+        flex: 1;
+        padding: 10px 14px;
+        background: linear-gradient(135deg, #ff4d6d, #ff2fb4);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .btn-danger:hover {
+        opacity: 0.9;
+    }
+</style>
+
+@if (_showCancelConfirm && _pendingCancel != null)
+{
+    <div class="confirm-overlay" @onclick="CloseCancelConfirm">
+        <div class="confirm-card" @onclick:stopPropagation="true">
+            <h3 class="confirm-title">Cancel booking?</h3>
+            <p class="confirm-text">
+                Are you sure you want to cancel <strong>@_pendingCancel.Modality</strong>
+                on @_pendingCancel.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")?
+            
+            </p>
+            <div class="confirm-actions">
+                <button class="btn-secondary" @onclick="CloseCancelConfirm">Keep Booking</button>
+                <button class="btn-danger" @onclick="ConfirmCancelBooking" disabled="@_isCanceling">
+                    @(_isCanceling ? "Canceling..." : "Cancel Booking")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ApiClient.ClassScheduleWithTrainer> _publicClasses = new();
+    private List<ApiClient.ClassSchedule> _userClasses = new();
+    private bool _isLoading = true;
+    private bool isBooking;
+    private bool _showCancelConfirm;
+    private bool _isCanceling;
+    private ApiClient.ClassSchedule? _pendingCancel;
+
+    private int? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentUserId = await ResolveCurrentUserIdAsync();
+        if (_currentUserId is null)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        await LoadClasses();
+    }
+
+    private async Task LoadClasses()
+    {
+        if (_currentUserId is null)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        _isLoading = true;
+        try
+        {
+            _publicClasses = await Api.GetPublicClassSchedules();
+            _userClasses = await Api.GetUserSchedule(_currentUserId.Value);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task bookClass(int scheduleId)
+    {
+        if (_currentUserId is null)
+        {
+            return;
+        }
+
+        isBooking = true;
+        try
+        {
+            await Api.BookClass(scheduleId, _currentUserId.Value);
+            await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error booking class: {ex.Message}");
+        }
+        finally
+        {
+            isBooking = false;
+        }
+    }
+
+    private void PromptCancel(ApiClient.ClassSchedule classItem)
+    {
+        _pendingCancel = classItem;
+        _showCancelConfirm = true;
+    }
+
+    private void CloseCancelConfirm()
+    {
+        _showCancelConfirm = false;
+        _pendingCancel = null;
+    }
+
+    private async Task ConfirmCancelBooking()
+    {
+        if (_pendingCancel is null || _currentUserId is null)
+        {
+            return;
+        }
+
+        _isCanceling = true;
+        try
+        {
+            await Api.UnbookClass(_pendingCancel.Id);
+            await LoadClasses();
+            CloseCancelConfirm();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error canceling booking: {ex.Message}");
+        }
+        finally
+        {
+            _isCanceling = false;
+        }
+    }
+
+    private async Task<int?> ResolveCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        var domainUser = await Api.GetUserByIdentity(identityId);
+        if (domainUser is null)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        return domainUser.Id;
+    }
+
+    private static (string Label, string CssClass) GetIntensity(string? modality, string? notes)
+    {
+        var source = string.Join(' ', modality, notes).ToLowerInvariant();
+        if (source.Contains("hiit") || source.Contains("combat") || source.Contains("strength"))
+        {
+            return ("High Intensity", "high");
+        }
+        if (source.Contains("yoga") || source.Contains("recovery") || source.Contains("stretch"))
+        {
+            return ("Recovery", "low");
+        }
+        return ("Medium", "medium");
+    }
+
+    private static string GetSlotsLabel(string? notes)
+    {
+        if (!string.IsNullOrWhiteSpace(notes) && notes.Contains("slot", StringComparison.OrdinalIgnoreCase))
+        {
+            return notes;
+        }
+        return "Limited slots";
+    }
+
+    private static string GetClassMeta(ApiClient.ClassScheduleWithTrainer classItem)
+    {
+        if (!string.IsNullOrWhiteSpace(classItem.TrainerName))
+        {
+            return $"Coach: {classItem.TrainerName}";
+        }
+        return "Coach: TBA";
+    }
+}

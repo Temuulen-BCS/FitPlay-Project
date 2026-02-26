@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace FitPlay.Api.Controllers;
 
 [ApiController]
-[Route("api/v2/[controller]")]
+[Route("api/v2/trainings")]
 public class TrainingsV2Controller : ControllerBase
 {
     private readonly TrainingService _trainingService;

@@ -45,10 +45,11 @@
 
 <style>
     .progress-card {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
         padding: 24px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     }
 
     .card-header {
@@ -60,12 +61,13 @@
 
     .card-header h3 {
         margin: 0;
-        color: #1a202c;
+        color: var(--text-primary);
         font-size: 18px;
     }
 
     .streak-badge {
-        background: linear-gradient(135deg, #f6ad55 0%, #ed8936 100%);
+        background: linear-gradient(135deg, rgba(255,215,0,0.35) 0%, rgba(255,47,180,0.35) 100%);
+        border: 1px solid rgba(255,215,0,0.4);
         color: white;
         padding: 4px 12px;
         border-radius: 20px;
@@ -83,7 +85,8 @@
     .stat-item {
         text-align: center;
         padding: 12px;
-        background: #f7fafc;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--glass-border);
         border-radius: 8px;
     }
 
@@ -91,20 +94,20 @@
         display: block;
         font-size: 24px;
         font-weight: bold;
-        color: #667eea;
+        color: var(--accent-teal);
     }
 
     .stat-label {
         display: block;
         font-size: 12px;
-        color: #718096;
+        color: var(--text-muted);
         margin-top: 4px;
     }
 
     .loading, .no-data {
         text-align: center;
         padding: 40px;
-        color: #718096;
+        color: var(--text-muted);
     }
 </style>
 

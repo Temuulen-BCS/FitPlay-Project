@@ -1,8 +1,6 @@
-using FitPlay.Api.DTOs;
-using FitPlay.Domain.Data;
-using FitPlay.Domain.Models;
+using FitPlay.Domain.DTOs;
+using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FitPlay.Api.Controllers;
 
@@ -10,95 +8,44 @@ namespace FitPlay.Api.Controllers;
 [Route("api/[controller]")]
 public class TrainingsController : ControllerBase
 {
-    private readonly FitPlayContext _db;
-    public TrainingsController(FitPlayContext db) => _db = db;
+    private readonly TrainingService _trainingService;
+    public TrainingsController(TrainingService trainingService) => _trainingService = trainingService;
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TrainingReadDto>>> GetAll()
+    public async Task<ActionResult<List<TrainingSummaryDto>>> GetAll([FromQuery] int? userId = null)
     {
-        var trainings = await _db.Trainings.AsNoTracking().ToListAsync();
-        var dtos = trainings.Select(t => new TrainingReadDto
-        {
-            Id = t.Id,
-            Name = t.Name,
-            Description = t.Description,
-            DurationMin = t.DurationMin,
-            Points = t.Points,
-            Athletes = t.Athletes
-        });
-        return Ok(dtos);
+        var trainings = await _trainingService.GetTrainingsAsync(userId);
+        return Ok(trainings);
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<TrainingReadDto>> GetById(int id)
+    public async Task<ActionResult<TrainingDto>> GetById(int id)
     {
-        var training = await _db.Trainings.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id);
+        var training = await _trainingService.GetTrainingAsync(id);
         if (training is null) return NotFound();
-
-        var dto = new TrainingReadDto
-        {
-            Id = training.Id,
-            Name = training.Name,
-            Description = training.Description,
-            DurationMin = training.DurationMin,
-            Points = training.Points,
-            Athletes = training.Athletes
-        };
-        return Ok(dto);
+        return Ok(training);
     }
 
     [HttpPost]
-    public async Task<ActionResult<TrainingReadDto>> Create([FromBody] TrainingCreateDto dto)
+    public async Task<ActionResult<TrainingDto>> Create([FromBody] CreateTrainingRequest request, [FromQuery] int trainerId)
     {
-        var training = new Training
-        {
-            Name = dto.Name,
-            Description = dto.Description,
-            DurationMin = dto.DurationMin,
-            Points = dto.Points,
-            Athletes = dto.Athletes
-        };
-
-        _db.Trainings.Add(training);
-        await _db.SaveChangesAsync();
-
-        var readDto = new TrainingReadDto
-        {
-            Id = training.Id,
-            Name = training.Name,
-            Description = training.Description,
-            DurationMin = training.DurationMin,
-            Points = training.Points,
-            Athletes = training.Athletes
-        };
-
-        return CreatedAtAction(nameof(GetById), new { id = training.Id }, readDto);
+        var training = await _trainingService.CreateTrainingAsync(trainerId, request);
+        return CreatedAtAction(nameof(GetById), new { id = training.Id }, training);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] TrainingCreateDto dto)
+    public async Task<ActionResult<TrainingDto>> Update(int id, [FromBody] UpdateTrainingRequest request, [FromQuery] int trainerId)
     {
-        var training = await _db.Trainings.FindAsync(id);
+        var training = await _trainingService.UpdateTrainingAsync(id, trainerId, request);
         if (training is null) return NotFound();
-
-        training.Name = dto.Name;
-        training.Description = dto.Description;
-        training.DurationMin = dto.DurationMin;
-        training.Points = dto.Points;
-        training.Athletes = dto.Athletes;
-
-        await _db.SaveChangesAsync();
-        return NoContent();
+        return Ok(training);
     }
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, [FromQuery] int trainerId)
     {
-        var training = await _db.Trainings.FindAsync(id);
-        if (training is null) return NotFound();
-
-        _db.Trainings.Remove(training);
-        await _db.SaveChangesAsync();
+        var success = await _trainingService.DeleteTrainingAsync(id, trainerId);
+        if (!success) return NotFound();
         return NoContent();
     }
 }

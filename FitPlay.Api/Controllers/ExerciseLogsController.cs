@@ -1,4 +1,4 @@
-﻿using FitPlay.Api.DTOs;
+using FitPlay.Api.DTOs;
 using FitPlay.Domain.Data;
 using FitPlay.Domain.Models;
 using FitPlay.Domain.Services;
@@ -41,5 +41,53 @@ public class ExerciseLogsController : ControllerBase
     {
         var log = await _db.ExerciseLogs.FindAsync(id);
         return log is null ? NotFound() : Ok(log);
+    }
+
+    [HttpGet("user/{userId:int}")]
+    public async Task<IActionResult> GetUserLogs(int userId, [FromQuery] DateTime? from = null, [FromQuery] DateTime? to = null)
+    {
+        var query = _db.ExerciseLogs
+            .Include(l => l.Exercise)
+            .Where(l => l.ClientId == userId)
+            .AsQueryable();
+
+        if (from.HasValue)
+            query = query.Where(l => l.PerformedAt >= from.Value);
+
+        if (to.HasValue)
+            query = query.Where(l => l.PerformedAt <= to.Value);
+
+        var logs = await query
+            .OrderByDescending(l => l.PerformedAt)
+            .Select(l => new ExerciseLogWithExerciseDto(
+                l.Id,
+                l.ClientId,
+                l.ExerciseId,
+                l.Exercise.Title,
+                l.Exercise.Category,
+                l.PerformedAt,
+                l.DurationMin,
+                l.PointsAwarded,
+                l.Notes
+            ))
+            .ToListAsync();
+
+        return Ok(logs);
+    }
+
+    [HttpGet("user/{userId:int}/summary")]
+    public async Task<IActionResult> GetUserSummary(int userId)
+    {
+        var logs = await _db.ExerciseLogs
+            .Where(l => l.ClientId == userId)
+            .ToListAsync();
+
+        var summary = new ExerciseLogSummaryDto(
+            TotalWorkouts: logs.Count,
+            TotalMinutes: logs.Sum(l => l.DurationMin),
+            TotalPoints: logs.Sum(l => l.PointsAwarded)
+        );
+
+        return Ok(summary);
     }
 }

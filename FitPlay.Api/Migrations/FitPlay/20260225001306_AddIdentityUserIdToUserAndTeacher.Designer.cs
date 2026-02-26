@@ -4,6 +4,7 @@ using FitPlay.Domain.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FitPlay.Api.Migrations.FitPlay
 {
     [DbContext(typeof(FitPlayContext))]
-    partial class FitPlayContextModelSnapshot : ModelSnapshot
+    [Migration("20260225001306_AddIdentityUserIdToUserAndTeacher")]
+    partial class AddIdentityUserIdToUserAndTeacher
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -56,46 +59,6 @@ namespace FitPlay.Api.Migrations.FitPlay
                     b.HasIndex("UserId", "AchievementType");
 
                     b.ToTable("Achievements");
-                });
-
-            modelBuilder.Entity("FitPlay.Domain.Models.ClassSchedule", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Modality")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("ScheduledAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TrainerId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TrainerId", "ScheduledAt");
-
-                    b.HasIndex("UserId", "ScheduledAt");
-
-                    b.ToTable("ClassSchedules");
                 });
 
             modelBuilder.Entity("FitPlay.Domain.Models.ClientProfile", b =>
@@ -188,8 +151,6 @@ namespace FitPlay.Api.Migrations.FitPlay
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ExerciseId");
 
                     b.HasIndex("ClientId", "PerformedAt");
 
@@ -598,32 +559,6 @@ namespace FitPlay.Api.Migrations.FitPlay
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("FitPlay.Domain.Models.ClassSchedule", b =>
-                {
-                    b.HasOne("FitPlay.Domain.Models.Teacher", "Trainer")
-                        .WithMany()
-                        .HasForeignKey("TrainerId");
-
-                    b.HasOne("FitPlay.Domain.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId");
-
-                    b.Navigation("Trainer");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("FitPlay.Domain.Models.ExerciseLog", b =>
-                {
-                    b.HasOne("FitPlay.Domain.Models.Exercise", "Exercise")
-                        .WithMany()
-                        .HasForeignKey("ExerciseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Exercise");
                 });
 
             modelBuilder.Entity("FitPlay.Domain.Models.Training", b =>
