@@ -82,7 +82,7 @@
                     @foreach (var level in _levelGuide)
                     {
                         <div class="level-item @(level.Level <= (_progress?.CurrentLevel ?? 0) ? "reached" : "")">
-                            <span class="level-number">L@level.Level</span>
+                            <span class="level-number">@level.Level</span>
                             <span class="level-name">@level.Label</span>
                             <span class="level-xp">@level.MinXp XP</span>
                         </div>
@@ -290,6 +290,7 @@
         justify-content: center;
         font-weight: bold;
         font-size: 12px;
+        line-height: 1;
         color: var(--text-muted);
     }
 
