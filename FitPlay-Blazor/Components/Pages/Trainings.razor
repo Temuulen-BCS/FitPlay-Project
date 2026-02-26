@@ -1,5 +1,6 @@
-@page "/trainings"
+@page "/user/trainings"
 @rendermode InteractiveServer
+@layout UserLayout
 @using FitPlay.Blazor.Services
 @using FitPlay_Blazor.Components.Gamification
 @inject ApiClient Api
@@ -128,7 +129,7 @@
 
     private void ViewTraining(int trainingId)
     {
-        Navigation.NavigateTo($"/trainings/{trainingId}");
+        Navigation.NavigateTo($"/user/trainings/{trainingId}");
     }
 
     private async Task StartTraining(int trainingId)

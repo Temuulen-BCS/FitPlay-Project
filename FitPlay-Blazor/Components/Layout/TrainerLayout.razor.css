@@ -1,0 +1,45 @@
+.top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+}
+
+.nav-links-top ::deep a.active {
+    color: var(--accent-teal);
+}
+
+.nav-logout {
+    margin: 0;
+}
+
+.btn-primary-top {
+    background: linear-gradient(135deg, var(--accent-magenta), #d6249f);
+    color: #fff;
+    border: none;
+    padding: 0.875rem 1.75rem;
+    border-radius: 30px;
+    font-weight: 600;
+    font-size: 1rem;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.3s;
+    box-shadow: 0 4px 20px rgba(255, 47, 180, 0.4);
+}
+
+.btn-primary-top:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 30px rgba(255, 47, 180, 0.6);
+}
+
+.trainer-content {
+    padding-top: 5.5rem;
+}
+
+@media (max-width: 768px) {
+    .trainer-content {
+        padding-top: 4.75rem;
+    }
+}

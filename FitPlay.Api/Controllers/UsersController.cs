@@ -28,6 +28,25 @@ public class UsersController : ControllerBase
         return Ok(dtos);
     }
 
+    [HttpGet("by-identity/{identityUserId}")]
+    public async Task<ActionResult<UserReadDto>> GetByIdentity(string identityUserId)
+    {
+        var normalizedId = identityUserId.Trim();
+        var user = await _db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.IdentityUserId != null && u.IdentityUserId == normalizedId);
+        if (user is null) return NotFound();
+
+        var dto = new UserReadDto
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Email = user.Email,
+            Phone = user.Phone,
+            IdentityUserId = user.IdentityUserId
+        };
+        return Ok(dto);
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<UserReadDto>> GetById(int id)
     {

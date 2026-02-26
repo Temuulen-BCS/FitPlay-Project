@@ -20,11 +20,8 @@ builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuth
 // Register HttpClient and ApiClient for API calls
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
-    client.BaseAddress = new Uri("https://localhost:7148");
+    client.BaseAddress = new Uri("https://localhost:7248");
 });
-
-// Trainer context service
-builder.Services.AddScoped<TrainerService>();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -53,11 +50,14 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var role in new[] { "Trainer", "User" })
+foreach (var role in new[] { "Trainer", "User" })
+{
+    var existingRole = await roleManager.FindByNameAsync(role);
+    if (existingRole is null)
     {
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole(role));
+        await roleManager.CreateAsync(new IdentityRole(role));
     }
+}
 }
 
 // Configure the HTTP request pipeline.

@@ -1,0 +1,1338 @@
+@page "/trainer/dashboard"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Layout
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ApiClient Api
+
+<PageTitle>Trainer Dashboard - FitPlay</PageTitle>
+
+<style>
+    @@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+    :root {
+        --bg-dark: #0b0b11;
+        --accent-magenta: #ff2fb4;
+        --accent-teal: #0ef0ff;
+        --accent-gold: #ffd700;
+        --text-primary: #f8f9fb;
+        --text-muted: #9aa0b5;
+        --glass-border: rgba(255,255,255,0.08);
+        --glass-bg: rgba(255,255,255,0.06);
+    }
+
+    body {
+        margin: 0;
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        font-family: 'Space Grotesk', sans-serif;
+        overflow-x: hidden;
+    }
+
+    /* === HERO / TOP SECTION === */
+    .hero-section {
+        position: relative;
+        min-height: 260px;
+        display: flex;
+        align-items: center;
+        padding: 2rem 2rem 2.5rem;
+        overflow: hidden;
+    }
+    .hero-bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background: radial-gradient(ellipse at 20% 50%, rgba(255,47,180,0.15) 0%, transparent 50%),
+                    radial-gradient(ellipse at 80% 30%, rgba(14,240,255,0.10) 0%, transparent 50%),
+                    var(--bg-dark);
+        pointer-events: none;
+    }
+    .orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(100px);
+        opacity: 0.35;
+        animation: float 10s ease-in-out infinite;
+    }
+    .orb-1 {
+        width: 350px; height: 350px;
+        background: var(--accent-magenta);
+        top: -60px; left: -60px;
+    }
+    .orb-2 {
+        width: 280px; height: 280px;
+        background: var(--accent-teal);
+        bottom: -40px; right: -40px;
+        animation-delay: 3s;
+    }
+    @@keyframes float {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50%       { transform: translateY(-18px) scale(1.03); }
+    }
+
+    .hero-inner {
+        position: relative;
+        z-index: 1;
+        max-width: 1400px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 2rem;
+        flex-wrap: wrap;
+    }
+    .page-title {
+        font-size: 2.6rem;
+        font-weight: 700;
+        margin: 0 0 0.75rem;
+        line-height: 1.15;
+    }
+    .page-subtitle {
+        color: var(--text-muted);
+        font-size: 1.15rem;
+        margin: 0;
+        max-width: 520px;
+    }
+
+    .role-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: linear-gradient(135deg, rgba(255,47,180,0.15), rgba(14,240,255,0.15));
+        border: 1px solid rgba(255,47,180,0.3);
+        border-radius: 16px;
+        padding: 0.85rem 1.5rem;
+        flex-shrink: 0;
+    }
+    .role-icon {
+        width: 40px; height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1rem;
+        color: #fff;
+    }
+    .role-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* === LOWER SECTION === */
+    .dashboard-content {
+        padding: 1.5rem 2rem 4rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    /* stats strip */
+    .stats-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.25rem;
+        margin-bottom: 2.5rem;
+    }
+    .stat-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        transition: transform 0.2s, border-color 0.3s;
+    }
+    .stat-card:hover { transform: translateY(-3px); }
+    .stat-card.magenta:hover { border-color: var(--accent-magenta); box-shadow: 0 0 24px rgba(255,47,180,0.18); }
+    .stat-card.teal:hover   { border-color: var(--accent-teal);    box-shadow: 0 0 24px rgba(14,240,255,0.18); }
+    .stat-card.gold:hover   { border-color: var(--accent-gold);    box-shadow: 0 0 24px rgba(255,215,0,0.18); }
+    .stat-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px; height: 44px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    .stat-card.magenta .stat-badge { background: rgba(255,47,180,0.15); color: var(--accent-magenta); }
+    .stat-card.teal    .stat-badge { background: rgba(14,240,255,0.12); color: var(--accent-teal); }
+    .stat-card.gold    .stat-badge { background: rgba(255,215,0,0.12);  color: var(--accent-gold); }
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .stat-label {
+        font-size: 0.88rem;
+        color: var(--text-muted);
+    }
+    .stat-trend {
+        margin-top: 0.4rem;
+        font-size: 0.78rem;
+        color: var(--accent-teal);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-weight: 600;
+    }
+    .stat-trend.neutral { color: var(--text-muted); }
+    .stat-link {
+        margin-top: 0.5rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .stat-card.magenta .stat-link { color: var(--accent-magenta); }
+    .stat-card.teal    .stat-link { color: var(--accent-teal); }
+    .stat-link:hover { text-decoration: underline; }
+    .stat-card.schedule {
+        cursor: pointer;
+    }
+    .stat-card.schedule:hover {
+        border-color: var(--accent-teal);
+        box-shadow: 0 0 24px rgba(14,240,255,0.18);
+        transform: translateY(-3px);
+    }
+
+    /* charts */
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+    }
+    .chart-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 1.5rem;
+        min-height: 300px;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .chart-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    .chart-placeholder {
+        flex: 1;
+        border-radius: 16px;
+        background:
+            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+            repeating-linear-gradient(
+                90deg,
+                rgba(255,255,255,0.06) 0,
+                rgba(255,255,255,0.06) 1px,
+                transparent 1px,
+                transparent 40px
+            );
+        border: 1px dashed rgba(255,255,255,0.12);
+        position: relative;
+        overflow: hidden;
+    }
+    .chart-line {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(120deg, transparent 30%, rgba(14,240,255,0.18) 50%, transparent 70%);
+        opacity: 0.7;
+    }
+
+    /* lists */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+    }
+    .list-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .list-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .section-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .list-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.9rem 1rem;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+    }
+    .list-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.8rem;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
+        flex-shrink: 0;
+    }
+    .list-content { flex: 1; }
+    .list-title {
+        margin: 0 0 0.2rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+    .list-meta {
+        margin: 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+    }
+    .list-time {
+        text-align: right;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    .list-date {
+        font-size: 0.76rem;
+        color: var(--text-muted);
+    }
+    .list-action {
+        color: var(--accent-teal);
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid var(--accent-teal);
+        border-radius: 20px;
+        padding: 0.25rem 0.75rem;
+        white-space: nowrap;
+        background: transparent;
+        cursor: pointer;
+    }
+    .list-action:hover {
+        background: var(--accent-teal);
+        color: var(--bg-dark);
+    }
+    .header-action {
+        background: transparent;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+    }
+    .empty-state,
+    .error-state {
+        padding: 1rem;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.04);
+        border: 1px dashed rgba(255,255,255,0.12);
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+    .error-state {
+        color: #fecaca;
+        border-color: rgba(127, 29, 29, 0.5);
+        background: rgba(127, 29, 29, 0.2);
+    }
+
+    .create-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(5, 8, 15, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 20px;
+    }
+
+    .create-modal {
+        background: var(--bg-dark);
+        border-radius: 18px;
+        width: min(680px, 96vw);
+        max-height: 90vh;
+        overflow: auto;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+        padding: 20px;
+        border: 1px solid var(--glass-border);
+    }
+
+    .create-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .create-modal-header h3 {
+        margin: 0;
+        font-size: 20px;
+        color: var(--text-primary);
+    }
+
+    .create-modal-close {
+        background: rgba(255,255,255,0.08);
+        border: none;
+        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .create-modal-body {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .form-group label {
+        font-size: 13px;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    .form-group input,
+    .form-group select {
+        padding: 10px 12px;
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        font-size: 14px;
+        background: rgba(255,255,255,0.04);
+        color: var(--text-primary);
+    }
+
+    .form-group textarea {
+        padding: 10px 12px;
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        font-size: 14px;
+        background: rgba(255,255,255,0.04);
+        color: var(--text-primary);
+        min-height: 90px;
+        resize: vertical;
+    }
+
+    .create-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 14px;
+    }
+
+    .btn-secondary {
+        background: rgba(255,255,255,0.08);
+        color: var(--text-primary);
+        border: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-magenta) 100%);
+        color: #0b0b11;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .inline-error {
+        color: #fecaca;
+        background: rgba(127, 29, 29, 0.4);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .inline-warning {
+        color: #fde68a;
+        background: rgba(120, 53, 15, 0.35);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .inline-warning a {
+        color: var(--accent-gold);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .exercise-picker {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: 320px;
+        overflow: auto;
+        padding-right: 6px;
+    }
+
+    .exercise-row {
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: rgba(255,255,255,0.03);
+    }
+
+    .exercise-row-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .exercise-row-header input {
+        margin: 0;
+    }
+
+    .exercise-title {
+        font-weight: 600;
+    }
+
+    .exercise-meta {
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .exercise-config {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .exercise-config input,
+    .exercise-config textarea {
+        width: 100%;
+    }
+
+    /* === FOOTER === */
+    .site-footer {
+        text-align: center;
+        padding: 2rem;
+        background: var(--bg-dark);
+        border-top: 1px solid var(--glass-border);
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+
+    /* === RESPONSIVE === */
+    @@media (max-width: 1024px) {
+        .stats-strip { grid-template-columns: repeat(2, 1fr); }
+        .charts-grid { grid-template-columns: 1fr; }
+        .bottom-grid { grid-template-columns: 1fr; }
+    }
+    @@media (max-width: 768px) {
+        .page-title { font-size: 2rem; }
+        .stats-strip { grid-template-columns: 1fr; }
+    }
+</style>
+
+
+<!-- HERO / TOP SECTION -->
+<section class="hero-section">
+    <div class="hero-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+    <div class="hero-inner">
+        <div class="dashboard-header">
+            <div>
+                <h1 class="page-title">Dashboard</h1>
+                <p class="page-subtitle">Welcome back! Here is your training overview.</p>
+            </div>
+            <div class="role-badge">
+                <span class="role-icon">T</span>
+                <span class="role-label">Trainer Panel</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- MAIN CONTENT -->
+<div class="dashboard-content">
+    <!-- Stats strip -->
+    <div class="stats-strip">
+        <div class="stat-card magenta">
+            <div class="stat-badge">VAL</div>
+            <span class="stat-value">—</span>
+            <span class="stat-label">Pending Validations</span>
+            <span class="stat-trend">+2 this week</span>
+            <a href="/trainer/validations" class="stat-link">Review now &rarr;</a>
+        </div>
+
+        <div class="stat-card teal">
+            <div class="stat-badge">USR</div>
+            <span class="stat-value">—</span>
+            <span class="stat-label">Active Students</span>
+            <span class="stat-trend">+3 this month</span>
+            <a href="/trainer/users/1" class="stat-link">Manage &rarr;</a>
+        </div>
+
+        <div class="stat-card gold">
+            <div class="stat-badge">XP</div>
+            <span class="stat-value">—</span>
+            <span class="stat-label">XP Awarded This Month</span>
+            <span class="stat-trend neutral">Tracked monthly</span>
+        </div>
+
+        <div class="stat-card teal schedule" @onclick="OpenScheduleModal" role="button" tabindex="0">
+            <div class="stat-badge">SCH</div>
+            <span class="stat-value">Schedule</span>
+            <span class="stat-label">Create Class</span>
+            <span class="stat-trend">Open &rarr;</span>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <h3 class="chart-title">Weekly Sessions</h3>
+            <div class="chart-placeholder">
+                <div class="chart-line"></div>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3 class="chart-title">Revenue Trend</h3>
+            <div class="chart-placeholder">
+                <div class="chart-line"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Row -->
+    <div class="bottom-grid">
+        <div class="list-card">
+            <div class="list-header">
+                <h2 class="section-title">Upcoming Sessions</h2>
+                <button type="button" class="stat-link header-action" @onclick="OpenScheduleModal">Schedule &rarr;</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_scheduleListError))
+            {
+                <div class="error-state">@_scheduleListError</div>
+            }
+            else if (!_upcomingSessions.Any())
+            {
+                <div class="empty-state">No upcoming sessions in the next 14 days.</div>
+            }
+            else
+            {
+                @foreach (var session in _upcomingSessions)
+                {
+                    <div class="list-item">
+                        <div class="list-icon">@session.ModalityCode</div>
+                        <div class="list-content">
+                            <p class="list-title">@session.DisplayName</p>
+                            <p class="list-meta">@session.Modality</p>
+                        </div>
+                        <div class="list-time">
+                            @session.TimeLabel
+                            <div class="list-date">@session.DateLabel</div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="list-card">
+            <div class="list-header">
+                <h2 class="section-title">Quick Actions</h2>
+                <span class="stat-link">Trainer tools</span>
+            </div>
+            <div class="list-item">
+                <div class="list-icon">VAL</div>
+                <div class="list-content">
+                    <p class="list-title">Validate Completions</p>
+                    <p class="list-meta">Approve or reject student submissions.</p>
+                </div>
+                <a href="/trainer/validations" class="list-action">Open</a>
+            </div>
+            <div class="list-item">
+                <div class="list-icon">USR</div>
+                <div class="list-content">
+                    <p class="list-title">Manage Users</p>
+                    <p class="list-meta">Award XP and review progress.</p>
+                </div>
+                <a href="/trainer/users/1" class="list-action">Open</a>
+            </div>
+            <div class="list-item">
+                <div class="list-icon">XP</div>
+                <div class="list-content">
+                    <p class="list-title">Award Bonus XP</p>
+                    <p class="list-meta">Reward standout performance.</p>
+                </div>
+                <a href="/trainer/users/1" class="list-action">Open</a>
+            </div>
+            <div class="list-item">
+                <div class="list-icon">TRN</div>
+                <div class="list-content">
+                    <p class="list-title">Create Training</p>
+                    <p class="list-meta">Build a new training plan.</p>
+                </div>
+                <button type="button" class="list-action" @onclick="OpenTrainingModal">Open</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+    <p>&copy; 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+</footer>
+
+@if (_showScheduleModal)
+{
+    <div class="create-modal-backdrop" @onclick="CloseScheduleModal">
+        <div class="create-modal" @onclick:stopPropagation="true">
+            <div class="create-modal-header">
+                <h3>Schedule Class</h3>
+                <button class="create-modal-close" @onclick="CloseScheduleModal">x</button>
+            </div>
+            <div class="create-modal-body">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>User (optional)</label>
+                        <select @bind="_scheduleForm.UserId">
+                            <option value="0">Select user (optional)</option>
+                            @foreach (var user in _users)
+                            {
+                                <option value="@user.Id">@user.Name (@user.Email)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Modality</label>
+                        <select @bind="_scheduleForm.Modality">
+                            <option value="">Select a modality</option>
+                            <option value="Boxing">Boxing</option>
+                            <option value="Muay Thai">Muay Thai</option>
+                            <option value="Martial Arts">Martial Arts</option>
+                            <option value="CrossFit">CrossFit</option>
+                            <option value="Functional Train">Functional Train</option>
+                            <option value="Weight Training">Weight Training</option>
+                            <option value="Circuit Training">Circuit Training</option>
+                            <option value="HIIT">HIIT</option>
+                            <option value="Pilates">Pilates</option>
+                            <option value="Yoga">Yoga</option>
+                            <option value="Stretching/Mobility">Stretching/Mobility</option>
+                            <option value="Zumba/Dance Fit">Zumba/Dance Fit</option>
+                            <option value="Spinning/Cycling">Spinning/Cycling</option>
+                            <option value="Step Class">Step Class</option>
+                            <option value="Running Club">Running Club</option>
+                            <option value="Cycling">Cycling</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date & Time</label>
+                        <input type="datetime-local" value="@_scheduleForm.ScheduledAtLocalText" @onchange="OnScheduleDateTimeChanged" />
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <input type="text" @bind="_scheduleForm.Notes" placeholder="Optional notes" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_scheduleError))
+                {
+                    <div class="inline-error">@_scheduleError</div>
+                }
+            </div>
+            <div class="create-modal-actions">
+                <button class="btn-secondary" @onclick="CloseScheduleModal" disabled="@_scheduling">Cancel</button>
+                <button class="btn-primary" @onclick="CreateSchedule" disabled="@_scheduling">
+                    @if (_scheduling)
+                    {
+                        <span>Scheduling...</span>
+                    }
+                    else
+                    {
+                        <span>Create Schedule</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showTrainingModal)
+{
+    <div class="create-modal-backdrop" @onclick="CloseTrainingModal">
+        <div class="create-modal" @onclick:stopPropagation="true">
+            <div class="create-modal-header">
+                <h3>Create Training</h3>
+                <button class="create-modal-close" @onclick="CloseTrainingModal">x</button>
+            </div>
+            <div class="create-modal-body">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" @bind="_trainingForm.Name" placeholder="Training name" />
+                    </div>
+                    <div class="form-group">
+                        <label>Duration (min)</label>
+                        <input type="number" min="1" max="480" @bind="_trainingForm.DurationMin" />
+                    </div>
+                    <div class="form-group">
+                        <label>XP Reward</label>
+                        <input type="number" min="1" max="10000" @bind="_trainingForm.XpReward" />
+                    </div>
+                    <div class="form-group">
+                        <label>Difficulty (1-5)</label>
+                        <input type="number" min="1" max="5" @bind="_trainingForm.Difficulty" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea @bind="_trainingForm.Description" placeholder="Optional description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="_trainingForm.RequiresValidation" /> Requires validation
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>Exercises</label>
+                    @if (!_exerciseSelections.Any())
+                    {
+                        <div class="inline-warning">
+                            <span>No exercises available.</span>
+                            <a href="/trainer/exercises">Create Exercise</a>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="exercise-picker">
+                            @foreach (var ex in _exerciseSelections)
+                            {
+                                <div class="exercise-row">
+                                    <div class="exercise-row-header">
+                                        <input type="checkbox" @bind="ex.Selected" />
+                                        <div>
+                                            <div class="exercise-title">@ex.Title</div>
+                                            <div class="exercise-meta">@ex.Category</div>
+                                        </div>
+                                    </div>
+                                    @if (ex.Selected)
+                                    {
+                                        <div class="exercise-config">
+                                            <div class="form-group">
+                                                <label>Sets</label>
+                                                <input type="number" min="1" max="20" @bind="ex.Sets" />
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Reps</label>
+                                                <input type="number" min="1" max="100" @bind="ex.Reps" />
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Rest (sec)</label>
+                                                <input type="number" min="0" max="300" @bind="ex.RestSeconds" />
+                                            </div>
+                                            <div class="form-group" style="grid-column: 1 / -1;">
+                                                <label>Notes</label>
+                                                <textarea @bind="ex.Notes" placeholder="Optional notes"></textarea>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_trainingError))
+                {
+                    <div class="inline-error">@_trainingError</div>
+                }
+                @if (_exerciseSelections.Any() && !_exerciseSelections.Any(ex => ex.Selected))
+                {
+                    <div class="inline-warning">
+                        <span>Select at least one exercise to create a training.</span>
+                        <a href="/trainer/exercises">Create Exercise</a>
+                    </div>
+                }
+            </div>
+            <div class="create-modal-actions">
+                <button class="btn-secondary" @onclick="CloseTrainingModal" disabled="@_creatingTraining">Cancel</button>
+                <button class="btn-primary" @onclick="CreateTraining" disabled="@(_creatingTraining || !_exerciseSelections.Any(ex => ex.Selected))">
+                    @if (_creatingTraining)
+                    {
+                        <span>Creating...</span>
+                    }
+                    else
+                    {
+                        <span>Create Training</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ApiClient.DomainUserRead> _users = new();
+    private List<UpcomingSessionItem> _upcomingSessions = new();
+    private string? _scheduleListError;
+    private bool _showScheduleModal;
+    private bool _scheduling;
+    private string? _scheduleError;
+    private ScheduleForm _scheduleForm = new();
+    private bool _showTrainingModal;
+    private bool _creatingTraining;
+    private string? _trainingError;
+    private TrainingForm _trainingForm = new();
+    private List<ApiClient.Exercise> _exerciseCatalog = new();
+    private List<TrainingExerciseSelection> _exerciseSelections = new();
+    private int? _currentTrainerId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentTrainerId = await ResolveCurrentTrainerIdAsync();
+        await LoadScheduleData();
+        await LoadUpcomingSessions();
+    }
+
+    private async Task LoadScheduleData()
+    {
+        try
+        {
+            if (_currentTrainerId is null)
+            {
+                _trainingError = "Trainer profile not found. Please sign in with a trainer account.";
+                _scheduleError = "Trainer profile not found. Please sign in with a trainer account.";
+                _scheduleListError = _scheduleError;
+                _upcomingSessions = new();
+                return;
+            }
+            _users = await Api.GetUsers();
+            _exerciseCatalog = await Api.GetExercises();
+            BuildExerciseSelections();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading schedule data: {ex.Message}");
+        }
+    }
+
+    private async Task LoadUpcomingSessions()
+    {
+        _scheduleListError = null;
+        _upcomingSessions = new();
+
+        if (_currentTrainerId is null)
+        {
+            _scheduleListError = "Trainer profile not found. Please sign in with a trainer account.";
+            return;
+        }
+
+        try
+        {
+            if (!_users.Any())
+            {
+                _users = await Api.GetUsers();
+            }
+
+            if (!_users.Any())
+            {
+                _scheduleListError = "No users available to load schedules.";
+                return;
+            }
+
+            var from = DateTime.UtcNow;
+            var to = DateTime.UtcNow.AddDays(14);
+            var scheduleTasks = _users.Select(async user => new
+            {
+                User = user,
+                Schedules = await Api.GetUserSchedule(user.Id, from, to)
+            });
+
+            var results = await Task.WhenAll(scheduleTasks);
+            var sessions = results
+                .SelectMany(result => result.Schedules.Select(schedule => new { result.User, Schedule = schedule }))
+                .Where(x => string.Equals(x.Schedule.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(x => x.Schedule.ScheduledAt)
+                .Take(5)
+                .Select(x =>
+                {
+                    var localTime = x.Schedule.ScheduledAt.ToLocalTime();
+                    return new UpcomingSessionItem
+                    {
+                        DisplayName = x.User.Name,
+                        Modality = x.Schedule.Modality,
+                        ModalityCode = ToModalityCode(x.Schedule.Modality),
+                        ScheduledAt = x.Schedule.ScheduledAt,
+                        TimeLabel = localTime.ToString("HH:mm"),
+                        DateLabel = localTime.ToString("MMM dd", System.Globalization.CultureInfo.InvariantCulture)
+                    };
+                })
+                .ToList();
+
+            _upcomingSessions = sessions;
+        }
+        catch (Exception ex)
+        {
+            _scheduleListError = $"Error loading schedules: {ex.Message}";
+        }
+    }
+
+    private void BuildExerciseSelections()
+    {
+        _exerciseSelections = _exerciseCatalog.Select(ex => new TrainingExerciseSelection
+        {
+            ExerciseId = ex.Id,
+            Title = ex.Title,
+            Category = ex.Category,
+            Sets = 3,
+            Reps = 10,
+            RestSeconds = 60
+        }).ToList();
+    }
+
+    private void OpenScheduleModal()
+    {
+        _scheduleError = null;
+        _showScheduleModal = true;
+    }
+
+    private void CloseScheduleModal()
+    {
+        _showScheduleModal = false;
+    }
+
+    private void OpenTrainingModal()
+    {
+        _trainingError = null;
+        if (_currentTrainerId is null)
+        {
+            _trainingError = "Trainer profile not found. Please sign in with a trainer account.";
+            _showTrainingModal = true;
+            return;
+        }
+        if (!_exerciseCatalog.Any())
+        {
+            _ = LoadScheduleData();
+        }
+        _showTrainingModal = true;
+    }
+
+    private void CloseTrainingModal()
+    {
+        _showTrainingModal = false;
+    }
+
+    private async Task CreateSchedule()
+    {
+        _scheduleError = ValidateScheduleForm();
+        if (!string.IsNullOrEmpty(_scheduleError)) return;
+
+        _scheduling = true;
+        try
+        {
+            var targetUserId = _scheduleForm.UserId > 0
+                ? _scheduleForm.UserId
+                : (_users.FirstOrDefault()?.Id ?? 0);
+
+            if (targetUserId <= 0)
+            {
+                _scheduleError = "Select a user to continue.";
+                return;
+            }
+
+            var scheduledAt = _scheduleForm.GetScheduledAtUtc();
+            if (!scheduledAt.HasValue)
+            {
+                _scheduleError = "Select date and time.";
+                return;
+            }
+            await Api.CreateClassSchedule(targetUserId, _scheduleForm.Modality.Trim(), scheduledAt.Value, _scheduleForm.Notes?.Trim());
+            _showScheduleModal = false;
+            ResetScheduleForm();
+            await LoadUpcomingSessions();
+        }
+        catch (Exception ex)
+        {
+            _scheduleError = $"Error creating schedule: {ex.Message}";
+        }
+        finally
+        {
+            _scheduling = false;
+        }
+    }
+
+    private async Task CreateTraining()
+    {
+        if (_currentTrainerId is null)
+        {
+            _trainingError = "Trainer profile not found. Please sign in with a trainer account.";
+            return;
+        }
+        _trainingError = ValidateTrainingForm();
+        if (!string.IsNullOrEmpty(_trainingError)) return;
+
+        _creatingTraining = true;
+        try
+        {
+            var selectedExercises = _exerciseSelections
+                .Where(ex => ex.Selected)
+                .Select((ex, index) => new
+                {
+                    ExerciseId = ex.ExerciseId,
+                    SortOrder = index,
+                    Sets = ex.Sets,
+                    Reps = ex.Reps,
+                    RestSeconds = ex.RestSeconds,
+                    Notes = string.IsNullOrWhiteSpace(ex.Notes) ? null : ex.Notes.Trim()
+                })
+                .ToList();
+
+            var request = new
+            {
+                Name = _trainingForm.Name.Trim(),
+                Description = string.IsNullOrWhiteSpace(_trainingForm.Description) ? null : _trainingForm.Description.Trim(),
+                DurationMin = _trainingForm.DurationMin,
+                XpReward = _trainingForm.XpReward,
+                Difficulty = _trainingForm.Difficulty,
+                RequiresValidation = _trainingForm.RequiresValidation,
+                Exercises = selectedExercises
+            };
+
+            await Api.CreateTraining(request, _currentTrainerId.Value);
+            ResetTrainingForm();
+            _showTrainingModal = false;
+        }
+        catch (Exception ex)
+        {
+            _trainingError = $"Error creating training: {ex.Message}";
+        }
+        finally
+        {
+            _creatingTraining = false;
+        }
+    }
+
+    private string? ValidateScheduleForm()
+    {
+        if (string.IsNullOrWhiteSpace(_scheduleForm.Modality)) return "Select a modality.";
+        if (_scheduleForm.Modality.Trim().Length > 20) return "Modality must be 20 characters or less.";
+        var scheduledLocal = _scheduleForm.GetScheduledAtLocal();
+        if (!scheduledLocal.HasValue) return "Select date and time.";
+        var scheduledUtc = _scheduleForm.GetScheduledAtUtc();
+        if (!scheduledUtc.HasValue) return "Select date and time.";
+        if (scheduledUtc.Value <= DateTime.UtcNow) return "Scheduled time must be in the future.";
+        return null;
+    }
+
+    private string? ValidateTrainingForm()
+    {
+        if (_currentTrainerId is null) return "Trainer profile not found. Please sign in with a trainer account.";
+        if (string.IsNullOrWhiteSpace(_trainingForm.Name)) return "Training name is required.";
+        if (_trainingForm.Name.Trim().Length > 200) return "Training name must be 200 characters or less.";
+        if (_trainingForm.DurationMin < 1 || _trainingForm.DurationMin > 480) return "Duration must be between 1 and 480 minutes.";
+        if (_trainingForm.XpReward < 1 || _trainingForm.XpReward > 10000) return "XP reward must be between 1 and 10000.";
+        if (_trainingForm.Difficulty < 1 || _trainingForm.Difficulty > 5) return "Difficulty must be between 1 and 5.";
+        var selected = _exerciseSelections.Where(ex => ex.Selected).ToList();
+        if (!selected.Any()) return "Select at least one exercise.";
+        foreach (var ex in selected)
+        {
+            if (ex.Sets < 1 || ex.Sets > 20) return "Sets must be between 1 and 20.";
+            if (ex.Reps < 1 || ex.Reps > 100) return "Reps must be between 1 and 100.";
+            if (ex.RestSeconds < 0 || ex.RestSeconds > 300) return "Rest seconds must be between 0 and 300.";
+        }
+        return null;
+    }
+
+    private void OnScheduleDateTimeChanged(ChangeEventArgs e)
+    {
+        _scheduleForm.ScheduledAtLocalText = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private static string ToModalityCode(string? modality)
+    {
+        if (string.IsNullOrWhiteSpace(modality)) return "N/A";
+        var cleaned = modality.Trim();
+        if (cleaned.Length <= 3) return cleaned.ToUpperInvariant();
+
+        var parts = cleaned
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => part[0])
+            .ToArray();
+
+        if (parts.Length >= 2)
+        {
+            return string.Concat(parts).ToUpperInvariant();
+        }
+
+        return cleaned[..3].ToUpperInvariant();
+    }
+
+    private async Task<int?> ResolveCurrentTrainerIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            return null;
+        }
+
+        var trainer = await Api.GetTrainerByIdentity(identityId);
+        if (trainer is null)
+        {
+            _trainingError = "No trainer profile found for this account.";
+            _scheduleError = "No trainer profile found for this account.";
+        }
+        return trainer?.Id;
+    }
+
+    private void ResetScheduleForm()
+    {
+        _scheduleForm = new ScheduleForm();
+        _scheduleError = null;
+    }
+
+    private void ResetTrainingForm()
+    {
+        _trainingForm = new TrainingForm();
+        _trainingError = null;
+        foreach (var ex in _exerciseSelections)
+        {
+            ex.Selected = false;
+            ex.Sets = 3;
+            ex.Reps = 10;
+            ex.RestSeconds = 60;
+            ex.Notes = string.Empty;
+        }
+    }
+
+    private class ScheduleForm
+    {
+        public int UserId { get; set; }
+        public string Modality { get; set; } = string.Empty;
+        public string ScheduledAtLocalText { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
+
+        public DateTime? GetScheduledAtLocal()
+        {
+            if (string.IsNullOrWhiteSpace(ScheduledAtLocalText))
+            {
+                return null;
+            }
+
+            var formats = new[]
+            {
+                "yyyy-MM-ddTHH:mm",
+                "yyyy-MM-ddTHH:mm:ss"
+            };
+
+            if (DateTime.TryParseExact(
+                    ScheduledAtLocalText,
+                    formats,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out var scheduledLocal))
+            {
+                return scheduledLocal;
+            }
+
+            return null;
+        }
+
+        public DateTime? GetScheduledAtUtc()
+        {
+            var local = GetScheduledAtLocal();
+            if (!local.HasValue)
+            {
+                return null;
+            }
+
+            return DateTime.SpecifyKind(local.Value, DateTimeKind.Local).ToUniversalTime();
+        }
+    }
+
+    private class TrainingForm
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int DurationMin { get; set; } = 45;
+        public int XpReward { get; set; } = 250;
+        public int Difficulty { get; set; } = 3;
+        public bool RequiresValidation { get; set; }
+    }
+
+    private class TrainingExerciseSelection
+    {
+        public int ExerciseId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public bool Selected { get; set; }
+        public int Sets { get; set; } = 3;
+        public int Reps { get; set; } = 10;
+        public int RestSeconds { get; set; } = 60;
+        public string Notes { get; set; } = string.Empty;
+    }
+
+    private class UpcomingSessionItem
+    {
+        public string DisplayName { get; set; } = string.Empty;
+        public string Modality { get; set; } = string.Empty;
+        public string ModalityCode { get; set; } = string.Empty;
+        public DateTime ScheduledAt { get; set; }
+        public string TimeLabel { get; set; } = string.Empty;
+        public string DateLabel { get; set; } = string.Empty;
+    }
+}
