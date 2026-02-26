@@ -12,7 +12,7 @@ public enum ClassScheduleStatus
 public class ClassSchedule
 {
     public int Id { get; set; }
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
 
     [Required]
     [MaxLength(20)]

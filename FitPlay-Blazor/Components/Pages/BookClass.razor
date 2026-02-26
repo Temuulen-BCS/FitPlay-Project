@@ -2,8 +2,12 @@
 @rendermode InteractiveServer
 @layout UserLayout
 @using FitPlay.Blazor.Services
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 @inject ApiClient Api
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Book a Class - FitPlay</PageTitle>
 
@@ -37,10 +41,13 @@
                                 <span class="class-modality">@classItem.Modality</span>
                                 <span class="class-status available">Available</span>
                             </div>
-                            <div class="class-trainer">
-                                <span class="trainer-label">Trainer ID:</span>
-                                <span class="trainer-id">@classItem.TrainerId</span>
-                            </div>
+                            @if (classItem.TrainerId.HasValue && classItem.TrainerId.Value > 0)
+                            {
+                                <div class="class-trainer">
+                                    <span class="trainer-label">Trainer ID:</span>
+                                    <span class="trainer-id">@classItem.TrainerId</span>
+                                </div>
+                            }
                             <div class="class-time">
                                 <span class="time-label">Scheduled:</span>
                                 <span class="time-value">@classItem.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")</span>
@@ -258,20 +265,33 @@
     private bool _isLoading = true;
     private bool isBooking;
 
-    private int _currentUserId = 1;
+    private int? _currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
+        _currentUserId = await ResolveCurrentUserIdAsync();
+        if (_currentUserId is null)
+        {
+            _isLoading = false;
+            return;
+        }
+
         await LoadClasses();
     }
 
     private async Task LoadClasses()
     {
+        if (_currentUserId is null)
+        {
+            _isLoading = false;
+            return;
+        }
+
         _isLoading = true;
         try
         {
             _publicClasses = await Api.GetPublicClassSchedules();
-            _userClasses = await Api.GetUserSchedule(_currentUserId);
+            _userClasses = await Api.GetUserSchedule(_currentUserId.Value);
         }
         catch (Exception ex)
         {
@@ -285,10 +305,15 @@
 
     private async Task bookClass(int scheduleId)
     {
+        if (_currentUserId is null)
+        {
+            return;
+        }
+
         isBooking = true;
         try
         {
-            await Api.BookClass(scheduleId, _currentUserId);
+            await Api.BookClass(scheduleId, _currentUserId.Value);
             await LoadClasses();
         }
         catch (Exception ex)
@@ -299,5 +324,32 @@
         {
             isBooking = false;
         }
+    }
+
+    private async Task<int?> ResolveCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        var domainUser = await Api.GetUserByIdentity(identityId);
+        if (domainUser is null)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        return domainUser.Id;
     }
 }

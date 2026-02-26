@@ -357,14 +357,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        if (!string.IsNullOrWhiteSpace(identityId))
+        _currentUserId = await ResolveCurrentUserIdAsync();
+        if (_currentUserId is null)
         {
-            var domainUser = await Api.GetUserByIdentity(identityId);
-            _currentUserId = domainUser?.Id;
+            _isLoading = false;
+            return;
         }
 
         await LoadData();
@@ -479,5 +476,32 @@
         {
             isLogging = false;
         }
+    }
+
+    private async Task<int?> ResolveCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        var domainUser = await Api.GetUserByIdentity(identityId);
+        if (domainUser is null)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return null;
+        }
+
+        return domainUser.Id;
     }
 }
