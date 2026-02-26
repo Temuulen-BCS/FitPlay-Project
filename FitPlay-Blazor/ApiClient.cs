@@ -308,6 +308,78 @@ public class ApiClient
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
+
+    public record ClassScheduleWithTrainer(
+        int Id,
+        int TrainerId,
+        string Modality,
+        DateTime ScheduledAt,
+        string Status,
+        string? Notes
+    );
+
+    public async Task<List<ClassScheduleWithTrainer>> GetPublicClassSchedules(DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ClassScheduleWithTrainer>>($"{BaseUrl}/classeschedules/public{queryString}") ?? new();
+    }
+
+    public async Task<ClassSchedule?> BookClass(int scheduleId, int userId)
+    {
+        var body = new { UserId = userId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/book", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+    #endregion
+
+    #region Exercise Logs API
+    public record ExerciseLogWithExercise(
+        int Id,
+        int ClientId,
+        int ExerciseId,
+        string ExerciseTitle,
+        string ExerciseCategory,
+        DateTime PerformedAt,
+        int DurationMin,
+        int PointsAwarded,
+        string? Notes
+    );
+
+    public record ExerciseLogSummary(
+        int TotalWorkouts,
+        int TotalMinutes,
+        int TotalPoints
+    );
+
+    public async Task<List<ExerciseLogWithExercise>> GetUserExerciseLogs(int userId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ExerciseLogWithExercise>>($"{BaseUrl}/exerciselogs/user/{userId}{queryString}") ?? new();
+    }
+
+    public async Task<ExerciseLogSummary?> GetUserExerciseSummary(int userId)
+    {
+        return await _http.GetFromJsonAsync<ExerciseLogSummary>($"{BaseUrl}/exerciselogs/user/{userId}/summary");
+    }
     #endregion
 
     #region Registration - Domain Records

@@ -1,0 +1,483 @@
+@page "/user/log-workout"
+@rendermode InteractiveServer
+@layout UserLayout
+@using FitPlay.Blazor.Services
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Log Workout - FitPlay</PageTitle>
+
+<div class="log-workout-page">
+    <div class="page-header">
+        <h1>Log Workout</h1>
+        <p class="subtitle">Track your exercises and earn points!</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading exercises...</div>
+    }
+    else
+    {
+        <div class="workout-form-card">
+            <div class="form-section">
+                <h2>Select Exercise</h2>
+                <div class="exercise-grid">
+                    @foreach (var exercise in _exercises)
+                    {
+                        <div class="exercise-item @(selectedExerciseId == exercise.Id ? "selected" : "")"
+                             @onclick="() => SelectExercise(exercise.Id)">
+                            <div class="exercise-title">@exercise.Title</div>
+                            <div class="exercise-category">@exercise.Category</div>
+                            <div class="exercise-meta">
+                                <span class="difficulty">Difficulty: @exercise.Difficulty</span>
+                                <span class="points">@exercise.BasePoints pts</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (selectedExerciseId > 0)
+            {
+                <div class="form-section">
+                    <h2>Workout Details</h2>
+                    <div class="form-group">
+                        <label>Duration (minutes)</label>
+                        <input type="number" @bind="duration" min="1" max="180" class="form-input" />
+                    </div>
+                    <div class="form-group">
+                        <label>Notes (optional)</label>
+                        <textarea @bind="notes" class="form-input" rows="3" placeholder="How did it go?"></textarea>
+                    </div>
+                    <div class="points-preview">
+                        <span>Points you'll earn:</span>
+                        <span class="points-value">@CalculatePoints()</span>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn-primary" @onclick="logWorkout" disabled="@isLogging">
+                        @(isLogging ? "Logging..." : "Log Workout")
+                    </button>
+                </div>
+            }
+        </div>
+
+        @if (_userLogs.Any())
+        {
+            <div class="history-section">
+                <h2>Recent Workouts</h2>
+                <div class="history-list">
+                    @foreach (var log in _userLogs)
+                    {
+                        <div class="history-item">
+                            <div class="history-exercise">@log.ExerciseTitle</div>
+                            <div class="history-meta">
+                                <span>@log.DurationMin min</span>
+                                <span class="history-points">+@log.PointsAwarded pts</span>
+                            </div>
+                            <div class="history-date">@log.PerformedAt.ToString("MMM dd, HH:mm")</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (_summary != null)
+        {
+            <div class="summary-cards">
+                <div class="summary-card">
+                    <div class="summary-value">@_summary.TotalWorkouts</div>
+                    <div class="summary-label">Total Workouts</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value">@_summary.TotalMinutes</div>
+                    <div class="summary-label">Total Minutes</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value">@_summary.TotalPoints</div>
+                    <div class="summary-label">Total Points</div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .log-workout-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+        .page-header h1 {
+            margin: 0 0 8px 0;
+            font-size: 28px;
+            color: #1a202c;
+        }
+
+    .subtitle {
+        margin: 0;
+        color: #718096;
+        font-size: 16px;
+    }
+
+    .workout-form-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .form-section {
+        margin-bottom: 24px;
+    }
+
+        .form-section h2 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            color: #1a202c;
+        }
+
+    .exercise-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .exercise-item {
+        padding: 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .exercise-item:hover {
+            border-color: #0ef0ff;
+            background: #f7fafc;
+        }
+
+        .exercise-item.selected {
+            border-color: #ff2fb4;
+            background: #fff5f9;
+        }
+
+    .exercise-title {
+        font-weight: 600;
+        color: #1a202c;
+        margin-bottom: 4px;
+    }
+
+    .exercise-category {
+        font-size: 12px;
+        color: #718096;
+        margin-bottom: 8px;
+    }
+
+    .exercise-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #a0aec0;
+    }
+
+    .points {
+        color: #ffd700;
+        font-weight: 600;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+    .form-input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+    }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #0ef0ff;
+        }
+
+    .points-preview {
+        display: flex;
+        justify-content: space-between;
+        padding: 16px;
+        background: #f7fafc;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+
+    .points-value {
+        font-size: 24px;
+        color: #ffd700;
+        font-weight: 700;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .btn-primary {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, #0ef0ff, #ff2fb4);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .history-section {
+        margin-bottom: 24px;
+    }
+
+        .history-section h2 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            color: #1a202c;
+        }
+
+    .history-list {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .history-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+    .history-exercise {
+        font-weight: 600;
+        color: #1a202c;
+    }
+
+    .history-meta {
+        display: flex;
+        gap: 16px;
+        color: #718096;
+        font-size: 14px;
+    }
+
+    .history-points {
+        color: #ffd700;
+        font-weight: 600;
+    }
+
+    .history-date {
+        color: #a0aec0;
+        font-size: 12px;
+    }
+
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+
+    .summary-card {
+        background: linear-gradient(135deg, #0ef0ff 0%, #ff2fb4 100%);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        color: white;
+    }
+
+    .summary-value {
+        font-size: 32px;
+        font-weight: 700;
+    }
+
+    .summary-label {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 60px;
+        color: #718096;
+    }
+</style>
+
+@code {
+    private List<ApiClient.Exercise> _exercises = new();
+    private List<ApiClient.ExerciseLogWithExercise> _userLogs = new();
+    private ApiClient.ExerciseLogSummary? _summary;
+    private bool _isLoading = true;
+    private bool isLogging;
+    private int selectedExerciseId;
+    private int duration = 20;
+    private string notes = "";
+    private int? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!string.IsNullOrWhiteSpace(identityId))
+        {
+            var domainUser = await Api.GetUserByIdentity(identityId);
+            _currentUserId = domainUser?.Id;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        if (_currentUserId is null)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        _isLoading = true;
+        try
+        {
+            // Run all three in parallel
+            await Task.WhenAll(
+                LoadExercises(),
+                LoadUserLogs(),
+                LoadSummary()
+            );
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadExercises()
+    {
+        try
+        {
+            _exercises = await Api.GetExercises();
+            _exercises = _exercises.Where(e => e.IsActive).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading exercises: {ex.Message}");
+        }
+    }
+
+    private async Task LoadUserLogs()
+    {
+        try
+        {
+            _userLogs = await Api.GetUserExerciseLogs(_currentUserId!.Value);
+            _userLogs = _userLogs.Take(10).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user logs: {ex.Message}");
+        }
+    }
+
+    private async Task LoadSummary()
+    {
+        try
+        {
+            _summary = await Api.GetUserExerciseSummary(_currentUserId!.Value);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading summary: {ex.Message}");
+        }
+    }
+
+    private void SelectExercise(int exerciseId)
+    {
+        selectedExerciseId = exerciseId;
+    }
+
+    private int CalculatePoints()
+    {
+        var exercise = _exercises.FirstOrDefault(e => e.Id == selectedExerciseId);
+        if (exercise == null) return 0;
+        return FitPlay.Domain.Services.PointsCalculator.Calculate(
+            exercise.BasePoints,
+            exercise.Difficulty,
+            duration,
+            exercise.SuggestedDurationMin
+        );
+    }
+
+    private async Task logWorkout()
+    {
+        if (selectedExerciseId <= 0 || duration <= 0 || _currentUserId is null) return;
+
+        isLogging = true;
+        try
+        {
+            await Api.LogExercise(
+                _currentUserId.Value,
+                selectedExerciseId,
+                duration,
+                string.IsNullOrWhiteSpace(notes) ? null : notes
+            );
+
+            // Reset form
+            selectedExerciseId = 0;
+            duration = 20;
+            notes = "";
+
+            // Refresh history and summary
+            await Task.WhenAll(LoadUserLogs(), LoadSummary());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error logging workout: {ex.Message}");
+        }
+        finally
+        {
+            isLogging = false;
+        }
+    }
+}

@@ -38,6 +38,11 @@ public class FitPlayContext : DbContext
         
         // Exercise indexes
         b.Entity<ExerciseLog>().HasIndex(x => new { x.ClientId, x.PerformedAt });
+        b.Entity<ExerciseLog>()
+            .HasOne(el => el.Exercise)
+            .WithMany()
+            .HasForeignKey(el => el.ExerciseId)
+            .OnDelete(DeleteBehavior.Restrict);
         b.Entity<Exercise>().HasIndex(x => new { x.TeacherId, x.IsActive });
         
         // Subscription indexes

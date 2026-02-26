@@ -1,0 +1,303 @@
+@page "/user/book-class"
+@rendermode InteractiveServer
+@layout UserLayout
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Book a Class - FitPlay</PageTitle>
+
+<div class="book-class-page">
+    <div class="page-header">
+        <h1>Book a Class</h1>
+        <p class="subtitle">Find and book classes with our trainers!</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading available classes...</div>
+    }
+    else if (!_publicClasses.Any() && !_userClasses.Any())
+    {
+        <div class="no-classes">
+            <p>No classes available at the moment. Check back later!</p>
+        </div>
+    }
+    else
+    {
+        @if (_publicClasses.Any())
+        {
+            <div class="section">
+                <h2>Available Classes</h2>
+                <div class="classes-grid">
+                    @foreach (var classItem in _publicClasses)
+                    {
+                        <div class="class-card">
+                            <div class="class-header">
+                                <span class="class-modality">@classItem.Modality</span>
+                                <span class="class-status available">Available</span>
+                            </div>
+                            <div class="class-trainer">
+                                <span class="trainer-label">Trainer ID:</span>
+                                <span class="trainer-id">@classItem.TrainerId</span>
+                            </div>
+                            <div class="class-time">
+                                <span class="time-label">Scheduled:</span>
+                                <span class="time-value">@classItem.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(classItem.Notes))
+                            {
+                                <div class="class-notes">@classItem.Notes</div>
+                            }
+                            <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@isBooking">
+                                @(isBooking ? "Booking..." : "Book Now")
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (_userClasses.Any())
+        {
+            <div class="section">
+                <h2>My Booked Classes</h2>
+                <div class="classes-grid">
+                    @foreach (var classItem in _userClasses)
+                    {
+                        <div class="class-card booked">
+                            <div class="class-header">
+                                <span class="class-modality">@classItem.Modality</span>
+                                <span class="class-status @classItem.Status.ToLower()">@classItem.Status</span>
+                            </div>
+                            <div class="class-time">
+                                <span class="time-label">Scheduled:</span>
+                                <span class="time-value">@classItem.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(classItem.Notes))
+                            {
+                                <div class="class-notes">@classItem.Notes</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .book-class-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: #1a202c;
+    }
+
+    .subtitle {
+        margin: 0;
+        color: #718096;
+        font-size: 16px;
+    }
+
+    .section {
+        margin-bottom: 32px;
+    }
+
+    .section h2 {
+        margin: 0 0 16px 0;
+        font-size: 20px;
+        color: #1a202c;
+    }
+
+    .classes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+    }
+
+    .class-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .class-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .class-card.booked {
+        border: 2px solid #0ef0ff;
+    }
+
+    .class-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .class-modality {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1a202c;
+    }
+
+    .class-status {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .class-status.available {
+        background: #c6f6d5;
+        color: #276749;
+    }
+
+    .class-status.scheduled {
+        background: #bee3f8;
+        color: #2b6cb0;
+    }
+
+    .class-status.cancelled {
+        background: #fed7d7;
+        color: #c53030;
+    }
+
+    .class-status.completed {
+        background: #e9d8fd;
+        color: #6b46c1;
+    }
+
+    .class-trainer {
+        margin-bottom: 12px;
+        color: #4a5568;
+    }
+
+    .trainer-label {
+        color: #718096;
+        font-size: 14px;
+    }
+
+    .trainer-id {
+        font-weight: 600;
+        color: #1a202c;
+    }
+
+    .class-time {
+        margin-bottom: 12px;
+    }
+
+    .time-label {
+        display: block;
+        color: #718096;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .time-value {
+        font-weight: 600;
+        color: #1a202c;
+    }
+
+    .class-notes {
+        padding: 12px;
+        background: #f7fafc;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #4a5568;
+        margin-bottom: 16px;
+    }
+
+    .btn-book {
+        width: 100%;
+        padding: 12px;
+        background: linear-gradient(135deg, #0ef0ff, #ff2fb4);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .btn-book:hover:not(:disabled) {
+        transform: translateY(-2px);
+    }
+
+    .btn-book:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .loading, .no-classes {
+        text-align: center;
+        padding: 60px;
+        color: #718096;
+        background: white;
+        border-radius: 16px;
+    }
+</style>
+
+@code {
+    private List<ApiClient.ClassScheduleWithTrainer> _publicClasses = new();
+    private List<ApiClient.ClassSchedule> _userClasses = new();
+    private bool _isLoading = true;
+    private bool isBooking;
+
+    private int _currentUserId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadClasses();
+    }
+
+    private async Task LoadClasses()
+    {
+        _isLoading = true;
+        try
+        {
+            _publicClasses = await Api.GetPublicClassSchedules();
+            _userClasses = await Api.GetUserSchedule(_currentUserId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task bookClass(int scheduleId)
+    {
+        isBooking = true;
+        try
+        {
+            await Api.BookClass(scheduleId, _currentUserId);
+            await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error booking class: {ex.Message}");
+        }
+        finally
+        {
+            isBooking = false;
+        }
+    }
+}
