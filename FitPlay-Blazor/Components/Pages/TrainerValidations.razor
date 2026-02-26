@@ -1,7 +1,9 @@
 @page "/trainer/validations"
 @rendermode InteractiveServer
-@using FitPlay.Blazor.Services
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ApiClient Api
+@layout TrainerLayout
 
 <PageTitle>Pending Validations - FitPlay</PageTitle>
 
@@ -281,11 +283,11 @@
     private string? _message;
     private bool _isError;
 
-    // TODO: Get from auth
-    private int _currentTrainerId = 1;
+    private int? _currentTrainerId;
 
     protected override async Task OnInitializedAsync()
     {
+        _currentTrainerId = await ResolveCurrentTrainerIdAsync();
         await LoadPendingValidations();
     }
 
@@ -294,7 +296,15 @@
         _isLoading = true;
         try
         {
-            _pendingCompletions = await Api.GetPendingValidations(_currentTrainerId);
+            if (_currentTrainerId is null)
+            {
+                _message = "Trainer profile not found. Please sign in with a trainer account.";
+                _isError = true;
+                _pendingCompletions = new();
+                return;
+            }
+
+            _pendingCompletions = await Api.GetPendingValidations(_currentTrainerId.Value);
             
             // Initialize adjustment values
             foreach (var completion in _pendingCompletions)
@@ -315,6 +325,12 @@
 
     private async Task ValidateCompletion(int completionId, bool approved)
     {
+        if (_currentTrainerId is null)
+        {
+            _message = "Trainer profile not found. Please sign in with a trainer account.";
+            _isError = true;
+            return;
+        }
         _processing = true;
         _message = null;
         
@@ -323,7 +339,7 @@
             var xpAdjustment = approved ? _xpAdjustments.GetValueOrDefault(completionId) : (int?)null;
             var notes = _trainerNotes.GetValueOrDefault(completionId);
 
-            await Api.ValidateCompletion(completionId, approved, _currentTrainerId, xpAdjustment, notes);
+            await Api.ValidateCompletion(completionId, approved, _currentTrainerId.Value, xpAdjustment, notes);
             
             _message = approved ? "Training completion approved!" : "Training completion rejected.";
             _isError = false;
@@ -340,5 +356,24 @@
         {
             _processing = false;
         }
+    }
+
+    private async Task<int?> ResolveCurrentTrainerIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            return null;
+        }
+
+        var trainer = await Api.GetTrainerByIdentity(identityId);
+        return trainer?.Id;
     }
 }

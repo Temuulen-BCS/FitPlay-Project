@@ -19,6 +19,7 @@ public class FitPlayContext : DbContext
     public DbSet<ExerciseLog> ExerciseLogs => Set<ExerciseLog>();
     public DbSet<Training> Trainings => Set<Training>();
     public DbSet<TrainingExercise> TrainingExercises => Set<TrainingExercise>();
+    public DbSet<ClassSchedule> ClassSchedules => Set<ClassSchedule>();
     
     // Gamification
     public DbSet<UserLevel> UserLevels => Set<UserLevel>();
@@ -57,6 +58,9 @@ public class FitPlayContext : DbContext
         
         b.Entity<TrainingExercise>()
             .HasIndex(te => new { te.TrainingId, te.SortOrder });
+
+        b.Entity<ClassSchedule>()
+            .HasIndex(ts => new { ts.UserId, ts.ScheduledAt });
         
         // Gamification indexes
         b.Entity<UserLevel>()

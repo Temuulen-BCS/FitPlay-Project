@@ -1,4 +1,4 @@
-@page "/trainings/{TrainingId:int}"
+@page "/user/trainings/{TrainingId:int}"
 @rendermode InteractiveServer
 @using FitPlay.Blazor.Services
 @using FitPlay_Blazor.Components.Gamification
@@ -15,7 +15,7 @@
     else if (_training != null)
     {
         <div class="back-link">
-            <a href="/trainings">&lt; Back to Trainings</a>
+            <a href="/user/trainings">&lt; Back to Trainings</a>
         </div>
 
         <div class="training-header">
@@ -377,7 +377,7 @@
                 {
                     await Task.Delay(3000);
                     _showToast = false;
-                    await InvokeAsync(() => Navigation.NavigateTo("/trainings"));
+                    await InvokeAsync(() => Navigation.NavigateTo("/user/trainings"));
                 });
             }
         }

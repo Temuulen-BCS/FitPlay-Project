@@ -7,7 +7,7 @@ public class ApiClient
     private readonly HttpClient _http;
     public ApiClient(HttpClient http) => _http = http;
 
-    private const string BaseUrl = "https://localhost:7148/api";
+    private const string BaseUrl = "https://localhost:7248/api";
 
     #region Records
     public record Exercise(int Id, int TeacherId, string Title, string Category, int Difficulty, int BasePoints, int SuggestedDurationMin, bool IsActive);
@@ -104,6 +104,16 @@ public class ApiClient
         string Description,
         bool Earned,
         DateTime? EarnedAt
+    );
+
+
+    public record ClassSchedule(
+        int Id,
+        int UserId,
+        string Modality,
+        DateTime ScheduledAt,
+        string Status,
+        string? Notes
     );
 
     public record XpTransaction(
@@ -251,6 +261,52 @@ public class ApiClient
     public async Task<List<AchievementStatus>> GetAllAchievementsStatus(int userId)
     {
         return await _http.GetFromJsonAsync<List<AchievementStatus>>($"{BaseUrl}/achievements/user/{userId}/all") ?? new();
+    }
+    #endregion
+
+    #region Users API
+    public async Task<List<DomainUserRead>> GetUsers()
+    {
+        return await _http.GetFromJsonAsync<List<DomainUserRead>>($"{BaseUrl}/users") ?? new();
+    }
+
+    public async Task<DomainUserRead?> GetUserByIdentity(string identityUserId)
+    {
+        return await _http.GetFromJsonAsync<DomainUserRead>($"{BaseUrl}/users/by-identity/{identityUserId}");
+    }
+    #endregion
+
+    #region Teachers API
+    public record TrainerRead(int Id, string Name, string Email, string Phone, string? IdentityUserId);
+
+    public async Task<TrainerRead?> GetTrainerByIdentity(string identityUserId)
+    {
+        return await _http.GetFromJsonAsync<TrainerRead>($"{BaseUrl}/teachers/by-identity/{identityUserId}");
+    }
+    #endregion
+
+    #region Schedules API
+    public async Task<List<ClassSchedule>> GetUserSchedule(int userId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ClassSchedule>>($"{BaseUrl}/classeschedules/user/{userId}{queryString}") ?? new();
+    }
+
+    public async Task<ClassSchedule?> CreateClassSchedule(int userId, string modality, DateTime scheduledAt, string? notes)
+    {
+        var body = new { UserId = userId, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
     #endregion
 

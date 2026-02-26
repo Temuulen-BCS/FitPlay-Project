@@ -45,6 +45,25 @@ public class TeachersController : ControllerBase
         return Ok(dto);
     }
 
+    [HttpGet("by-identity/{identityUserId}")]
+    public async Task<ActionResult<TeacherReadDto>> GetByIdentity(string identityUserId)
+    {
+        var normalizedId = identityUserId.Trim();
+        var teacher = await _db.Teachers.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.IdentityUserId != null && t.IdentityUserId == normalizedId);
+        if (teacher is null) return NotFound();
+
+        var dto = new TeacherReadDto
+        {
+            Id = teacher.Id,
+            Name = teacher.Name,
+            Email = teacher.Email,
+            Phone = teacher.Phone,
+            IdentityUserId = teacher.IdentityUserId
+        };
+        return Ok(dto);
+    }
+
     [HttpPost]
     public async Task<ActionResult<TeacherReadDto>> Create([FromBody] TeacherCreateDto dto)
     {

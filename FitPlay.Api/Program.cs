@@ -49,17 +49,21 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<FitPlayContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly("FitPlay.Api")
+        b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure()
     ));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.EnableRetryOnFailure()
+    ));
 
 // Register gamification services
 builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<AchievementService>();
 builder.Services.AddScoped<TrainingCompletionService>();
 builder.Services.AddScoped<TrainingService>();
+builder.Services.AddScoped<ClassScheduleService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
