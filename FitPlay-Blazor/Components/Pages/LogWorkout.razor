@@ -122,21 +122,22 @@
         .page-header h1 {
             margin: 0 0 8px 0;
             font-size: 28px;
-            color: #1a202c;
+            color: var(--text-primary);
         }
 
     .subtitle {
         margin: 0;
-        color: #718096;
+        color: var(--text-muted);
         font-size: 16px;
     }
 
     .workout-form-card {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
         padding: 24px;
         margin-bottom: 24px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     }
 
     .form-section {
@@ -146,7 +147,7 @@
         .form-section h2 {
             margin: 0 0 16px 0;
             font-size: 18px;
-            color: #1a202c;
+            color: var(--text-primary);
         }
 
     .exercise-grid {
@@ -157,31 +158,32 @@
 
     .exercise-item {
         padding: 16px;
-        border: 2px solid #e2e8f0;
+        border: 1px solid var(--glass-border);
         border-radius: 12px;
         cursor: pointer;
         transition: all 0.2s;
+        background: rgba(255,255,255,0.03);
     }
 
         .exercise-item:hover {
-            border-color: #0ef0ff;
-            background: #f7fafc;
+            border-color: var(--accent-teal);
+            background: rgba(255,255,255,0.06);
         }
 
         .exercise-item.selected {
-            border-color: #ff2fb4;
-            background: #fff5f9;
+            border-color: var(--accent-magenta);
+            background: rgba(255,47,180,0.12);
         }
 
     .exercise-title {
         font-weight: 600;
-        color: #1a202c;
+        color: var(--text-primary);
         margin-bottom: 4px;
     }
 
     .exercise-category {
         font-size: 12px;
-        color: #718096;
+        color: var(--text-muted);
         margin-bottom: 8px;
     }
 
@@ -189,7 +191,7 @@
         display: flex;
         justify-content: space-between;
         font-size: 12px;
-        color: #a0aec0;
+        color: var(--text-muted);
     }
 
     .points {
@@ -201,32 +203,34 @@
         margin-bottom: 16px;
     }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: 500;
-            color: #4a5568;
-        }
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        color: var(--text-muted);
+    }
 
     .form-input {
         width: 100%;
         padding: 10px 14px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--glass-border);
         border-radius: 8px;
         font-size: 14px;
         transition: border-color 0.2s;
+        background: rgba(255,255,255,0.03);
+        color: var(--text-primary);
     }
 
         .form-input:focus {
             outline: none;
-            border-color: #0ef0ff;
+            border-color: var(--accent-teal);
         }
 
     .points-preview {
         display: flex;
         justify-content: space-between;
         padding: 16px;
-        background: #f7fafc;
+        background: rgba(255,255,255,0.04);
         border-radius: 8px;
         font-weight: 500;
     }
@@ -266,17 +270,18 @@
         margin-bottom: 24px;
     }
 
-        .history-section h2 {
-            margin: 0 0 16px 0;
-            font-size: 18px;
-            color: #1a202c;
-        }
+    .history-section h2 {
+        margin: 0 0 16px 0;
+        font-size: 18px;
+        color: var(--text-primary);
+    }
 
     .history-list {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 12px;
         overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     }
 
     .history-item {
@@ -284,7 +289,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 16px;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid var(--glass-border);
     }
 
         .history-item:last-child {
@@ -293,13 +298,13 @@
 
     .history-exercise {
         font-weight: 600;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .history-meta {
         display: flex;
         gap: 16px;
-        color: #718096;
+        color: var(--text-muted);
         font-size: 14px;
     }
 
@@ -309,7 +314,7 @@
     }
 
     .history-date {
-        color: #a0aec0;
+        color: var(--text-muted);
         font-size: 12px;
     }
 
@@ -340,7 +345,7 @@
     .loading {
         text-align: center;
         padding: 60px;
-        color: #718096;
+        color: var(--text-muted);
     }
 </style>
 

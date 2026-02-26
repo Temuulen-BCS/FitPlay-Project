@@ -31,64 +31,53 @@
     {
         @if (_publicClasses.Any())
         {
-            <div class="section">
-                <h2>Available Classes</h2>
+            <!-- TONIGHT'S LINE-UP (CLASSES) -->
+            <section class="section classes-section" id="classes">
+                <h2 class="section-title">Tonight's Line-Up</h2>
+                <p class="section-sub">From HIIT to Yoga — experience workouts that push limits.</p>
                 <div class="classes-grid">
                     @foreach (var classItem in _publicClasses)
                     {
+                        var intensity = GetIntensity(classItem.Modality, classItem.Notes);
                         <div class="class-card">
                             <div class="class-header">
-                                <span class="class-modality">@classItem.Modality</span>
-                                <span class="class-status available">Available</span>
+                                <span class="class-time">@classItem.ScheduledAt.ToString("HH:mm")</span>
+                                <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
-                            @if (classItem.TrainerId.HasValue && classItem.TrainerId.Value > 0)
-                            {
-                                <div class="class-trainer">
-                                    <span class="trainer-label">Trainer ID:</span>
-                                    <span class="trainer-id">@classItem.TrainerId</span>
-                                </div>
-                            }
-                            <div class="class-time">
-                                <span class="time-label">Scheduled:</span>
-                                <span class="time-value">@classItem.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")</span>
-                            </div>
-                            @if (!string.IsNullOrEmpty(classItem.Notes))
-                            {
-                                <div class="class-notes">@classItem.Notes</div>
-                            }
+                            <h3 class="class-name">@classItem.Modality</h3>
+                            <p class="class-meta">@GetClassMeta(classItem)</p>
+                            <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
                             <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@isBooking">
                                 @(isBooking ? "Booking..." : "Book Now")
                             </button>
                         </div>
                     }
                 </div>
-            </div>
+            </section>
         }
 
         @if (_userClasses.Any())
         {
-            <div class="section">
-                <h2>My Booked Classes</h2>
+            <section class="section classes-section">
+                <h2 class="section-title">My Booked Classes</h2>
+                <p class="section-sub">Your upcoming sessions at FitPlay.</p>
                 <div class="classes-grid">
                     @foreach (var classItem in _userClasses)
                     {
+                        var intensity = GetIntensity(classItem.Modality, classItem.Notes);
                         <div class="class-card booked">
                             <div class="class-header">
-                                <span class="class-modality">@classItem.Modality</span>
-                                <span class="class-status @classItem.Status.ToLower()">@classItem.Status</span>
+                                <span class="class-time">@classItem.ScheduledAt.ToString("ddd, MMM dd")</span>
+                                <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
-                            <div class="class-time">
-                                <span class="time-label">Scheduled:</span>
-                                <span class="time-value">@classItem.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")</span>
-                            </div>
-                            @if (!string.IsNullOrEmpty(classItem.Notes))
-                            {
-                                <div class="class-notes">@classItem.Notes</div>
-                            }
+                            <h3 class="class-name">@classItem.Modality</h3>
+                            <p class="class-meta">Status: @classItem.Status</p>
+                            <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
+                            <button class="btn-cancel" @onclick="() => PromptCancel(classItem)">Cancel Booking</button>
                         </div>
                     }
                 </div>
-            </div>
+            </section>
         }
     }
 </div>
@@ -107,163 +96,269 @@
     .page-header h1 {
         margin: 0 0 8px 0;
         font-size: 28px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .subtitle {
         margin: 0;
-        color: #718096;
+        color: var(--text-muted);
         font-size: 16px;
     }
 
     .section {
-        margin-bottom: 32px;
+        margin-bottom: 40px;
     }
 
-    .section h2 {
-        margin: 0 0 16px 0;
-        font-size: 20px;
-        color: #1a202c;
+    .section-title {
+        margin: 0 0 8px 0;
+        font-size: 22px;
+        color: var(--text-primary);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+
+    .section-sub {
+        margin: 0 0 20px 0;
+        color: var(--text-muted);
+        font-size: 14px;
     }
 
     .classes-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
         gap: 20px;
     }
 
     .class-card {
-        background: white;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        transition: transform 0.2s, box-shadow 0.2s;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 10px 28px rgba(0,0,0,0.24);
+        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     }
 
     .class-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        transform: translateY(-4px);
+        border-color: rgba(255,255,255,0.2);
+        box-shadow: 0 14px 36px rgba(0,0,0,0.3);
     }
 
     .class-card.booked {
-        border: 2px solid #0ef0ff;
+        border-color: rgba(14,240,255,0.5);
+        box-shadow: 0 12px 30px rgba(14,240,255,0.12);
     }
 
     .class-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 16px;
-    }
-
-    .class-modality {
-        font-size: 18px;
-        font-weight: 700;
-        color: #1a202c;
-    }
-
-    .class-status {
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    .class-status.available {
-        background: #c6f6d5;
-        color: #276749;
-    }
-
-    .class-status.scheduled {
-        background: #bee3f8;
-        color: #2b6cb0;
-    }
-
-    .class-status.cancelled {
-        background: #fed7d7;
-        color: #c53030;
-    }
-
-    .class-status.completed {
-        background: #e9d8fd;
-        color: #6b46c1;
-    }
-
-    .class-trainer {
-        margin-bottom: 12px;
-        color: #4a5568;
-    }
-
-    .trainer-label {
-        color: #718096;
-        font-size: 14px;
-    }
-
-    .trainer-id {
-        font-weight: 600;
-        color: #1a202c;
+        margin-bottom: 14px;
     }
 
     .class-time {
-        margin-bottom: 12px;
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--accent-teal);
     }
 
-    .time-label {
-        display: block;
-        color: #718096;
-        font-size: 14px;
-        margin-bottom: 4px;
+    .intensity {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
     }
 
-    .time-value {
-        font-weight: 600;
-        color: #1a202c;
+    .intensity.high {
+        background: rgba(255,47,180,0.2);
+        color: var(--accent-magenta);
+        border: 1px solid rgba(255,47,180,0.4);
     }
 
-    .class-notes {
-        padding: 12px;
-        background: #f7fafc;
-        border-radius: 8px;
-        font-size: 14px;
-        color: #4a5568;
-        margin-bottom: 16px;
+    .intensity.medium {
+        background: rgba(255,215,0,0.2);
+        color: var(--accent-gold);
+        border: 1px solid rgba(255,215,0,0.4);
+    }
+
+    .intensity.low {
+        background: rgba(14,240,255,0.15);
+        color: var(--accent-teal);
+        border: 1px solid rgba(14,240,255,0.35);
+    }
+
+    .class-name {
+        margin: 0 0 6px 0;
+        font-size: 18px;
+        color: var(--text-primary);
+    }
+
+    .class-meta {
+        margin: 0 0 14px 0;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .slots {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 14px;
     }
 
     .btn-book {
         width: 100%;
-        padding: 12px;
-        background: linear-gradient(135deg, #0ef0ff, #ff2fb4);
+        padding: 12px 14px;
+        background: linear-gradient(135deg, var(--accent-teal), var(--accent-magenta));
         color: white;
         border: none;
-        border-radius: 8px;
+        border-radius: 10px;
         font-weight: 600;
         cursor: pointer;
-        transition: transform 0.2s;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 6px 20px rgba(255,47,180,0.25);
     }
 
     .btn-book:hover:not(:disabled) {
         transform: translateY(-2px);
+        box-shadow: 0 10px 28px rgba(255,47,180,0.35);
     }
 
     .btn-book:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .btn-cancel {
+        width: 100%;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.06);
+        color: var(--text-primary);
+        border: 1px solid rgba(255,47,180,0.45);
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        margin-top: 12px;
+    }
+
+    .btn-cancel:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent-magenta);
+        box-shadow: 0 8px 22px rgba(255,47,180,0.2);
     }
 
     .loading, .no-classes {
         text-align: center;
         padding: 60px;
-        color: #718096;
-        background: white;
+        color: var(--text-muted);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
     }
+
+    .confirm-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 6, 10, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 16px;
+    }
+
+    .confirm-card {
+        width: min(420px, 100%);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+    }
+
+    .confirm-title {
+        margin: 0 0 8px 0;
+        font-size: 18px;
+        color: var(--text-primary);
+    }
+
+    .confirm-text {
+        margin: 0 0 18px 0;
+        color: var(--text-muted);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .confirm-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn-secondary {
+        flex: 1;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+        border-color: rgba(255,255,255,0.3);
+    }
+
+    .btn-danger {
+        flex: 1;
+        padding: 10px 14px;
+        background: linear-gradient(135deg, #ff4d6d, #ff2fb4);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .btn-danger:hover {
+        opacity: 0.9;
+    }
 </style>
+
+@if (_showCancelConfirm && _pendingCancel != null)
+{
+    <div class="confirm-overlay" @onclick="CloseCancelConfirm">
+        <div class="confirm-card" @onclick:stopPropagation="true">
+            <h3 class="confirm-title">Cancel booking?</h3>
+            <p class="confirm-text">
+                Are you sure you want to cancel <strong>@_pendingCancel.Modality</strong>
+                on @_pendingCancel.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")?
+                This will only remove your booking.
+            </p>
+            <div class="confirm-actions">
+                <button class="btn-secondary" @onclick="CloseCancelConfirm">Keep Booking</button>
+                <button class="btn-danger" @onclick="ConfirmCancelBooking" disabled="@_isCanceling">
+                    @_isCanceling ? "Canceling..." : "Cancel Booking"
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private List<ApiClient.ClassScheduleWithTrainer> _publicClasses = new();
     private List<ApiClient.ClassSchedule> _userClasses = new();
     private bool _isLoading = true;
     private bool isBooking;
+    private bool _showCancelConfirm;
+    private bool _isCanceling;
+    private ApiClient.ClassSchedule? _pendingCancel;
 
     private int? _currentUserId;
 
@@ -326,6 +421,42 @@
         }
     }
 
+    private void PromptCancel(ApiClient.ClassSchedule classItem)
+    {
+        _pendingCancel = classItem;
+        _showCancelConfirm = true;
+    }
+
+    private void CloseCancelConfirm()
+    {
+        _showCancelConfirm = false;
+        _pendingCancel = null;
+    }
+
+    private async Task ConfirmCancelBooking()
+    {
+        if (_pendingCancel is null || _currentUserId is null)
+        {
+            return;
+        }
+
+        _isCanceling = true;
+        try
+        {
+            await Api.UnbookClass(_pendingCancel.Id);
+            await LoadClasses();
+            CloseCancelConfirm();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error canceling booking: {ex.Message}");
+        }
+        finally
+        {
+            _isCanceling = false;
+        }
+    }
+
     private async Task<int?> ResolveCurrentUserIdAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -351,5 +482,37 @@
         }
 
         return domainUser.Id;
+    }
+
+    private static (string Label, string CssClass) GetIntensity(string? modality, string? notes)
+    {
+        var source = string.Join(' ', modality, notes).ToLowerInvariant();
+        if (source.Contains("hiit") || source.Contains("combat") || source.Contains("strength"))
+        {
+            return ("High Intensity", "high");
+        }
+        if (source.Contains("yoga") || source.Contains("recovery") || source.Contains("stretch"))
+        {
+            return ("Recovery", "low");
+        }
+        return ("Medium", "medium");
+    }
+
+    private static string GetSlotsLabel(string? notes)
+    {
+        if (!string.IsNullOrWhiteSpace(notes) && notes.Contains("slot", StringComparison.OrdinalIgnoreCase))
+        {
+            return notes;
+        }
+        return "Limited slots";
+    }
+
+    private static string GetClassMeta(ApiClient.ClassScheduleWithTrainer classItem)
+    {
+        if (!string.IsNullOrWhiteSpace(classItem.TrainerName))
+        {
+            return $"Coach: {classItem.TrainerName}";
+        }
+        return "Coach: TBA";
     }
 }

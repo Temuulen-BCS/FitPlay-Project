@@ -34,6 +34,16 @@ public class ClassSchedulesController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("trainer/{trainerId:int}")]
+    public async Task<ActionResult<List<ClassScheduleDto>>> GetTrainerSchedule(
+        int trainerId,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+    {
+        var result = await _scheduleService.GetTrainerScheduleAsync(trainerId, from, to);
+        return Ok(result);
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ClassScheduleDto>> GetById(int id)
     {
@@ -69,6 +79,14 @@ public class ClassSchedulesController : ControllerBase
     public async Task<ActionResult<ClassScheduleDto>> UpdateStatus(int id, [FromBody] UpdateStatusRequest request)
     {
         var result = await _scheduleService.UpdateStatusAsync(id, request.Status);
+        if (result == null) return NotFound();
+        return Ok(result);
+    }
+
+    [HttpPost("{id:int}/unbook")]
+    public async Task<ActionResult<ClassScheduleDto>> Unbook(int id)
+    {
+        var result = await _scheduleService.UnbookAsync(id);
         if (result == null) return NotFound();
         return Ok(result);
     }

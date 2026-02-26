@@ -107,12 +107,12 @@
         .page-header h1 {
             margin: 0 0 8px 0;
             font-size: 28px;
-            color: #1a202c;
+            color: var(--text-primary);
         }
 
     .subtitle {
         margin: 0;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .content-grid {
@@ -122,17 +122,18 @@
     }
 
     .history-section, .completions-section, .level-guide {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
         padding: 24px;
         margin-top: 24px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     }
 
         .history-section h3, .completions-section h3, .level-guide h3 {
             margin: 0 0 20px 0;
             font-size: 18px;
-            color: #1a202c;
+            color: var(--text-primary);
         }
 
     .history-list {
@@ -146,7 +147,7 @@
         align-items: center;
         gap: 12px;
         padding: 12px;
-        background: #f7fafc;
+        background: rgba(255,255,255,0.04);
         border-radius: 8px;
     }
 
@@ -176,13 +177,13 @@
     .history-reason {
         display: block;
         font-size: 14px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .history-date {
         display: block;
         font-size: 12px;
-        color: #a0aec0;
+        color: var(--text-muted);
     }
 
     .history-xp {
@@ -208,7 +209,7 @@
         align-items: center;
         gap: 12px;
         padding: 12px;
-        background: #f7fafc;
+        background: rgba(255,255,255,0.04);
         border-radius: 8px;
     }
 
@@ -220,17 +221,17 @@
         display: block;
         font-size: 14px;
         font-weight: 500;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .completion-date {
         display: block;
         font-size: 12px;
-        color: #a0aec0;
+        color: var(--text-muted);
     }
 
     .completion-xp {
-        color: #667eea;
+        color: var(--accent-teal);
         font-weight: bold;
         font-size: 14px;
     }
@@ -270,12 +271,12 @@
         gap: 12px;
         padding: 10px;
         border-radius: 8px;
-        background: #f7fafc;
+        background: rgba(255,255,255,0.04);
         opacity: 0.6;
     }
 
         .level-item.reached {
-            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            background: linear-gradient(135deg, rgba(255,47,180,0.12) 0%, rgba(14,240,255,0.1) 100%);
             opacity: 1;
         }
 
@@ -283,34 +284,34 @@
         width: 32px;
         height: 32px;
         border-radius: 50%;
-        background: #e2e8f0;
+        background: rgba(255,255,255,0.08);
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: bold;
         font-size: 12px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .level-item.reached .level-number {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--accent-magenta) 0%, var(--accent-teal) 100%);
         color: white;
     }
 
     .level-name {
         flex: 1;
         font-size: 14px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .level-xp {
         font-size: 12px;
-        color: #a0aec0;
+        color: var(--text-muted);
     }
 
     .no-history, .no-completions {
         text-align: center;
-        color: #a0aec0;
+        color: var(--text-muted);
         padding: 20px;
     }
 
