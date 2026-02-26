@@ -76,6 +76,38 @@
             </div>
         </section>
 
+        <!-- WEEKLY PROGRESS -->
+        <section class="card progress-card">
+            <div class="card-header">
+                <h2>Weekly Progress</h2>
+            </div>
+            <div class="progress-chart">
+                <div class="chart-bars">
+                    @foreach (var bar in _weeklyBars)
+                    {
+                        <div class="chart-bar @bar.BarClass">
+                            <div class="bar-fill @bar.FillClass" style="height: @bar.HeightPercent%;"></div>
+                            <span class="bar-label">@bar.Label</span>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="progress-stats">
+                <div class="progress-stat">
+                    <span class="ps-value">@_weekWorkouts</span>
+                    <span class="ps-label">Workouts</span>
+                </div>
+                <div class="progress-stat">
+                    <span class="ps-value">@_weekCaloriesDisplay</span>
+                    <span class="ps-label">Calories</span>
+                </div>
+                <div class="progress-stat">
+                    <span class="ps-value">@_weekHoursDisplay</span>
+                    <span class="ps-label">Time</span>
+                </div>
+            </div>
+        </section>
+
         <!-- MAIN GRID -->
         <div class="dashboard-grid">
             <!-- LEFT COLUMN -->
@@ -114,38 +146,6 @@
                                 <p>No trainings scheduled in the next 7 days.</p>
                             </div>
                         }
-                    </div>
-                </section>
-
-                <!-- WEEKLY PROGRESS -->
-                <section class="card progress-card">
-                    <div class="card-header">
-                        <h2>Weekly Progress</h2>
-                    </div>
-                    <div class="progress-chart">
-                        <div class="chart-bars">
-                            @foreach (var bar in _weeklyBars)
-                            {
-                                <div class="chart-bar @bar.BarClass">
-                                    <div class="bar-fill @bar.FillClass" style="height: @bar.HeightPercent%;"></div>
-                                    <span class="bar-label">@bar.Label</span>
-                                </div>
-                            }
-                        </div>
-                    </div>
-                    <div class="progress-stats">
-                        <div class="progress-stat">
-                            <span class="ps-value">@_weekWorkouts</span>
-                            <span class="ps-label">Workouts</span>
-                        </div>
-                        <div class="progress-stat">
-                            <span class="ps-value">@_weekCaloriesDisplay</span>
-                            <span class="ps-label">Calories</span>
-                        </div>
-                        <div class="progress-stat">
-                            <span class="ps-value">@_weekHoursDisplay</span>
-                            <span class="ps-label">Time</span>
-                        </div>
                     </div>
                 </section>
             </div>
@@ -211,11 +211,11 @@
                 <section class="card actions-card">
                     <h2>Quick Actions</h2>
                     <div class="actions-grid">
-                        <a href="/user/trainings" class="action-btn">
+                        <a href="/user/book-class" class="action-btn">
                             <span class="action-icon">+</span>
                             <span>Book Class</span>
                         </a>
-                        <a href="#" class="action-btn">
+                        <a href="/user/log-workout" class="action-btn">
                             <span class="action-icon">LOG</span>
                             <span>Log Workout</span>
                         </a>
@@ -336,7 +336,7 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1.5rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
     .stat-card {
         background: var(--glass-bg);
@@ -496,23 +496,29 @@
     .progress-chart {
         margin: 1rem 0;
     }
+    .progress-card {
+        margin-bottom: 2rem;
+    }
     .chart-bars {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
         gap: 0.75rem;
         align-items: end;
+        min-height: 140px;
     }
     .chart-bar {
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 0.5rem;
+        height: 140px;
+        justify-content: flex-end;
     }
     .bar-fill {
         width: 100%;
         background: linear-gradient(180deg, var(--accent-teal), var(--accent-magenta));
         border-radius: 8px 8px 2px 2px;
-        height: 40px;
+        min-height: 8px;
     }
     .bar-fill.empty {
         background: rgba(255,255,255,0.08);
