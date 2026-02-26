@@ -110,6 +110,7 @@ public class ApiClient
     public record ClassSchedule(
         int Id,
         int? UserId,
+        int? TrainerId,
         string Modality,
         DateTime ScheduledAt,
         string Status,
@@ -301,9 +302,32 @@ public class ApiClient
         return await _http.GetFromJsonAsync<List<ClassSchedule>>($"{BaseUrl}/classeschedules/user/{userId}{queryString}") ?? new();
     }
 
+    public async Task<List<ClassSchedule>> GetTrainerSchedule(int trainerId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ClassSchedule>>($"{BaseUrl}/classeschedules/trainer/{trainerId}{queryString}") ?? new();
+    }
+
     public async Task<ClassSchedule?> CreateClassSchedule(int? userId, string modality, DateTime scheduledAt, string? notes)
     {
-        var body = new { UserId = userId, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
+        var body = new { UserId = userId, TrainerId = (int?)null, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public async Task<ClassSchedule?> CreateTrainerClassSchedule(int trainerId, string modality, DateTime scheduledAt, string? notes)
+    {
+        var body = new { UserId = (int?)null, TrainerId = trainerId, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
@@ -312,6 +336,7 @@ public class ApiClient
     public record ClassScheduleWithTrainer(
         int Id,
         int? TrainerId,
+        string TrainerName,
         string Modality,
         DateTime ScheduledAt,
         string Status,
@@ -337,6 +362,13 @@ public class ApiClient
     {
         var body = new { UserId = userId };
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/book", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public async Task<ClassSchedule?> UnbookClass(int scheduleId)
+    {
+        var res = await _http.PostAsync($"{BaseUrl}/classeschedules/{scheduleId}/unbook", null);
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }

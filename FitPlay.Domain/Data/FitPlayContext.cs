@@ -66,6 +66,9 @@ public class FitPlayContext : DbContext
 
         b.Entity<ClassSchedule>()
             .HasIndex(ts => new { ts.UserId, ts.ScheduledAt });
+
+        b.Entity<ClassSchedule>()
+            .HasIndex(ts => new { ts.TrainerId, ts.ScheduledAt });
         
         // Gamification indexes
         b.Entity<UserLevel>()

@@ -669,6 +669,16 @@
         padding-right: 6px;
     }
 
+    .exercise-dropdown {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--glass-border);
+        background: rgba(10, 13, 26, 0.7);
+        color: var(--text-light);
+        font-size: 14px;
+    }
+
     .exercise-row {
         border: 1px solid var(--glass-border);
         border-radius: 12px;
@@ -1026,48 +1036,41 @@
                     }
                     else
                     {
-                        <div class="exercise-picker">
+                        <select class="exercise-dropdown" @bind="_selectedExerciseId" @bind:after="SyncSelectedExercise">
+                            <option value="">Select an exercise</option>
                             @foreach (var ex in _exerciseSelections)
                             {
-                                <div class="exercise-row">
-                                    <div class="exercise-row-header">
-                                        <input type="checkbox" @bind="ex.Selected" />
-                                        <div>
-                                            <div class="exercise-title">@ex.Title</div>
-                                            <div class="exercise-meta">@ex.Category</div>
-                                        </div>
-                                    </div>
-                                    @if (ex.Selected)
-                                    {
-                                        <div class="exercise-config">
-                                            <div class="form-group">
-                                                <label>Sets</label>
-                                                <input type="number" min="1" max="20" @bind="ex.Sets" />
-                                            </div>
-                                            <div class="form-group">
-                                                <label>Reps</label>
-                                                <input type="number" min="1" max="100" @bind="ex.Reps" />
-                                            </div>
-                                            <div class="form-group">
-                                                <label>Rest (sec)</label>
-                                                <input type="number" min="0" max="300" @bind="ex.RestSeconds" />
-                                            </div>
-                                            <div class="form-group" style="grid-column: 1 / -1;">
-                                                <label>Notes</label>
-                                                <textarea @bind="ex.Notes" placeholder="Optional notes"></textarea>
-                                            </div>
-                                        </div>
-                                    }
-                                </div>
+                                <option value="@ex.ExerciseId">@ex.Title (@ex.Category)</option>
                             }
-                        </div>
+                        </select>
                     }
                 </div>
+                @if (_selectedExercise is not null)
+                {
+                    <div class="exercise-config">
+                        <div class="form-group">
+                            <label>Sets</label>
+                            <input type="number" min="1" max="20" @bind="_selectedExercise.Sets" />
+                        </div>
+                        <div class="form-group">
+                            <label>Reps</label>
+                            <input type="number" min="1" max="100" @bind="_selectedExercise.Reps" />
+                        </div>
+                        <div class="form-group">
+                            <label>Rest (sec)</label>
+                            <input type="number" min="0" max="300" @bind="_selectedExercise.RestSeconds" />
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Notes</label>
+                            <textarea @bind="_selectedExercise.Notes" placeholder="Optional notes"></textarea>
+                        </div>
+                    </div>
+                }
                 @if (!string.IsNullOrEmpty(_trainingError))
                 {
                     <div class="inline-error">@_trainingError</div>
                 }
-                @if (_exerciseSelections.Any() && !_exerciseSelections.Any(ex => ex.Selected))
+                @if (_exerciseSelections.Any() && _selectedExerciseId is null)
                 {
                     <div class="inline-warning">
                         <span>Select at least one exercise to create a training.</span>
@@ -1077,7 +1080,7 @@
             </div>
             <div class="create-modal-actions">
                 <button class="btn-secondary" @onclick="CloseTrainingModal" disabled="@_creatingTraining">Cancel</button>
-                <button class="btn-primary" @onclick="CreateTraining" disabled="@(_creatingTraining || !_exerciseSelections.Any(ex => ex.Selected))">
+                <button class="btn-primary" @onclick="CreateTraining" disabled="@(_creatingTraining || _selectedExerciseId is null)">
                     @if (_creatingTraining)
                     {
                         <span>Creating...</span>
@@ -1113,6 +1116,8 @@
     private TrainingForm _trainingForm = new();
     private List<ApiClient.Exercise> _exerciseCatalog = new();
     private List<TrainingExerciseSelection> _exerciseSelections = new();
+    private int? _selectedExerciseId;
+    private TrainingExerciseSelection? _selectedExercise;
 
     private int? _currentTrainerId;
     private List<ApiClient.TrainingSummary> _myTrainings = new();
@@ -1168,40 +1173,24 @@
 
         try
         {
-            if (!_users.Any())
-                _users = await Api.GetUsers();
-
-            if (!_users.Any())
-            {
-                _scheduleListError = "No users available to load schedules.";
-                return;
-            }
-
             var from = DateTime.UtcNow;
             var to = DateTime.UtcNow.AddDays(14);
 
-            var scheduleTasks = _users.Select(async user => new
-            {
-                User = user,
-                Schedules = await Api.GetUserSchedule(user.Id, from, to)
-            });
+            var schedules = await Api.GetTrainerSchedule(_currentTrainerId.Value, from, to);
 
-            var results = await Task.WhenAll(scheduleTasks);
-
-            _upcomingSessions = results
-                .SelectMany(r => r.Schedules.Select(s => new { r.User, Schedule = s }))
-                .Where(x => string.Equals(x.Schedule.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(x => x.Schedule.ScheduledAt)
+            _upcomingSessions = schedules
+                .Where(s => string.Equals(s.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(s => s.ScheduledAt)
                 .Take(5)
-                .Select(x =>
+                .Select(s =>
                 {
-                    var local = x.Schedule.ScheduledAt.ToLocalTime();
+                    var local = s.ScheduledAt.ToLocalTime();
                     return new UpcomingSessionItem
                     {
-                        DisplayName = x.User.Name,
-                        Modality = x.Schedule.Modality,
-                        ModalityCode = ToModalityCode(x.Schedule.Modality),
-                        ScheduledAt = x.Schedule.ScheduledAt,
+                        DisplayName = "Your class",
+                        Modality = s.Modality,
+                        ModalityCode = ToModalityCode(s.Modality),
+                        ScheduledAt = s.ScheduledAt,
                         TimeLabel = local.ToString("HH:mm"),
                         DateLabel = local.ToString("MMM dd", System.Globalization.CultureInfo.InvariantCulture)
                     };
@@ -1238,6 +1227,7 @@
             Reps = 10,
             RestSeconds = 60
         }).ToList();
+        SyncSelectedExercise();
     }
 
     // ── modal helpers ──────────────────────────────────────────────────────
@@ -1272,7 +1262,7 @@
             var scheduledAt = _scheduleForm.GetScheduledAtUtc();
             if (!scheduledAt.HasValue) { _scheduleError = "Select date and time."; return; }
 
-            await Api.CreateClassSchedule(targetUserId, _scheduleForm.Modality.Trim(), scheduledAt.Value, _scheduleForm.Notes?.Trim());
+            await Api.CreateTrainerClassSchedule(_currentTrainerId.Value, _scheduleForm.Modality.Trim(), scheduledAt.Value, _scheduleForm.Notes?.Trim());
             _showScheduleModal = false;
             ResetScheduleForm();
             await LoadUpcomingSessions();
@@ -1290,17 +1280,25 @@
         _creatingTraining = true;
         try
         {
-            var selectedExercises = _exerciseSelections
-                .Where(ex => ex.Selected)
-                .Select((ex, i) => new
+            var selectedExercise = GetSelectedExercise();
+            if (selectedExercise is null)
+            {
+                _trainingError = "Select at least one exercise.";
+                return;
+            }
+
+            var selectedExercises = new[]
+            {
+                new
                 {
-                    ExerciseId = ex.ExerciseId,
-                    SortOrder = i,
-                    ex.Sets,
-                    ex.Reps,
-                    ex.RestSeconds,
-                    Notes = string.IsNullOrWhiteSpace(ex.Notes) ? null : ex.Notes.Trim()
-                }).ToList();
+                    ExerciseId = selectedExercise.ExerciseId,
+                    SortOrder = 0,
+                    selectedExercise.Sets,
+                    selectedExercise.Reps,
+                    selectedExercise.RestSeconds,
+                    Notes = string.IsNullOrWhiteSpace(selectedExercise.Notes) ? null : selectedExercise.Notes.Trim()
+                }
+            };
 
             var request = new
             {
@@ -1342,15 +1340,26 @@
         if (_trainingForm.DurationMin < 1 || _trainingForm.DurationMin > 480) return "Duration must be between 1 and 480 minutes.";
         if (_trainingForm.XpReward < 1 || _trainingForm.XpReward > 10000) return "XP reward must be between 1 and 10000.";
         if (_trainingForm.Difficulty < 1 || _trainingForm.Difficulty > 5) return "Difficulty must be between 1 and 5.";
-        var selected = _exerciseSelections.Where(ex => ex.Selected).ToList();
-        if (!selected.Any()) return "Select at least one exercise.";
-        foreach (var ex in selected)
-        {
-            if (ex.Sets < 1 || ex.Sets > 20) return "Sets must be between 1 and 20.";
-            if (ex.Reps < 1 || ex.Reps > 100) return "Reps must be between 1 and 100.";
-            if (ex.RestSeconds < 0 || ex.RestSeconds > 300) return "Rest seconds must be between 0 and 300.";
-        }
+        var selected = GetSelectedExercise();
+        if (selected is null) return "Select at least one exercise.";
+        if (selected.Sets < 1 || selected.Sets > 20) return "Sets must be between 1 and 20.";
+        if (selected.Reps < 1 || selected.Reps > 100) return "Reps must be between 1 and 100.";
+        if (selected.RestSeconds < 0 || selected.RestSeconds > 300) return "Rest seconds must be between 0 and 300.";
         return null;
+    }
+
+    private TrainingExerciseSelection? GetSelectedExercise()
+        => _selectedExerciseId is null
+            ? null
+            : _exerciseSelections.FirstOrDefault(ex => ex.ExerciseId == _selectedExerciseId.Value);
+
+    private void SyncSelectedExercise()
+    {
+        _selectedExercise = GetSelectedExercise();
+        if (_selectedExercise is null)
+        {
+            _selectedExerciseId = null;
+        }
     }
 
     // ── misc helpers ───────────────────────────────────────────────────────
@@ -1409,8 +1418,10 @@
         _trainingError = null;
         foreach (var ex in _exerciseSelections)
         {
-            ex.Selected = false; ex.Sets = 3; ex.Reps = 10; ex.RestSeconds = 60; ex.Notes = string.Empty;
+            ex.Sets = 3; ex.Reps = 10; ex.RestSeconds = 60; ex.Notes = string.Empty;
         }
+        _selectedExerciseId = null;
+        _selectedExercise = null;
     }
 
     // ── inner types ────────────────────────────────────────────────────────
@@ -1455,7 +1466,6 @@
         public int ExerciseId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty;
-        public bool Selected { get; set; }
         public int Sets { get; set; } = 3;
         public int Reps { get; set; } = 10;
         public int RestSeconds { get; set; } = 60;

@@ -13,6 +13,7 @@ public class ClassSchedule
 {
     public int Id { get; set; }
     public int? UserId { get; set; }
+    public int? TrainerId { get; set; }
 
     [Required]
     [MaxLength(20)]
@@ -24,4 +25,5 @@ public class ClassSchedule
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public User? User { get; set; }
+    public Teacher? Trainer { get; set; }
 }
