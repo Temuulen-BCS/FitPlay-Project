@@ -39,12 +39,33 @@
             }
             else if (_isActive)
             {
-                <div class="status-card success">
-                    <h3>Membership active</h3>
-                    <p>You have full access to all premium features.</p>
+                <div class="active-card">
+                    <div class="active-header">
+                        <div class="active-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="active-label">Status</p>
+                            <h3 class="active-title">You are active</h3>
+                        </div>
+                    </div>
+
+                    <ul class="active-benefits">
+                        <li><span class="benefit-dot"></span>Unlimited trainings</li>
+                        <li><span class="benefit-dot"></span>XP, levels, and achievements</li>
+                        <li><span class="benefit-dot"></span>Class bookings and schedules</li>
+                        <li><span class="benefit-dot"></span>Trainer validation workflow</li>
+                    </ul>
+
+                    <div class="active-renewal">
+                        <span class="renewal-label">Next payment</span>
+                        <span class="renewal-date">@NextPaymentDate</span>
+                    </div>
                 </div>
             }
-            else
+            else if (_clientSecret is not null)
             {
                 <div class="checkout-card">
                     <h3>Start your membership</h3>
@@ -53,6 +74,21 @@
                     <div id="payment-element"></div>
                     <button class="btn-primary" @onclick="ConfirmPayment" disabled="@_isSubmitting">
                         @(_isSubmitting ? "Processing..." : "Activate Membership")
+                    </button>
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <div class="status-card error">@_errorMessage</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="checkout-card">
+                    <h3>Start your membership</h3>
+                    <p>Enter your payment details to activate instantly.</p>
+
+                    <button class="btn-primary" @onclick="InitializePayment" disabled="@_isSubmitting">
+                        @(_isSubmitting ? "Preparing..." : "Activate Membership")
                     </button>
                     @if (!string.IsNullOrWhiteSpace(_errorMessage))
                     {
@@ -91,10 +127,7 @@
 
 <style>
     :root {
-        --membership-bg: radial-gradient(circle at 20% 20%, rgba(255, 196, 86, 0.15), transparent 45%),
-            radial-gradient(circle at 80% 10%, rgba(255, 90, 154, 0.18), transparent 45%),
-            radial-gradient(circle at 50% 80%, rgba(61, 193, 211, 0.12), transparent 55%),
-            #0b0b0f;
+        --membership-bg: radial-gradient(circle at 20% 20%, rgba(255, 196, 86, 0.15), transparent 45%), radial-gradient(circle at 80% 10%, rgba(255, 90, 154, 0.18), transparent 45%), radial-gradient(circle at 50% 80%, rgba(61, 193, 211, 0.12), transparent 55%), #0b0b0f;
         --membership-panel: rgba(17, 19, 27, 0.92);
         --membership-border: rgba(255, 255, 255, 0.08);
         --membership-highlight: linear-gradient(135deg, #ffd86f, #ff8ad1);
@@ -187,10 +220,10 @@
         font-weight: 600;
     }
 
-    .plan-price span {
-        font-size: 0.9rem;
-        color: var(--membership-muted);
-    }
+        .plan-price span {
+            font-size: 0.9rem;
+            color: var(--membership-muted);
+        }
 
     .plan-badge {
         padding: 6px 12px;
@@ -210,11 +243,11 @@
         color: var(--membership-muted);
     }
 
-    .plan-features li::before {
-        content: "•";
-        margin-right: 10px;
-        color: var(--membership-accent);
-    }
+        .plan-features li::before {
+            content: "•";
+            margin-right: 10px;
+            color: var(--membership-accent);
+        }
 
     .checkout-card {
         display: grid;
@@ -225,14 +258,14 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .checkout-card h3 {
-        margin: 0;
-    }
+        .checkout-card h3 {
+            margin: 0;
+        }
 
-    .checkout-card p {
-        margin: 0;
-        color: var(--membership-muted);
-    }
+        .checkout-card p {
+            margin: 0;
+            color: var(--membership-muted);
+        }
 
     #payment-element {
         background: #fff;
@@ -247,14 +280,107 @@
         color: var(--membership-muted);
     }
 
-    .status-card.success {
-        background: rgba(76, 175, 80, 0.2);
-        color: #dff6e3;
+        .status-card.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #dff6e3;
+        }
+
+        .status-card.error {
+            background: rgba(255, 90, 90, 0.2);
+            color: #ffe3e3;
+        }
+
+    /* Active membership card */
+    .active-card {
+        display: grid;
+        gap: 20px;
+        padding: 20px;
+        background: rgba(76, 175, 80, 0.08);
+        border: 1px solid rgba(76, 175, 80, 0.3);
+        border-radius: 16px;
     }
 
-    .status-card.error {
-        background: rgba(255, 90, 90, 0.2);
-        color: #ffe3e3;
+    .active-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .active-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: rgba(76, 175, 80, 0.2);
+        border: 1.5px solid rgba(76, 175, 80, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #4caf50;
+        flex-shrink: 0;
+    }
+
+    .active-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .active-label {
+        margin: 0 0 2px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--membership-muted);
+    }
+
+    .active-title {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #a8e6ab;
+    }
+
+    .active-benefits {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 8px;
+    }
+
+    .active-benefits li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.9rem;
+        color: var(--membership-muted);
+    }
+
+    .benefit-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #4caf50;
+        flex-shrink: 0;
+    }
+
+    .active-renewal {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .renewal-label {
+        font-size: 0.85rem;
+        color: var(--membership-muted);
+    }
+
+    .renewal-date {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #ffb703;
     }
 
     .info-card h3 {
@@ -269,9 +395,9 @@
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
-    .info-item:last-child {
-        border-bottom: none;
-    }
+        .info-item:last-child {
+            border-bottom: none;
+        }
 
     .pill {
         align-self: start;
@@ -295,14 +421,14 @@
         transition: transform 0.2s ease;
     }
 
-    .btn-primary:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
 
-    .btn-primary:hover:not(:disabled) {
-        transform: translateY(-1px);
-    }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
 
     @@media (max-width: 768px) {
         .membership-shell {
@@ -323,6 +449,17 @@
     private string? _errorMessage;
     private string? _clientSecret;
     private bool _elementMounted;
+    private ApiClient.MembershipStatus? _membershipStatus;
+
+    private string NextPaymentDate
+    {
+        get
+        {
+            if (_membershipStatus?.CurrentPeriodEnd is DateTime end)
+                return end.ToString("MMMM dd, yyyy");
+            return DateTime.UtcNow.AddDays(30).ToString("MMMM dd, yyyy");
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -333,17 +470,16 @@
             return;
         }
 
+        // Only check status on load - no subscription created here
         await LoadStatusAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_isActive || _isLoading)
-        {
+        if (_isActive || _isLoading || _elementMounted)
             return;
-        }
 
-        if (!_elementMounted && !string.IsNullOrWhiteSpace(_clientSecret))
+        if (!string.IsNullOrWhiteSpace(_clientSecret))
         {
             _elementMounted = true;
             await Js.InvokeVoidAsync("fitplayStripe.mount", _clientSecret);
@@ -357,13 +493,8 @@
         try
         {
             var status = await Api.GetMembershipStatus();
+            _membershipStatus = status;
             _isActive = status?.IsActive == true;
-
-            if (!_isActive)
-            {
-                var response = await Api.CreateMembershipSubscription(new ApiClient.CreateSubscriptionRequest(Navigation.Uri));
-                _clientSecret = response?.ClientSecret;
-            }
         }
         catch (Exception ex)
         {
@@ -376,6 +507,37 @@
         }
     }
 
+    // Step 1: User clicks button → create subscription + mount Stripe element
+    private async Task InitializePayment()
+    {
+        _isSubmitting = true;
+        _errorMessage = null;
+        try
+        {
+            var response = await Api.CreateMembershipSubscription(new ApiClient.CreateSubscriptionRequest(Navigation.Uri));
+            _clientSecret = response?.ClientSecret;
+
+            if (string.IsNullOrWhiteSpace(_clientSecret))
+            {
+                _errorMessage = "Payment could not be initialized.";
+                return;
+            }
+
+            // Trigger OnAfterRenderAsync to mount the Stripe element
+            _elementMounted = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    // Step 2: User fills card + clicks confirm → confirm payment
     private async Task ConfirmPayment()
     {
         if (string.IsNullOrWhiteSpace(_clientSecret))
@@ -389,15 +551,20 @@
 
         try
         {
-            var result = await Js.InvokeAsync<string?>("fitplayStripe.confirm", Navigation.Uri);
+            var successUrl = Navigation.ToAbsoluteUri("/membership/success").ToString();
+            var result = await Js.InvokeAsync<string?>("fitplayStripe.confirm", successUrl);
             if (!string.IsNullOrWhiteSpace(result))
             {
                 _errorMessage = result;
             }
             else
             {
-                await LoadStatusAsync();
+                Navigation.NavigateTo("/membership/success");
             }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
         }
         finally
         {

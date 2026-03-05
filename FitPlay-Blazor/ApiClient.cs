@@ -82,6 +82,7 @@ public class ApiClient
     public record MembershipStatus(bool IsActive, string Status, DateTime? CurrentPeriodEnd);
     public record CreateSubscriptionRequest(string ReturnUrl);
     public record CreateSubscriptionResponse(string ClientSecret);
+    public record ApiError(string? Message);
 
     public record CompleteTrainingResponse(
         int CompletionId,
@@ -136,14 +137,40 @@ public class ApiClient
     #region Billing API
     public async Task<MembershipStatus?> GetMembershipStatus()
     {
-        return await _http.GetFromJsonAsync<MembershipStatus>("/api/billing/status");
+        var res = await _http.GetAsync("/api/billing/status");
+        if (!res.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        }
+        return await res.Content.ReadFromJsonAsync<MembershipStatus>();
     }
 
     public async Task<CreateSubscriptionResponse?> CreateMembershipSubscription(CreateSubscriptionRequest request)
     {
         var res = await _http.PostAsJsonAsync("/api/billing/create-subscription", request);
-        res.EnsureSuccessStatusCode();
+        if (!res.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        }
         return await res.Content.ReadFromJsonAsync<CreateSubscriptionResponse>();
+    }
+
+    private static async Task<string> ReadApiErrorAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            if (!string.IsNullOrWhiteSpace(error?.Message))
+            {
+                return error.Message;
+            }
+        }
+        catch
+        {
+            // Ignore parsing errors and fall back to status text.
+        }
+
+        return $"Request failed with {(int)response.StatusCode} {response.ReasonPhrase}.";
     }
     #endregion
 

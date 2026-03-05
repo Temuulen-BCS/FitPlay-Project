@@ -58,6 +58,9 @@ public class BillingWebhookController : ControllerBase
             case "invoice.payment_failed":
                 await HandleInvoiceEvent(stripeEvent);
                 break;
+            case "payment_intent.succeeded":
+                await HandlePaymentIntentSucceeded(stripeEvent);
+                break;
         }
 
         return Ok();
@@ -116,6 +119,54 @@ public class BillingWebhookController : ControllerBase
             null,
             invoice.CustomerId,
             GetStringValue(invoice, "SubscriptionId", "Subscription"));
+    }
+
+    private async Task HandlePaymentIntentSucceeded(Event stripeEvent)
+    {
+        var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
+        if (paymentIntent is null)
+        {
+            return;
+        }
+
+        // metadata is set in BillingController when creating the PaymentIntent
+        if (!paymentIntent.Metadata.TryGetValue("subscriptionId", out var subscriptionId)
+            || string.IsNullOrWhiteSpace(subscriptionId))
+        {
+            return;
+        }
+
+        var dbSubscription = await _fitDb.Subscriptions.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.StripeSubscriptionId == subscriptionId);
+        if (dbSubscription is null)
+        {
+            return;
+        }
+
+        // Fetch the Stripe subscription to get the current period end
+        DateTime? periodEnd = null;
+        try
+        {
+            var subscriptionService = new SubscriptionService();
+            var stripeSubscription = await subscriptionService.GetAsync(subscriptionId);
+            var periodEndValue = GetDateTimeValue(stripeSubscription, "CurrentPeriodEnd", "CurrentPeriodEndTimestamp");
+            if (periodEndValue.HasValue)
+            {
+                periodEnd = periodEndValue;
+            }
+        }
+        catch
+        {
+            // period end is best-effort; proceed without it
+        }
+
+        await _membershipService.UpsertSubscriptionAsync(
+            dbSubscription.ClientId,
+            status: "Active",
+            startDate: DateTime.UtcNow,
+            endDate: periodEnd,
+            stripeCustomerId: dbSubscription.StripeCustomerId,
+            stripeSubscriptionId: subscriptionId);
     }
 
     private async Task<FitPlay.Domain.Models.User?> ResolveDomainUser(string? customerId)

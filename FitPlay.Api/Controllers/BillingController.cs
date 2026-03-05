@@ -61,9 +61,7 @@ public class BillingController : ControllerBase
     public async Task<ActionResult<CreateSubscriptionResponse>> CreateSubscription([FromBody] CreateSubscriptionRequest request)
     {
         if (string.IsNullOrWhiteSpace(_stripeOptions.PriceId))
-        {
             return BadRequest(new { message = "Stripe PriceId is not configured." });
-        }
 
         var identityUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(identityUserId)) return Unauthorized();
@@ -76,6 +74,7 @@ public class BillingController : ControllerBase
 
         var customerId = await EnsureCustomerAsync(user, domainUser.Id);
 
+        // Step 1: Create subscription with default_incomplete
         var subscriptionService = new SubscriptionService();
         var options = new SubscriptionCreateOptions
         {
@@ -87,33 +86,37 @@ public class BillingController : ControllerBase
             PaymentBehavior = "default_incomplete",
             PaymentSettings = new SubscriptionPaymentSettingsOptions
             {
-                SaveDefaultPaymentMethod = "on_subscription"
+                SaveDefaultPaymentMethod = "on_subscription",
+                PaymentMethodTypes = new List<string> { "card" }
             },
             Expand = new List<string> { "latest_invoice" }
         };
 
         var subscription = await subscriptionService.CreateAsync(options);
-        var invoiceId = GetStringValue(subscription, "LatestInvoiceId", "LatestInvoice");
-        if (string.IsNullOrWhiteSpace(invoiceId))
-        {
-            return BadRequest(new { message = "Unable to initialize payment." });
-        }
 
-        var invoiceService = new InvoiceService();
-        var invoice = await invoiceService.GetAsync(invoiceId);
-        var paymentIntentId = GetStringValue(invoice, "PaymentIntentId", "PaymentIntent");
-        if (string.IsNullOrWhiteSpace(paymentIntentId))
-        {
-            return BadRequest(new { message = "Unable to initialize payment." });
-        }
+        var invoice = subscription.LatestInvoice;
+        if (invoice is null)
+            return BadRequest(new { message = "Stripe did not return a latest invoice for the subscription." });
 
+        // Step 2: With billing_mode=flexible, Stripe does not auto-create a PaymentIntent.
+        // We must create one manually from the invoice amount.
         var paymentIntentService = new PaymentIntentService();
-        var paymentIntent = await paymentIntentService.GetAsync(paymentIntentId);
+        var paymentIntent = await paymentIntentService.CreateAsync(new PaymentIntentCreateOptions
+        {
+            Amount = invoice.AmountDue,
+            Currency = invoice.Currency,
+            Customer = customerId,
+            PaymentMethodTypes = new List<string> { "card" },
+            Metadata = new Dictionary<string, string>
+            {
+                ["invoiceId"] = invoice.Id,
+                ["subscriptionId"] = subscription.Id
+            }
+        });
+
         var clientSecret = paymentIntent.ClientSecret;
         if (string.IsNullOrWhiteSpace(clientSecret))
-        {
-            return BadRequest(new { message = "Unable to initialize payment." });
-        }
+            return BadRequest(new { message = "Stripe did not return a client secret for the payment intent." });
 
         await _membershipService.UpsertSubscriptionAsync(
             domainUser.Id,
@@ -130,9 +133,7 @@ public class BillingController : ControllerBase
     {
         var existing = await _membershipService.GetLatestSubscriptionAsync(domainUserId);
         if (!string.IsNullOrWhiteSpace(existing?.StripeCustomerId))
-        {
             return existing.StripeCustomerId;
-        }
 
         var customerService = new CustomerService();
         var customer = await customerService.CreateAsync(new CustomerCreateOptions
@@ -147,34 +148,5 @@ public class BillingController : ControllerBase
         });
 
         return customer.Id;
-    }
-
-    private static string? GetStringValue(object obj, params string[] propertyNames)
-    {
-        foreach (var name in propertyNames)
-        {
-            var prop = obj.GetType().GetProperty(name);
-            if (prop is null)
-            {
-                continue;
-            }
-
-            var value = prop.GetValue(obj);
-            if (value is string strValue)
-            {
-                return strValue;
-            }
-
-            if (value is not null)
-            {
-                var idProp = value.GetType().GetProperty("Id");
-                if (idProp?.GetValue(value) is string idValue)
-                {
-                    return idValue;
-                }
-            }
-        }
-
-        return null;
     }
 }

@@ -114,7 +114,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Exempt the Stripe webhook from HTTPS redirection so the Stripe CLI can POST
+// to http://localhost:5179/api/billing/webhook without getting a 307 redirect.
+app.UseWhen(
+    ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook"),
+    branch => branch.UseHttpsRedirection());
 
 app.UseAuthentication();   
 app.UseAuthorization();    
