@@ -135,7 +135,17 @@
 
 <!-- MEMBERSHIP PERKS -->
 <section class="section perks-section" id="perks">
-    <h2 class="section-title">Membership Perks</h2>
+    <div class="perks-header">
+        <div>
+            <h2 class="section-title">Membership Perks</h2>
+            <p class="section-sub">Everything you need to train, recover, and level up.</p>
+        </div>
+        <div class="plan-info">
+            <span class="plan-price">€10 / month</span>
+            <span class="plan-note">Cancel anytime</span>
+            <span class="plan-note">Unlock trainings, progress, achievements</span>
+        </div>
+    </div>
     <div class="perks-grid">
         <div class="perk-item">
             <div class="perk-icon">24/7</div>
@@ -159,6 +169,46 @@
         </div>
     </div>
 </section>
+
+<style>
+    .perks-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .plan-info {
+        display: grid;
+        gap: 4px;
+        text-align: right;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.95rem;
+    }
+
+    .plan-price {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #fff;
+    }
+
+    .perks-header .section-sub {
+        margin: 8px 0 0;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    @@media (max-width: 768px) {
+        .perks-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .plan-info {
+            text-align: left;
+        }
+    }
+</style>
 
 <!-- TESTIMONIALS -->
 <section class="section testimonials-section">

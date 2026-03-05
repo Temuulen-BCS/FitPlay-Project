@@ -13,12 +13,21 @@
     <link rel="stylesheet" href="FitPlay-Blazor.styles.css" />
     <link rel="stylesheet" href="auth.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
+    <meta name="stripe-pk" content="@StripePublishableKey" />
     <HeadOutlet />
 </head>
 
 <body>
     <Routes />
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="js/stripe-membership.js"></script>
     <script src="_framework/blazor.web.js"></script>
 </body>
 
 </html>
+
+@code {
+    [Inject] public IConfiguration Configuration { get; set; } = default!;
+
+    private string StripePublishableKey => Configuration["Stripe:PublishableKey"] ?? string.Empty;
+}

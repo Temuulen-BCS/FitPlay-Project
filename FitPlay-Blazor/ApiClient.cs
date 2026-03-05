@@ -79,6 +79,10 @@ public class ApiClient
         string? Notes
     );
 
+    public record MembershipStatus(bool IsActive, string Status, DateTime? CurrentPeriodEnd);
+    public record CreateSubscriptionRequest(string ReturnUrl);
+    public record CreateSubscriptionResponse(string ClientSecret);
+
     public record CompleteTrainingResponse(
         int CompletionId,
         int XpAwarded,
@@ -127,6 +131,20 @@ public class ApiClient
         string? AwardedByTrainerName,
         DateTime CreatedAt
     );
+    #endregion
+
+    #region Billing API
+    public async Task<MembershipStatus?> GetMembershipStatus()
+    {
+        return await _http.GetFromJsonAsync<MembershipStatus>("/api/billing/status");
+    }
+
+    public async Task<CreateSubscriptionResponse?> CreateMembershipSubscription(CreateSubscriptionRequest request)
+    {
+        var res = await _http.PostAsJsonAsync("/api/billing/create-subscription", request);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<CreateSubscriptionResponse>();
+    }
     #endregion
 
     #region Existing Methods

@@ -1,7 +1,10 @@
+using FitPlay.Api;
 using FitPlay.Api.Data;
 //using FitPlay.Api.Endpoints;
-using FitPlay.Api.Auth;                
+using FitPlay.Api.Auth;
+using Stripe;
 using FitPlay.Domain.Data;
+using FitPlay.Api.Services;
 using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer; 
 using Microsoft.AspNetCore.Identity;        
@@ -15,6 +18,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
 
 builder.Services.AddSwaggerGen(c =>
 {
@@ -64,6 +69,7 @@ builder.Services.AddScoped<AchievementService>();
 builder.Services.AddScoped<TrainingCompletionService>();
 builder.Services.AddScoped<TrainingService>();
 builder.Services.AddScoped<ClassScheduleService>();
+builder.Services.AddScoped<MembershipService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
@@ -91,10 +97,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ActiveMembership", policy =>
+        policy.RequireClaim("membership", "active"));
+});
 
 
 var app = builder.Build();
+
+StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
 if (app.Environment.IsDevelopment())
 {

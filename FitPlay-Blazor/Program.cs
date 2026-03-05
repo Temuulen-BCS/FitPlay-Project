@@ -1,6 +1,7 @@
 using FitPlay_Blazor.Components;
 using FitPlay_Blazor.Components.Account;
 using FitPlay_Blazor.Data;
+using FitPlay_Blazor.Auth;
 using FitPlay.Blazor.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -16,11 +17,18 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+builder.Services.AddScoped<ApiTokenHandler>();
+builder.Services.AddHttpContextAccessor();
 
 // Register HttpClient and ApiClient for API calls
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
     client.BaseAddress = new Uri("https://localhost:7248");
+}).AddHttpMessageHandler(sp =>
+{
+    var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
+    var tokenHandler = sp.GetRequiredService<ApiTokenHandler>();
+    return new AuthTokenMessageHandler(httpContextAccessor, tokenHandler);
 });
 
 builder.Services.AddAuthentication(options =>
@@ -29,6 +37,12 @@ builder.Services.AddAuthentication(options =>
         options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
     })
     .AddIdentityCookies();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ActiveMembership", policy =>
+        policy.RequireClaim("membership", "active"));
+});
 
 // Database migrations are managed by FitPlay.Api project
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");

@@ -1,0 +1,407 @@
+@page "/membership"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<PageTitle>Membership - FitPlay</PageTitle>
+
+<section class="membership-shell">
+    <div class="membership-hero">
+        <div class="hero-glow"></div>
+        <p class="eyebrow">Membership</p>
+        <h1>Access the full FitPlay experience</h1>
+        <p class="subhead">Unlock all trainings, progress tracking, and achievements for one monthly plan.</p>
+    </div>
+
+    <div class="membership-grid">
+        <div class="plan-card">
+            <div class="plan-header">
+                <div>
+                    <p class="plan-label">Monthly plan</p>
+                    <p class="plan-price">€10 <span>/ month</span></p>
+                </div>
+                <div class="plan-badge">Most popular</div>
+            </div>
+            <ul class="plan-features">
+                <li>Unlimited trainings</li>
+                <li>XP, levels, and achievements</li>
+                <li>Class bookings and schedules</li>
+                <li>Trainer validation workflow</li>
+            </ul>
+
+            @if (_isLoading)
+            {
+                <div class="status-card">Checking membership status...</div>
+            }
+            else if (_isActive)
+            {
+                <div class="status-card success">
+                    <h3>Membership active</h3>
+                    <p>You have full access to all premium features.</p>
+                </div>
+            }
+            else
+            {
+                <div class="checkout-card">
+                    <h3>Start your membership</h3>
+                    <p>Enter your payment details to activate instantly.</p>
+
+                    <div id="payment-element"></div>
+                    <button class="btn-primary" @onclick="ConfirmPayment" disabled="@_isSubmitting">
+                        @(_isSubmitting ? "Processing..." : "Activate Membership")
+                    </button>
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <div class="status-card error">@_errorMessage</div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="info-card">
+            <h3>What you get</h3>
+            <div class="info-item">
+                <span class="pill">24/7</span>
+                <div>
+                    <h4>Always on</h4>
+                    <p>Stream workouts any time, track progress, and stay on top of your goals.</p>
+                </div>
+            </div>
+            <div class="info-item">
+                <span class="pill">PRO</span>
+                <div>
+                    <h4>Coach feedback</h4>
+                    <p>Get validation on your training completions and unlock achievements faster.</p>
+                </div>
+            </div>
+            <div class="info-item">
+                <span class="pill">XP</span>
+                <div>
+                    <h4>Gamified journey</h4>
+                    <p>Earn XP, level up, and keep the momentum going with rewards.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    :root {
+        --membership-bg: radial-gradient(circle at 20% 20%, rgba(255, 196, 86, 0.15), transparent 45%),
+            radial-gradient(circle at 80% 10%, rgba(255, 90, 154, 0.18), transparent 45%),
+            radial-gradient(circle at 50% 80%, rgba(61, 193, 211, 0.12), transparent 55%),
+            #0b0b0f;
+        --membership-panel: rgba(17, 19, 27, 0.92);
+        --membership-border: rgba(255, 255, 255, 0.08);
+        --membership-highlight: linear-gradient(135deg, #ffd86f, #ff8ad1);
+        --membership-text: #f5f7ff;
+        --membership-muted: rgba(245, 247, 255, 0.65);
+        --membership-accent: #ffb703;
+    }
+
+    .membership-shell {
+        min-height: calc(100vh - 120px);
+        padding: 48px 24px 72px;
+        background: var(--membership-bg);
+        color: var(--membership-text);
+    }
+
+    .membership-hero {
+        max-width: 900px;
+        margin: 0 auto 48px;
+        text-align: center;
+        position: relative;
+    }
+
+    .hero-glow {
+        position: absolute;
+        inset: -20px 0 0;
+        background: radial-gradient(circle at center, rgba(255, 186, 73, 0.25), transparent 60%);
+        filter: blur(60px);
+        z-index: 0;
+    }
+
+    .membership-hero h1 {
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        margin: 0 0 12px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        font-size: 0.75rem;
+        color: var(--membership-muted);
+        margin-bottom: 12px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .subhead {
+        font-size: 1.1rem;
+        color: var(--membership-muted);
+        margin: 0 auto;
+        max-width: 620px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .membership-grid {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+    }
+
+    .plan-card,
+    .info-card {
+        background: var(--membership-panel);
+        border: 1px solid var(--membership-border);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    .plan-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+    }
+
+    .plan-label {
+        color: var(--membership-muted);
+        font-size: 0.9rem;
+        margin: 0 0 8px;
+    }
+
+    .plan-price {
+        font-size: 2rem;
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .plan-price span {
+        font-size: 0.9rem;
+        color: var(--membership-muted);
+    }
+
+    .plan-badge {
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: var(--membership-highlight);
+        color: #1a1a1a;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .plan-features {
+        list-style: none;
+        padding: 16px 0 0;
+        margin: 0 0 24px;
+        display: grid;
+        gap: 10px;
+        color: var(--membership-muted);
+    }
+
+    .plan-features li::before {
+        content: "•";
+        margin-right: 10px;
+        color: var(--membership-accent);
+    }
+
+    .checkout-card {
+        display: grid;
+        gap: 16px;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .checkout-card h3 {
+        margin: 0;
+    }
+
+    .checkout-card p {
+        margin: 0;
+        color: var(--membership-muted);
+    }
+
+    #payment-element {
+        background: #fff;
+        padding: 16px;
+        border-radius: 12px;
+    }
+
+    .status-card {
+        padding: 16px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--membership-muted);
+    }
+
+    .status-card.success {
+        background: rgba(76, 175, 80, 0.2);
+        color: #dff6e3;
+    }
+
+    .status-card.error {
+        background: rgba(255, 90, 90, 0.2);
+        color: #ffe3e3;
+    }
+
+    .info-card h3 {
+        margin-top: 0;
+    }
+
+    .info-item {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 16px;
+        padding: 16px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+    }
+
+    .pill {
+        align-self: start;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--membership-accent);
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .btn-primary {
+        width: 100%;
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        background: var(--membership-highlight);
+        color: #111;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+    }
+
+    @@media (max-width: 768px) {
+        .membership-shell {
+            padding: 32px 16px 48px;
+        }
+
+        .plan-card,
+        .info-card {
+            padding: 22px;
+        }
+    }
+</style>
+
+@code {
+    private bool _isLoading = true;
+    private bool _isActive;
+    private bool _isSubmitting;
+    private string? _errorMessage;
+    private string? _clientSecret;
+    private bool _elementMounted;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+            return;
+        }
+
+        await LoadStatusAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isActive || _isLoading)
+        {
+            return;
+        }
+
+        if (!_elementMounted && !string.IsNullOrWhiteSpace(_clientSecret))
+        {
+            _elementMounted = true;
+            await Js.InvokeVoidAsync("fitplayStripe.mount", _clientSecret);
+        }
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            var status = await Api.GetMembershipStatus();
+            _isActive = status?.IsActive == true;
+
+            if (!_isActive)
+            {
+                var response = await Api.CreateMembershipSubscription(new ApiClient.CreateSubscriptionRequest(Navigation.Uri));
+                _clientSecret = response?.ClientSecret;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ConfirmPayment()
+    {
+        if (string.IsNullOrWhiteSpace(_clientSecret))
+        {
+            _errorMessage = "Payment could not be initialized.";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var result = await Js.InvokeAsync<string?>("fitplayStripe.confirm", Navigation.Uri);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                _errorMessage = result;
+            }
+            else
+            {
+                await LoadStatusAsync();
+            }
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}
