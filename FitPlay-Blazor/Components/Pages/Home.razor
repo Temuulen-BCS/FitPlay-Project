@@ -4,6 +4,8 @@
 @rendermode InteractiveServer
 
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <!-- TOP NAV BAR -->
 <header class="top-nav">
@@ -51,6 +53,10 @@
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6" /><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12" /></svg>
                                     Achievements
                                 </a>
+                                <a class="dropdown-item" href="membership">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                                    Membership
+                                </a>
                             </div>
                             <div class="dropdown-divider"></div>
                             <div class="dropdown-section dropdown-logout-section">
@@ -77,6 +83,20 @@
 <!-- HERO SECTION -->
 <section class="hero" id="hero">
     <div class="hero-bg">
+        <!-- Video background — 5-slot rotation (add hero-2..hero-5.mp4 to /videos/hero/ to activate more) -->
+        <div class="hero-video-wrap" id="heroVideoWrap">
+            <video class="hero-video active" id="heroVid0" src="/videos/hero/hero-1.mp4" autoplay muted playsinline preload="auto"></video>
+            <!-- slot 2 — no src yet -->
+            <video class="hero-video" id="heroVid1" muted playsinline preload="none"></video>
+            <!-- slot 3 — no src yet -->
+            <video class="hero-video" id="heroVid2" muted playsinline preload="none"></video>
+            <!-- slot 4 — no src yet -->
+            <video class="hero-video" id="heroVid3" muted playsinline preload="none"></video>
+            <!-- slot 5 — no src yet -->
+            <video class="hero-video" id="heroVid4" muted playsinline preload="none"></video>
+        </div>
+        <div class="hero-video-overlay"></div>
+        <!-- Orbs kept subtle on top of the video -->
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
     </div>
@@ -475,6 +495,25 @@
 </footer>
 
 @code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Small delay gives the browser one paint cycle to commit the DOM before
+        // JS tries to getElementById. Combined with the JS DOM-ready guard this
+        // eliminates the "elements not found" race on initial load and re-navigation.
+        await Task.Delay(50);
+        await JS.InvokeVoidAsync("initHeroVideo");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Prevent stacked timers when the component is torn down on navigation.
+        try
+        {
+            await JS.InvokeVoidAsync("disposeHeroVideo");
+        }
+        catch (JSDisconnectedException) { /* circuit already gone — safe to ignore */ }
+    }
+
     private static string GetInitials(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "?";
