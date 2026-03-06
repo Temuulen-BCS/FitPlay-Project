@@ -378,6 +378,7 @@ body {
 }
 
 /* === HOME SPECIFIC === */
+/* 1. Hero section — full-viewport frame */
 .hero {
     position: relative;
     height: 100vh;
@@ -389,11 +390,10 @@ body {
     overflow: hidden;
 }
 
-/* --- Hero background container --- */
+/* 2. Hero background container — pins to all four edges */
 .hero-bg {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
     z-index: 0;
@@ -401,58 +401,59 @@ body {
     overflow: hidden;
 }
 
-/* --- Video wrap: hard stacking context — all children share pixel origin 0,0 --- */
+/* 3. Video wrap — hard stacking context, all children share pixel origin 0,0 */
 .hero-video-wrap {
     display: block !important;  /* override any inherited flex/grid alignment */
     position: absolute !important;
-    inset: 0;                   /* shorthand for top:0; right:0; bottom:0; left:0 */
+    inset: 0;
     width: 100%;
     height: 100%;
     overflow: hidden;
-    /* Establish own stacking context so z-index on children is self-contained */
-    isolation: isolate;
+    isolation: isolate;         /* self-contained stacking context for z-index */
 }
 
-/* Individual video slots — ALL pinned to pixel 0,0, stacked on top of each other */
+/* 4. Individual video slots — ALL pinned to pixel 0,0, stacked on top of each other */
 .hero-video {
     position: absolute !important;  /* immune to flex/grid layout on any ancestor */
     top: 0 !important;
     left: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    object-fit: cover;
-    object-position: center 30%;
+    object-fit: cover;              /* fills the frame; never letterboxes */
+    object-position: center;
     opacity: 0;
-    transition: opacity 1.5s ease-in-out;
+    transition: opacity 1500ms ease;
     pointer-events: none;
-    display: block !important;  /* never inline, never flex item */
+    display: block !important;      /* never inline, never flex item */
     margin: 0;
     padding: 0;
 }
+
+/* 5. Active slot — fully visible */
 .hero-video.active {
     opacity: 1;
 }
 
-/* Overlay — sits above videos, below content */
+/* 6. Overlay — lighter so the video shows through, text still readable */
 .hero-video-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
-    z-index: 15;
-    background:
-        linear-gradient(to bottom,
-            rgba(11,11,17,0.55) 0%,
-            rgba(11,11,17,0.25) 45%,
-            rgba(11,11,17,0.70) 100%);
+    z-index: 2;
+    background: linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.40) 0%,
+        rgba(0,0,0,0.15) 40%,
+        rgba(0,0,0,0.50) 100%
+    );
     pointer-events: none;
 }
 
 /* Orbs above overlay, below content */
 .hero-bg .orb {
     position: absolute;
-    z-index: 16;
+    z-index: 3;
     opacity: 0.25;
 }
 
@@ -475,9 +476,10 @@ body {
     }
 }
 
+/* 7. Hero content — sits above overlay and orbs */
 .hero-content {
     position: relative;
-    z-index: 20;
+    z-index: 4;
     text-align: center;
     max-width: 700px;
 }
