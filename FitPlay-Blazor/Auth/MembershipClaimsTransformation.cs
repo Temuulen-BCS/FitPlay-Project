@@ -23,11 +23,12 @@ public class MembershipClaimsTransformation : IClaimsTransformation
 
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
     {
-        // Only process authenticated users who don't already have the membership claim
+        // Only process authenticated users
         if (principal.Identity?.IsAuthenticated != true)
             return principal;
 
-        if (principal.HasClaim("membership", "active"))
+        // Skip if both claims are already present
+        if (principal.HasClaim("membership", "active") && principal.HasClaim(c => c.Type == "full_name"))
             return principal;
 
         var identityId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -42,29 +43,27 @@ public class MembershipClaimsTransformation : IClaimsTransformation
         if (domainUser is null)
             return principal;
 
+        // Always inject the full name claim so the UI can display it
+        var claimsToAdd = new List<Claim>();
+
+        if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
+            claimsToAdd.Add(new Claim("full_name", domainUser.Name));
+
         var hasActiveMembership = await _db.Subscriptions
             .AsNoTracking()
             .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
 
-        if (!hasActiveMembership)
+        if (hasActiveMembership)
+            claimsToAdd.Add(new Claim("membership", "active"));
+
+        if (claimsToAdd.Count == 0)
             return principal;
 
-        // Clone the identity and add the membership claim
-        var clonedIdentity = CloneIdentityWithClaim(principal.Identity, new Claim("membership", "active"));
+        // Clone the identity and add all new claims
+        var clonedIdentity = principal.Identity is ClaimsIdentity ci ? ci.Clone() : new ClaimsIdentity(principal.Identity);
+        foreach (var claim in claimsToAdd)
+            clonedIdentity.AddClaim(claim);
+
         return new ClaimsPrincipal(clonedIdentity);
-    }
-
-    private static ClaimsIdentity CloneIdentityWithClaim(System.Security.Principal.IIdentity identity, Claim newClaim)
-    {
-        if (identity is ClaimsIdentity claimsIdentity)
-        {
-            var cloned = claimsIdentity.Clone();
-            cloned.AddClaim(newClaim);
-            return cloned;
-        }
-
-        var newIdentity = new ClaimsIdentity(identity);
-        newIdentity.AddClaim(newClaim);
-        return newIdentity;
     }
 }

@@ -30,6 +30,7 @@ body {
     background: rgba(11, 11, 17, 0.85);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--glass-border);
+    overflow: visible;
 }
 .nav-inner {
     max-width: 1200px;
@@ -38,6 +39,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    overflow: visible;
 }
 .logo {
     font-size: 1.6rem;

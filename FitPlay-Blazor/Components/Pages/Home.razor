@@ -1,6 +1,9 @@
 @page "/"
 @attribute [AllowAnonymous]
 @layout EmptyLayout
+@rendermode InteractiveServer
+
+@inject NavigationManager NavigationManager
 
 <!-- TOP NAV BAR -->
 <header class="top-nav">
@@ -13,7 +16,61 @@
             <a href="#perks">Membership</a>
             <a href="#contact">Contact</a>
         </nav>
-        <a href="Account/Register" class="btn-primary" data-enhanced-nav="false">Join Now</a>
+
+        <AuthorizeView>
+            <Authorized>
+                @{
+                    var displayName = context.User.FindFirst("full_name")?.Value
+                    ?? context.User.Identity?.Name
+                    ?? "User";
+                }
+                <div class="profile-dropdown">
+                    <button class="profile-trigger" type="button">
+                        <span class="profile-avatar">@GetInitials(displayName)</span>
+                        <span class="profile-name">@displayName</span>
+                        <svg class="dropdown-caret" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-menu-inner">
+                            <div class="dropdown-section">
+                                <a class="dropdown-item" href="Account/Manage" data-enhanced-nav="false">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>
+                                    Profile
+                                </a>
+                                <a class="dropdown-item" href="user/dashboard">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+                                    Dashboard
+                                </a>
+                                <a class="dropdown-item" href="user/progress">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                                    My Progress
+                                </a>
+                                <a class="dropdown-item" href="user/achievements">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6" /><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12" /></svg>
+                                    Achievements
+                                </a>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-section dropdown-logout-section">
+                                <form action="Account/Logout" method="post">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="ReturnUrl" value="/" />
+                                    <button type="submit" class="btn-logout-green">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                                        Log out
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <a href="Account/Register" class="btn-primary" data-enhanced-nav="false">Join Now</a>
+            </NotAuthorized>
+        </AuthorizeView>
     </div>
 </header>
 
@@ -31,7 +88,7 @@
         <h1>Train Like It's<br /><span class="highlight">Friday Night</span></h1>
         <p class="hero-sub">Where fitness meets nightlife. Push your limits with beats that move you.</p>
         <div class="hero-ctas">
-            <a href="trainings" class="btn-primary">Book a Class</a>
+            <a href="#classes" class="btn-primary">Book a Class</a>
             <a href="#classes" class="btn-secondary">View Schedule</a>
         </div>
     </div>
@@ -171,6 +228,182 @@
 </section>
 
 <style>
+    /* ── Profile Dropdown ── */
+    .profile-dropdown {
+        position: relative;
+    }
+
+    .profile-trigger {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0, 232, 122, 0.08);
+        border: 1px solid rgba(0, 232, 122, 0.3);
+        border-radius: 40px;
+        padding: 6px 14px 6px 6px;
+        cursor: pointer;
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+        box-shadow: 0 0 12px rgba(0, 232, 122, 0.15);
+    }
+
+        .profile-trigger:hover,
+        .profile-dropdown:hover .profile-trigger,
+        .profile-dropdown:focus-within .profile-trigger {
+            background: rgba(0, 232, 122, 0.15);
+            border-color: rgba(0, 232, 122, 0.6);
+            box-shadow: 0 0 20px rgba(0, 232, 122, 0.35);
+        }
+
+    .profile-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #00e87a, #00a854);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #021a0d;
+        flex-shrink: 0;
+        box-shadow: 0 0 10px rgba(0, 232, 122, 0.5);
+    }
+
+    .profile-name {
+        max-width: 130px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #e0ffe8;
+    }
+
+    .dropdown-caret {
+        transition: transform 0.2s;
+        color: #00e87a;
+        flex-shrink: 0;
+    }
+
+    .profile-dropdown:hover .dropdown-caret,
+    .profile-dropdown:focus-within .dropdown-caret {
+        transform: rotate(180deg);
+    }
+
+    .dropdown-menu {
+        display: block;
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        min-width: 230px;
+        padding-top: 6px;
+        background: transparent;
+        z-index: 9999;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .profile-dropdown:hover .dropdown-menu,
+    .profile-dropdown:focus-within .dropdown-menu {
+        opacity: 1;
+        pointer-events: all;
+        transform: translateY(0);
+    }
+
+    .dropdown-menu-inner {
+        background: rgba(2, 18, 10, 0.97);
+        border: 1px solid rgba(0, 232, 122, 0.25);
+        border-radius: 14px;
+        box-shadow: 0 0 0 1px rgba(0, 232, 122, 0.08), 0 0 30px rgba(0, 232, 122, 0.18), 0 20px 50px rgba(0, 0, 0, 0.7);
+        padding: 8px;
+    }
+
+    .dropdown-section {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .dropdown-divider {
+        height: 1px;
+        background: rgba(0, 232, 122, 0.15);
+        margin: 6px 4px;
+    }
+
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        border-radius: 8px;
+        color: rgba(200, 255, 220, 0.75);
+        font-size: 0.875rem;
+        text-decoration: none;
+        transition: background 0.15s, color 0.15s;
+        cursor: pointer;
+    }
+
+        .dropdown-item:hover {
+            background: rgba(0, 232, 122, 0.12);
+            color: #00e87a;
+        }
+
+        .dropdown-item svg {
+            color: #00e87a;
+            opacity: 0.5;
+            flex-shrink: 0;
+            transition: opacity 0.15s;
+        }
+
+        .dropdown-item:hover svg {
+            opacity: 1;
+        }
+
+    @@media (max-width: 600px) {
+        .profile-name {
+            display: none;
+        }
+    }
+
+    /* ── End Profile Dropdown ── */
+
+    .dropdown-logout-section {
+        padding: 4px 2px 2px;
+    }
+
+    .btn-logout-green {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        background: linear-gradient(135deg, #00e87a, #00c45f);
+        color: #021a0d;
+        border: none;
+        padding: 0.65rem 1.25rem;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        font-family: inherit;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.3s;
+        box-shadow: 0 4px 18px rgba(0, 232, 122, 0.45);
+        letter-spacing: 0.01em;
+    }
+
+        .btn-logout-green:hover {
+            transform: scale(1.03);
+            box-shadow: 0 6px 28px rgba(0, 232, 122, 0.7);
+        }
+
+        .btn-logout-green svg {
+            opacity: 0.85;
+            flex-shrink: 0;
+        }
+
     .perks-header {
         display: flex;
         align-items: center;
@@ -240,3 +473,14 @@
 <footer class="site-footer">
     <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
 </footer>
+
+@code {
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+            : name[0].ToString().ToUpperInvariant();
+    }
+}
