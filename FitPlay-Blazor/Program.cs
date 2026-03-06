@@ -3,6 +3,8 @@ using FitPlay_Blazor.Components.Account;
 using FitPlay_Blazor.Data;
 using FitPlay_Blazor.Auth;
 using FitPlay.Blazor.Services;
+using FitPlay.Domain.Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +50,13 @@ builder.Services.AddAuthorization(options =>
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
+
+// FitPlayContext for domain queries (membership checks, etc.)
+builder.Services.AddDbContext<FitPlayContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// Inject membership claim into the Blazor Identity principal at request time
+builder.Services.AddScoped<IClaimsTransformation, MembershipClaimsTransformation>();
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)

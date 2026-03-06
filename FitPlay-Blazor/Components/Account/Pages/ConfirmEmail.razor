@@ -1,17 +1,120 @@
-﻿@page "/Account/ConfirmEmail"
+@page "/Account/ConfirmEmail"
+@layout FitPlay_Blazor.Components.Layout.EmptyLayout
 
 @using System.Text
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using FitPlay_Blazor.Data
+@using FitPlay_Blazor.Components.Layout
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Confirm email</PageTitle>
+<PageTitle>Confirm Email - FitPlay</PageTitle>
 
-<h1>Confirm email</h1>
-<StatusMessage Message="@statusMessage" />
+<!-- TOP NAV BAR -->
+<header class="top-nav">
+    <div class="nav-inner">
+        <a href="/" class="logo">FIT<span>PLAY</span></a>
+        <nav class="nav-links-top">
+            <a href="/">Home</a>
+            <a href="/#classes">Classes</a>
+            <a href="/#trainers">Trainers</a>
+        </nav>
+        <a href="Account/Login" class="btn-secondary-nav" data-enhanced-nav="false">Login</a>
+    </div>
+</header>
+
+<!-- CONFIRM EMAIL HERO -->
+<section class="auth-hero">
+    <div class="auth-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+    <div class="auth-container auth-container-centered">
+        <div class="auth-card">
+            @if (statusMessage is null)
+            {
+                <div class="confirm-icon confirm-icon-loading">
+                    <span>...</span>
+                </div>
+                <h2>Verifying your email</h2>
+                <p class="card-subtitle">Please wait while we confirm your account.</p>
+            }
+            else if (statusMessage.StartsWith("Error"))
+            {
+                <div class="confirm-icon confirm-icon-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </div>
+                <h2>Confirmation Failed</h2>
+                <p class="card-subtitle">@statusMessage</p>
+                <a href="Account/ResendEmailConfirmation" class="btn-primary btn-full" style="text-align:center;text-decoration:none;">Resend Confirmation Email</a>
+            }
+            else
+            {
+                <div class="confirm-icon confirm-icon-success">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                </div>
+                <h2>Email Confirmed!</h2>
+                <p class="card-subtitle">Your account is now active. You can sign in and start your fitness journey.</p>
+                <a href="Account/Login" class="btn-primary btn-full" style="text-align:center;text-decoration:none;" data-enhanced-nav="false">Sign In</a>
+            }
+        </div>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+</footer>
+
+<style>
+    .auth-container-centered {
+        justify-content: center;
+        align-items: center;
+        min-height: calc(100vh - 180px);
+    }
+
+    .confirm-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+    }
+
+    .confirm-icon svg {
+        width: 36px;
+        height: 36px;
+    }
+
+    .confirm-icon-success {
+        background: rgba(76, 175, 80, 0.2);
+        border: 2px solid rgba(76, 175, 80, 0.5);
+        color: #4caf50;
+    }
+
+    .confirm-icon-error {
+        background: rgba(255, 90, 90, 0.2);
+        border: 2px solid rgba(255, 90, 90, 0.5);
+        color: #ff5a5a;
+    }
+
+    .confirm-icon-loading {
+        background: rgba(255, 255, 255, 0.08);
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1.4rem;
+        letter-spacing: 0.1em;
+    }
+</style>
 
 @code {
     private string? statusMessage;

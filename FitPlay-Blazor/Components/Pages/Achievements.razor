@@ -5,7 +5,7 @@
 @using FitPlay_Blazor.Components.Gamification
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Policy = "ActiveMembership")]
+@attribute [Authorize]
 @inject ApiClient Api
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider

@@ -1,6 +1,8 @@
 @page "/membership/success"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@layout EmptyLayout
+@using FitPlay_Blazor.Components.Layout
 @inject NavigationManager Navigation
 
 <PageTitle>Membership Active - FitPlay</PageTitle>
@@ -34,7 +36,7 @@
         </div>
 
         <div class="success-actions">
-            <button class="btn-primary" @onclick='() => Navigation.NavigateTo("/trainings")'>
+            <button class="btn-primary" @onclick='() => Navigation.NavigateTo("/user/trainings")'>
                 Explore Trainings
             </button>
             <button class="btn-secondary" @onclick='() => Navigation.NavigateTo("/dashboard")'>

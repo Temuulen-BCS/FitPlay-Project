@@ -1,6 +1,7 @@
 @page "/membership"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@layout EmptyLayout
 @using FitPlay.Blazor.Services
 @inject ApiClient Api
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -319,10 +320,10 @@
         flex-shrink: 0;
     }
 
-    .active-icon svg {
-        width: 22px;
-        height: 22px;
-    }
+        .active-icon svg {
+            width: 22px;
+            height: 22px;
+        }
 
     .active-label {
         margin: 0 0 2px;
@@ -346,13 +347,13 @@
         gap: 8px;
     }
 
-    .active-benefits li {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 0.9rem;
-        color: var(--membership-muted);
-    }
+        .active-benefits li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            color: var(--membership-muted);
+        }
 
     .benefit-dot {
         width: 7px;
@@ -470,7 +471,6 @@
             return;
         }
 
-        // Only check status on load - no subscription created here
         await LoadStatusAsync();
     }
 
@@ -507,9 +507,13 @@
         }
     }
 
-    // Step 1: User clicks button → create subscription + mount Stripe element
+    // Passo 1: Usuário clica no botão → cria (ou reutiliza) assinatura e monta o elemento Stripe
     private async Task InitializePayment()
     {
+        // ✅ CORREÇÃO: Se já foi inicializado, não cria nova assinatura
+        if (!string.IsNullOrWhiteSpace(_clientSecret))
+            return;
+
         _isSubmitting = true;
         _errorMessage = null;
         try
@@ -519,11 +523,11 @@
 
             if (string.IsNullOrWhiteSpace(_clientSecret))
             {
-                _errorMessage = "Payment could not be initialized.";
+                _errorMessage = "Não foi possível inicializar o pagamento.";
                 return;
             }
 
-            // Trigger OnAfterRenderAsync to mount the Stripe element
+            // Dispara OnAfterRenderAsync para montar o elemento Stripe
             _elementMounted = false;
             await InvokeAsync(StateHasChanged);
         }
@@ -537,12 +541,12 @@
         }
     }
 
-    // Step 2: User fills card + clicks confirm → confirm payment
+    // Passo 2: Usuário preenche o cartão e clica em confirmar → confirma o pagamento
     private async Task ConfirmPayment()
     {
         if (string.IsNullOrWhiteSpace(_clientSecret))
         {
-            _errorMessage = "Payment could not be initialized.";
+            _errorMessage = "Não foi possível inicializar o pagamento.";
             return;
         }
 
