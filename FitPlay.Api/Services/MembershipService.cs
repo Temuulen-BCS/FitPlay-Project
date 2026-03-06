@@ -67,8 +67,37 @@ public class MembershipService
         existing.EndDate = endDate;
         existing.StripeCustomerId = stripeCustomerId ?? existing.StripeCustomerId;
         existing.StripeSubscriptionId = stripeSubscriptionId ?? existing.StripeSubscriptionId;
-
         await _db.SaveChangesAsync();
         return existing;
+    }
+
+    // ✅ Chamado pelo webhook invoice.payment_succeeded e customer.subscription.updated (active)
+    public async Task ActivateSubscriptionByStripeIdAsync(string stripeSubscriptionId, DateTime endDate)
+    {
+        var subscription = await _db.Subscriptions
+            .Where(s => s.StripeSubscriptionId == stripeSubscriptionId)
+            .OrderByDescending(s => s.StartDate)
+            .FirstOrDefaultAsync();
+
+        if (subscription is null) return;
+
+        subscription.Status = "Active";
+        subscription.EndDate = endDate;
+        await _db.SaveChangesAsync();
+    }
+
+    // ✅ Chamado pelo webhook customer.subscription.updated (canceled/unpaid) e customer.subscription.deleted
+    public async Task DeactivateSubscriptionByStripeIdAsync(string stripeSubscriptionId)
+    {
+        var subscription = await _db.Subscriptions
+            .Where(s => s.StripeSubscriptionId == stripeSubscriptionId)
+            .OrderByDescending(s => s.StartDate)
+            .FirstOrDefaultAsync();
+
+        if (subscription is null) return;
+
+        subscription.Status = "Canceled";
+        subscription.EndDate = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
     }
 }

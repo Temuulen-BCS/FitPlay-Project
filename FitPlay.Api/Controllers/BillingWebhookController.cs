@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text;
 using FitPlay.Api.Services;
 using FitPlay.Domain.Data;
@@ -30,213 +29,135 @@ public class BillingWebhookController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Post()
     {
-        var json = await new StreamReader(HttpContext.Request.Body, Encoding.UTF8).ReadToEndAsync();
         if (string.IsNullOrWhiteSpace(_stripeOptions.WebhookSecret))
-        {
-            return BadRequest(new { message = "Stripe WebhookSecret is not configured." });
-        }
+            return BadRequest(new { message = "Stripe WebhookSecret não configurado." });
+
+        var json = await new StreamReader(HttpContext.Request.Body, Encoding.UTF8).ReadToEndAsync();
 
         Event stripeEvent;
         try
         {
-            var signatureHeader = Request.Headers["Stripe-Signature"];
-            stripeEvent = EventUtility.ConstructEvent(json, signatureHeader, _stripeOptions.WebhookSecret);
+            stripeEvent = EventUtility.ConstructEvent(
+                json,
+                Request.Headers["Stripe-Signature"],
+                _stripeOptions.WebhookSecret,
+                throwOnApiVersionMismatch: false); // necessário no Stripe.net v50+
         }
-        catch (Exception)
+        catch (StripeException)
         {
             return BadRequest();
         }
 
         switch (stripeEvent.Type)
         {
-            case "customer.subscription.created":
+            // ✅ Principal: pagamento da invoice confirmado → ativa assinatura
+            case "invoice.payment_succeeded":
+                await HandleInvoicePaymentSucceeded(stripeEvent);
+                break;
+
+            // Fatura não paga → marca como PastDue
+            case "invoice.payment_failed":
+                await HandleInvoicePaymentFailed(stripeEvent);
+                break;
+
+            // Assinatura atualizada pelo Stripe (renovação, cancelamento, etc.)
             case "customer.subscription.updated":
             case "customer.subscription.deleted":
                 await HandleSubscriptionEvent(stripeEvent);
-                break;
-            case "invoice.paid":
-            case "invoice.payment_failed":
-                await HandleInvoiceEvent(stripeEvent);
-                break;
-            case "payment_intent.succeeded":
-                await HandlePaymentIntentSucceeded(stripeEvent);
                 break;
         }
 
         return Ok();
     }
 
-    private async Task HandleSubscriptionEvent(Event stripeEvent)
-    {
-        var subscription = stripeEvent.Data.Object as Subscription;
-        if (subscription is null)
-        {
-            return;
-        }
-
-        var domainUser = await ResolveDomainUser(subscription.CustomerId);
-        if (domainUser is null)
-        {
-            return;
-        }
-
-        var status = subscription.Status == "active" ? "Active" : "Inactive";
-        DateTime? periodEnd = null;
-        var periodEndValue = GetDateTimeValue(subscription, "CurrentPeriodEnd", "CurrentPeriodEndTimestamp");
-        if (periodEndValue.HasValue)
-        {
-            periodEnd = periodEndValue;
-        }
-
-        await _membershipService.UpsertSubscriptionAsync(
-            domainUser.Id,
-            status,
-            DateTime.UtcNow,
-            periodEnd,
-            subscription.CustomerId,
-            subscription.Id);
-    }
-
-    private async Task HandleInvoiceEvent(Event stripeEvent)
+    // -------------------------------------------------------------------------
+    // invoice.payment_succeeded
+    // Disparado quando o pagamento da invoice é confirmado.
+    // É o evento correto para ativar a assinatura — funciona tanto no
+    // pagamento inicial quanto nas renovações mensais.
+    // -------------------------------------------------------------------------
+    private async Task HandleInvoicePaymentSucceeded(Event stripeEvent)
     {
         var invoice = stripeEvent.Data.Object as Invoice;
-        if (invoice is null)
+        var subscriptionId = invoice?.Parent?.SubscriptionDetails?.SubscriptionId;
+        if (subscriptionId is null) return;
+
+        // Busca a assinatura no Stripe para obter o período atual via line items
+        var subService = new SubscriptionService();
+        var stripeSub = await subService.GetAsync(subscriptionId, new SubscriptionGetOptions
         {
-            return;
-        }
+            Expand = new List<string> { "latest_invoice.lines" }
+        });
 
-        var domainUser = await ResolveDomainUser(invoice.CustomerId);
-        if (domainUser is null)
-        {
-            return;
-        }
+        var periodEnd = stripeSub.LatestInvoice?.Lines?.Data
+            .FirstOrDefault()?.Period?.End;
 
-        var status = stripeEvent.Type == "invoice.paid" ? "Active" : "PastDue";
-        await _membershipService.UpsertSubscriptionAsync(
-            domainUser.Id,
-            status,
-            DateTime.UtcNow,
-            null,
-            invoice.CustomerId,
-            GetStringValue(invoice, "SubscriptionId", "Subscription"));
-    }
-
-    private async Task HandlePaymentIntentSucceeded(Event stripeEvent)
-    {
-        var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
-        if (paymentIntent is null)
-        {
-            return;
-        }
-
-        // metadata is set in BillingController when creating the PaymentIntent
-        if (!paymentIntent.Metadata.TryGetValue("subscriptionId", out var subscriptionId)
-            || string.IsNullOrWhiteSpace(subscriptionId))
-        {
-            return;
-        }
-
-        var dbSubscription = await _fitDb.Subscriptions.AsNoTracking()
+        var dbSub = await _fitDb.Subscriptions.AsNoTracking()
             .FirstOrDefaultAsync(s => s.StripeSubscriptionId == subscriptionId);
-        if (dbSubscription is null)
-        {
-            return;
-        }
-
-        // Fetch the Stripe subscription to get the current period end
-        DateTime? periodEnd = null;
-        try
-        {
-            var subscriptionService = new SubscriptionService();
-            var stripeSubscription = await subscriptionService.GetAsync(subscriptionId);
-            var periodEndValue = GetDateTimeValue(stripeSubscription, "CurrentPeriodEnd", "CurrentPeriodEndTimestamp");
-            if (periodEndValue.HasValue)
-            {
-                periodEnd = periodEndValue;
-            }
-        }
-        catch
-        {
-            // period end is best-effort; proceed without it
-        }
+        if (dbSub is null) return;
 
         await _membershipService.UpsertSubscriptionAsync(
-            dbSubscription.ClientId,
+            dbSub.ClientId,
             status: "Active",
             startDate: DateTime.UtcNow,
             endDate: periodEnd,
-            stripeCustomerId: dbSubscription.StripeCustomerId,
+            stripeCustomerId: invoice!.CustomerId,
             stripeSubscriptionId: subscriptionId);
     }
 
-    private async Task<FitPlay.Domain.Models.User?> ResolveDomainUser(string? customerId)
+    // -------------------------------------------------------------------------
+    // invoice.payment_failed
+    // -------------------------------------------------------------------------
+    private async Task HandleInvoicePaymentFailed(Event stripeEvent)
     {
-        if (string.IsNullOrWhiteSpace(customerId))
-        {
-            return null;
-        }
+        var invoice = stripeEvent.Data.Object as Invoice;
+        var subscriptionId = invoice?.Parent?.SubscriptionDetails?.SubscriptionId;
+        if (subscriptionId is null) return;
 
-        var subscription = await _fitDb.Subscriptions.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.StripeCustomerId == customerId);
-        if (subscription is not null)
-        {
-            return await _fitDb.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == subscription.ClientId);
-        }
+        var dbSub = await _fitDb.Subscriptions.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.StripeSubscriptionId == subscriptionId);
+        if (dbSub is null) return;
 
-        return null;
+        await _membershipService.UpsertSubscriptionAsync(
+            dbSub.ClientId,
+            status: "PastDue",
+            startDate: dbSub.StartDate,
+            endDate: dbSub.EndDate,
+            stripeCustomerId: invoice!.CustomerId,
+            stripeSubscriptionId: subscriptionId);
     }
 
-    private static string? GetStringValue(object obj, params string[] propertyNames)
+    // -------------------------------------------------------------------------
+    // customer.subscription.updated / deleted
+    // -------------------------------------------------------------------------
+    private async Task HandleSubscriptionEvent(Event stripeEvent)
     {
-        foreach (var name in propertyNames)
+        var stripeSub = stripeEvent.Data.Object as Subscription;
+        if (stripeSub is null) return;
+
+        var dbSub = await _fitDb.Subscriptions.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.StripeSubscriptionId == stripeSub.Id);
+        if (dbSub is null) return;
+
+        var status = stripeSub.Status switch
         {
-            var prop = obj.GetType().GetProperty(name);
-            if (prop is null)
-            {
-                continue;
-            }
+            "active" => "Active",
+            "canceled" => "Canceled",
+            "unpaid" => "Canceled",
+            "past_due" => "PastDue",
+            _ => "Inactive"
+        };
 
-            var value = prop.GetValue(obj);
-            if (value is string strValue)
-            {
-                return strValue;
-            }
+        // CurrentPeriodEnd was removed in Stripe.net v50; derive from line items
+        var periodEnd = stripeSub.LatestInvoice?.Lines?.Data
+            .FirstOrDefault()?.Period?.End;
 
-            if (value is not null)
-            {
-                var idProp = value.GetType().GetProperty("Id");
-                if (idProp?.GetValue(value) is string idValue)
-                {
-                    return idValue;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static DateTime? GetDateTimeValue(object obj, params string[] propertyNames)
-    {
-        foreach (var name in propertyNames)
-        {
-            var prop = obj.GetType().GetProperty(name);
-            if (prop is null)
-            {
-                continue;
-            }
-
-            var value = prop.GetValue(obj);
-            if (value is DateTime dateTime)
-            {
-                return dateTime;
-            }
-
-            if (value is long unixSeconds)
-            {
-                return DateTimeOffset.FromUnixTimeSeconds(unixSeconds).UtcDateTime;
-            }
-        }
-
-        return null;
+        await _membershipService.UpsertSubscriptionAsync(
+            dbSub.ClientId,
+            status: status,
+            startDate: dbSub.StartDate,
+            endDate: periodEnd,
+            stripeCustomerId: stripeSub.CustomerId,
+            stripeSubscriptionId: stripeSub.Id);
     }
 }

@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FitPlay.Api.Auth;
 using FitPlay.Api.Services;
 using FitPlay.Domain.Data;
@@ -13,99 +12,83 @@ namespace FitPlay.Api.Controllers;
 
 [ApiController]
 [Route("api/billing")]
+[Authorize]
 public class BillingController : ControllerBase
 {
     private readonly FitPlayContext _fitDb;
-    private readonly UserManager<ApplicationUser> _userManager;
     private readonly MembershipService _membershipService;
     private readonly StripeOptions _stripeOptions;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     public BillingController(
         FitPlayContext fitDb,
-        UserManager<ApplicationUser> userManager,
         MembershipService membershipService,
-        IOptions<StripeOptions> stripeOptions)
+        IOptions<StripeOptions> stripeOptions,
+        UserManager<ApplicationUser> userManager)
     {
         _fitDb = fitDb;
-        _userManager = userManager;
         _membershipService = membershipService;
         _stripeOptions = stripeOptions.Value;
+        _userManager = userManager;
     }
 
-    public record BillingStatusDto(bool IsActive, string Status, DateTime? CurrentPeriodEnd);
+    public record MembershipStatusDto(bool IsActive, string Status, DateTime? CurrentPeriodEnd);
     public record CreateSubscriptionRequest(string ReturnUrl);
     public record CreateSubscriptionResponse(string ClientSecret);
 
     [HttpGet("status")]
-    [Authorize]
-    public async Task<ActionResult<BillingStatusDto>> GetStatus()
+    public async Task<IActionResult> GetStatus()
     {
-        var identityUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(identityUserId)) return Unauthorized();
+        var identityUserId = _userManager.GetUserId(User);
+        if (identityUserId is null) return Unauthorized();
 
         var domainUser = await _fitDb.Users.AsNoTracking()
             .FirstOrDefaultAsync(u => u.IdentityUserId == identityUserId);
-        if (domainUser is null) return NotFound();
 
-        var subscription = await _membershipService.GetLatestSubscriptionAsync(domainUser.Id);
-        var isActive = subscription?.Status == "Active";
+        if (domainUser is null)
+            return Ok(new MembershipStatusDto(false, "None", null));
 
-        return Ok(new BillingStatusDto(
-            isActive,
-            subscription?.Status ?? "None",
-            subscription?.EndDate));
+        var sub = await _membershipService.GetLatestSubscriptionAsync(domainUser.Id);
+
+        if (sub is null)
+            return Ok(new MembershipStatusDto(false, "None", null));
+
+        return Ok(new MembershipStatusDto(sub.Status == "Active", sub.Status, sub.EndDate));
     }
 
     [HttpPost("create-subscription")]
-    [Authorize]
-    public async Task<ActionResult<CreateSubscriptionResponse>> CreateSubscription([FromBody] CreateSubscriptionRequest request)
+    public async Task<IActionResult> CreateSubscription([FromBody] CreateSubscriptionRequest request)
     {
+        var identityUserId = _userManager.GetUserId(User);
+        if (identityUserId is null) return Unauthorized();
+
+        var domainUser = await _fitDb.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.IdentityUserId == identityUserId);
+
+        if (domainUser is null)
+            return BadRequest(new { message = "User not found." });
+
         if (string.IsNullOrWhiteSpace(_stripeOptions.PriceId))
-            return BadRequest(new { message = "Stripe PriceId não configurado." });
+            return BadRequest(new { message = "Stripe PriceId not configured." });
 
-        var identityUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(identityUserId)) return Unauthorized();
+        // Ensure a Stripe customer exists for this user
+        var existingSub = await _membershipService.GetLatestSubscriptionAsync(domainUser.Id);
+        string? customerId = existingSub?.StripeCustomerId;
 
-        var user = await _userManager.FindByIdAsync(identityUserId);
-        if (user is null) return Unauthorized();
-
-        var domainUser = await _fitDb.Users.FirstOrDefaultAsync(u => u.IdentityUserId == identityUserId);
-        if (domainUser is null) return NotFound();
-
-        var customerId = await EnsureCustomerAsync(user, domainUser.Id);
-
-        // ? CORREÇÃO PRINCIPAL: reutilizar assinatura incompleta existente
-        var existingSubscription = await _membershipService.GetLatestSubscriptionAsync(domainUser.Id);
-        if (existingSubscription?.StripeSubscriptionId is not null &&
-            existingSubscription.Status == "Pending")
+        if (string.IsNullOrWhiteSpace(customerId))
         {
-            var subService = new SubscriptionService();
-            var existingSub = await subService.GetAsync(
-                existingSubscription.StripeSubscriptionId,
-                new SubscriptionGetOptions { Expand = new List<string> { "latest_invoice" } });
-
-            if (existingSub?.Status == "incomplete")
+            var identity = await _userManager.FindByIdAsync(identityUserId);
+            var customerOptions = new CustomerCreateOptions
             {
-                var piService = new PaymentIntentService();
-                var piList = await piService.ListAsync(new PaymentIntentListOptions
-                {
-                    Customer = customerId,
-                    Limit = 20
-                });
-
-                var existingPi = piList.Data.FirstOrDefault(pi =>
-                    pi.Metadata.ContainsKey("subscriptionId") &&
-                    pi.Metadata["subscriptionId"] == existingSub.Id &&
-                    pi.Status is "requires_payment_method" or "requires_confirmation" or "requires_action");
-
-                if (existingPi != null)
-                    return Ok(new CreateSubscriptionResponse(existingPi.ClientSecret));
-            }
+                Email = identity?.Email
+            };
+            var customerService = new CustomerService();
+            var customer = await customerService.CreateAsync(customerOptions);
+            customerId = customer.Id;
         }
 
-        // Só cria nova assinatura se não houver nenhuma reutilizável
-        var subscriptionService = new SubscriptionService();
-        var options = new SubscriptionCreateOptions
+        // Create the Stripe subscription with payment_behavior=default_incomplete
+        var subscriptionOptions = new SubscriptionCreateOptions
         {
             Customer = customerId,
             Items = new List<SubscriptionItemOptions>
@@ -115,37 +98,41 @@ public class BillingController : ControllerBase
             PaymentBehavior = "default_incomplete",
             PaymentSettings = new SubscriptionPaymentSettingsOptions
             {
-                SaveDefaultPaymentMethod = "on_subscription",
-                PaymentMethodTypes = new List<string> { "card" }
+                SaveDefaultPaymentMethod = "on_subscription"
             },
-            Expand = new List<string> { "latest_invoice" }
+            Expand = new List<string>
+            {
+                "latest_invoice",
+                "latest_invoice.confirmation_secret"
+            }
         };
 
-        var subscription = await subscriptionService.CreateAsync(options);
+        var subscriptionService = new SubscriptionService();
+        var subscription = await subscriptionService.CreateAsync(subscriptionOptions);
 
-        var invoice = subscription.LatestInvoice;
-        if (invoice is null)
-            return BadRequest(new { message = "Stripe não retornou uma fatura para a assinatura." });
+        // In Stripe.net v50, PaymentIntent was removed from Invoice.
+        // The client secret is now accessed via Invoice.ConfirmationSecret.ClientSecret.
 
-        // Com billing_mode=flexible, o PaymentIntent não é criado automaticamente.
-        // Criamos manualmente a partir do valor da fatura.
-        var paymentIntentService = new PaymentIntentService();
-        var paymentIntent = await paymentIntentService.CreateAsync(new PaymentIntentCreateOptions
+        var clientSecret = subscription.LatestInvoice?.ConfirmationSecret?.ClientSecret;
+        if (string.IsNullOrWhiteSpace(clientSecret) && !string.IsNullOrWhiteSpace(subscription.LatestInvoiceId))
         {
-            Amount = invoice.AmountDue,
-            Currency = invoice.Currency,
-            Customer = customerId,
-            PaymentMethodTypes = new List<string> { "card" },
-            Metadata = new Dictionary<string, string>
-            {
-                ["invoiceId"] = invoice.Id,
-                ["subscriptionId"] = subscription.Id
-            }
-        });
+            var invoiceService = new InvoiceService();
+            var invoice = await invoiceService.GetAsync(
+                subscription.LatestInvoiceId,
+                new InvoiceGetOptions
+                {
+                    Expand = new List<string> { "confirmation_secret" }
+                });
+            clientSecret = invoice.ConfirmationSecret?.ClientSecret;
+        }
 
-        var clientSecret = paymentIntent.ClientSecret;
-        if (string.IsNullOrWhiteSpace(clientSecret))
-            return BadRequest(new { message = "Stripe não retornou o client secret para o PaymentIntent." });
+        if (clientSecret is null)
+            return StatusCode(500, new
+            {
+                message = "Failed to retrieve payment intent. Stripe did not return a confirmation secret.",
+                stripeSubscriptionId = subscription.Id,
+                stripeSubscriptionStatus = subscription.Status
+            });
 
         await _membershipService.UpsertSubscriptionAsync(
             domainUser.Id,
@@ -156,38 +143,5 @@ public class BillingController : ControllerBase
             stripeSubscriptionId: subscription.Id);
 
         return Ok(new CreateSubscriptionResponse(clientSecret));
-    }
-
-    private async Task<string> EnsureCustomerAsync(ApplicationUser user, int domainUserId)
-    {
-        // ? Verifica no banco primeiro
-        var existing = await _membershipService.GetLatestSubscriptionAsync(domainUserId);
-        if (!string.IsNullOrWhiteSpace(existing?.StripeCustomerId))
-            return existing.StripeCustomerId;
-
-        // ? Verifica se o cliente já existe no Stripe pelo e-mail antes de criar
-        var customerService = new CustomerService();
-        var existingCustomers = await customerService.ListAsync(new CustomerListOptions
-        {
-            Email = user.Email,
-            Limit = 1
-        });
-
-        if (existingCustomers.Data.Count > 0)
-            return existingCustomers.Data[0].Id;
-
-        // Só cria novo cliente se realmente não existir
-        var customer = await customerService.CreateAsync(new CustomerCreateOptions
-        {
-            Email = user.Email,
-            Name = user.UserName,
-            Metadata = new Dictionary<string, string>
-            {
-                ["identityUserId"] = user.Id,
-                ["domainUserId"] = domainUserId.ToString()
-            }
-        });
-
-        return customer.Id;
     }
 }
