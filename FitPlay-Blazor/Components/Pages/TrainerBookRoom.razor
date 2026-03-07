@@ -1,0 +1,151 @@
+@page "/trainer/rooms/book"
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>Book Room - FitPlay</PageTitle>
+
+<div class="page-wrap">
+    <h1>Book a Room</h1>
+
+    <div class="form-grid">
+        <select value="@_gymId" @onchange="OnGymChanged">
+            <option value="0">Select Gym</option>
+            @foreach (var g in _gyms)
+            {
+                <option value="@g.Id">@g.Name</option>
+            }
+        </select>
+
+        <select value="@_locationId" @onchange="OnLocationChanged" disabled="@(_gymId == 0)">
+            <option value="0">Select Location</option>
+            @foreach (var l in _locations)
+            {
+                <option value="@l.Id">@l.Name</option>
+            }
+        </select>
+
+        <select @bind="_roomId" disabled="@(_locationId == 0)">
+            <option value="0">Select Room</option>
+            @foreach (var r in _rooms)
+            {
+                <option value="@r.Id">@r.Name (@r.PricePerHour.ToString("C")/h)</option>
+            }
+        </select>
+
+        <select @bind="_purpose">
+            <option>GroupClass</option>
+            <option>PersonalTraining</option>
+            <option>Rehabilitation</option>
+            <option>Assessment</option>
+            <option>Yoga</option>
+            <option>Pilates</option>
+            <option>Crossfit</option>
+            <option>Other</option>
+        </select>
+
+        <input @bind="_purposeDescription" placeholder="Purpose description (optional)" />
+        <input type="datetime-local" @bind="_start" />
+        <input type="datetime-local" @bind="_end" />
+        <input @bind="_notes" placeholder="Notes" />
+
+        <button @onclick="Submit" disabled="_loading">@(_loading ? "Saving..." : "Create Booking")</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <p class="ok">@_message</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="error">@_error</p>
+    }
+</div>
+
+@code {
+    private List<ApiClient.GymRead> _gyms = new();
+    private List<ApiClient.GymLocationRead> _locations = new();
+    private List<ApiClient.RoomRead> _rooms = new();
+
+    private int _gymId;
+    private int _locationId;
+    private int _roomId;
+    private string _purpose = "GroupClass";
+    private string? _purposeDescription;
+    private DateTime _start = DateTime.Now.AddHours(1);
+    private DateTime _end = DateTime.Now.AddHours(2);
+    private string? _notes;
+
+    private bool _loading;
+    private string? _message;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _gyms = await Api.GetGyms(true);
+    }
+
+    private async Task OnGymChanged(ChangeEventArgs e)
+    {
+        _gymId = int.TryParse(e.Value?.ToString(), out var parsedGymId) ? parsedGymId : 0;
+        _locationId = 0;
+        _roomId = 0;
+        _rooms.Clear();
+        _locations = _gymId > 0 ? await Api.GetGymLocations(_gymId, true) : new();
+    }
+
+    private async Task OnLocationChanged(ChangeEventArgs e)
+    {
+        _locationId = int.TryParse(e.Value?.ToString(), out var parsedLocationId) ? parsedLocationId : 0;
+        _roomId = 0;
+        _rooms = _locationId > 0 ? await Api.GetRoomsByLocation(_locationId, true) : new();
+    }
+
+    private async Task Submit()
+    {
+        _loading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            if (_roomId <= 0)
+                throw new InvalidOperationException("Select a room.");
+
+            var body = new ApiClient.CreateRoomBookingBody(
+                _purpose,
+                _purposeDescription,
+                _start.ToUniversalTime(),
+                _end.ToUniversalTime(),
+                _notes);
+
+            var result = await Api.CreateRoomBooking(_roomId, body);
+            _message = result is null ? "Booking created." : $"Booking #{result.Id} created ({result.Status}).";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
+
+<style>
+    .page-wrap { max-width: 860px; margin: 0 auto; padding: 24px; }
+    .form-grid { display: grid; gap: 10px; }
+    select,input,button { padding: 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255,255,255,.06); color: var(--text-primary); }
+    button { background: linear-gradient(135deg, var(--accent-teal), var(--accent-magenta)); border: none; color: #fff; font-weight: 700; }
+    .ok { color: #7dff8e; }
+    .error { color: #ff9aa2; }
+</style>
+
+

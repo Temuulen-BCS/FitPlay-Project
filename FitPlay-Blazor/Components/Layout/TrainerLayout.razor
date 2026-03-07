@@ -9,6 +9,9 @@
         <nav class="nav-links-top">
             <NavLink href="/trainer/dashboard" Match="NavLinkMatch.All">Dashboard</NavLink>
             <NavLink href="/trainer/validations">Validations</NavLink>
+            <NavLink href="/trainer/rooms">Rooms</NavLink>
+            <NavLink href="/trainer/rooms/book">Book Room</NavLink>
+            <NavLink href="/trainer/sessions/create">Create Session</NavLink>
             <NavLink href="/trainer/exercises">Exercises</NavLink>
             <NavLink href="/trainer/users/1">Manage Users</NavLink>
         </nav>
@@ -40,6 +43,18 @@
                             <a class="dropdown-item" href="trainer/validations">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                                 Validations
+                            </a>
+                            <a class="dropdown-item" href="trainer/rooms">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                Rooms
+                            </a>
+                            <a class="dropdown-item" href="trainer/rooms/book">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                                Book Room
+                            </a>
+                            <a class="dropdown-item" href="trainer/sessions/create">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect></svg>
+                                Create Session
                             </a>
                             <a class="dropdown-item" href="trainer/exercises">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -101,3 +116,4 @@
             : name[0].ToString().ToUpperInvariant();
     }
 }
+

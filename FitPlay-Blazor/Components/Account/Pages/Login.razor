@@ -1,4 +1,4 @@
-@page "/Account/Login"
+﻿@page "/Account/Login"
 @attribute [AllowAnonymous]
 @layout EmptyLayout
 
@@ -114,7 +114,7 @@
 
 <!-- FOOTER -->
 <footer class="site-footer">
-    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+    <p>Â© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
 </footer>
 
 @code {
@@ -146,7 +146,8 @@
 
             var user = await UserManager.FindByEmailAsync(Input.Email);
             var isTrainer = user != null && await UserManager.IsInRoleAsync(user, "Trainer");
-            RedirectManager.RedirectTo(isTrainer ? "/trainer/dashboard" : "/dashboard");
+            var isGymAdmin = user != null && await UserManager.IsInRoleAsync(user, "GymAdmin");
+            RedirectManager.RedirectTo(isTrainer ? "/trainer/dashboard" : isGymAdmin ? "/gym/dashboard" : "/dashboard");
         }
         else if (result.RequiresTwoFactor)
         {
@@ -179,3 +180,6 @@
         public bool RememberMe { get; set; }
     }
 }
+
+
+

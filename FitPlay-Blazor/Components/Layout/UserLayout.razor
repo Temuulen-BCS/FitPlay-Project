@@ -11,6 +11,8 @@
             <NavLink href="/user/trainings">Trainings</NavLink>
             <NavLink href="/user/log-workout">Log Workout</NavLink>
             <NavLink href="/user/book-class">Book Class</NavLink>
+            <NavLink href="/gyms">Gyms</NavLink>
+            <NavLink href="/user/sessions/enroll">Enroll Session</NavLink>
             <NavLink href="/user/progress">My Progress</NavLink>
             <NavLink href="/user/achievements">Achievements</NavLink>
             <NavLink href="/membership">Membership</NavLink>
@@ -40,6 +42,14 @@
                                 <a class="dropdown-item" href="user/dashboard">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                                     Dashboard
+                                </a>
+                                <a class="dropdown-item" href="gyms">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                    Gyms
+                                </a>
+                                <a class="dropdown-item" href="user/sessions/enroll">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect></svg>
+                                    Enroll Session
                                 </a>
                                 <a class="dropdown-item" href="user/progress">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -106,3 +116,4 @@
             : name[0].ToString().ToUpperInvariant();
     }
 }
+

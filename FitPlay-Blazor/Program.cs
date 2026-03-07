@@ -1,4 +1,4 @@
-using FitPlay_Blazor.Components;
+﻿using FitPlay_Blazor.Components;
 using FitPlay_Blazor.Components.Account;
 using FitPlay_Blazor.Data;
 using FitPlay_Blazor.Auth;
@@ -73,7 +73,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-foreach (var role in new[] { "Trainer", "User" })
+foreach (var role in new[] { "Trainer", "User", "GymAdmin" })
 {
     var existingRole = await roleManager.FindByNameAsync(role);
     if (existingRole is null)
@@ -105,3 +105,4 @@ app.MapRazorComponents<App>()
 app.MapAdditionalIdentityEndpoints();
 
 app.Run();
+

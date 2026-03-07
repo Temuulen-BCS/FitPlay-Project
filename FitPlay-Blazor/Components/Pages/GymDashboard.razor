@@ -1,0 +1,58 @@
+﻿@page "/gym/dashboard"
+@attribute [Authorize(Roles = "GymAdmin")]
+@layout EmptyLayout
+
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay_Blazor.Components.Layout
+
+<PageTitle>Gym Dashboard - FitPlay</PageTitle>
+
+<section class="gym-dashboard-shell">
+    <div class="gym-dashboard-card">
+        <p class="eyebrow">Gym Partner</p>
+        <h1>Dashboard em configuração</h1>
+        <p>
+            Sua conta de parceiro foi criada com sucesso. O painel operacional da academia será liberado nas próximas etapas.
+        </p>
+        <a href="/" class="btn-primary" data-enhanced-nav="false">Voltar para Home</a>
+    </div>
+</section>
+
+<style>
+    .gym-dashboard-shell {
+        min-height: calc(100vh - 120px);
+        padding: 48px 24px;
+        background: radial-gradient(circle at 20% 20%, rgba(0, 232, 122, 0.12), transparent 48%),
+                    radial-gradient(circle at 80% 10%, rgba(45, 212, 191, 0.16), transparent 45%),
+                    #080b10;
+        color: #ecfff5;
+        display: grid;
+        place-items: center;
+    }
+
+    .gym-dashboard-card {
+        width: min(720px, 100%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        background: rgba(8, 13, 20, 0.88);
+        padding: 32px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .eyebrow {
+        margin: 0 0 8px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: rgba(236, 255, 245, 0.7);
+    }
+
+    h1 {
+        margin: 0 0 12px;
+    }
+
+    p {
+        margin: 0 0 24px;
+        color: rgba(236, 255, 245, 0.8);
+    }
+</style>

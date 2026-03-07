@@ -54,7 +54,7 @@
                                     Achievements
                                 </a>
                                 <a class="dropdown-item" href="membership">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
                                     Membership
                                 </a>
                             </div>
@@ -83,20 +83,14 @@
 <!-- HERO SECTION -->
 <section class="hero" id="hero">
     <div class="hero-bg">
-        <!-- Video background — 5-slot rotation (add hero-2..hero-5.mp4 to /videos/hero/ to activate more) -->
         <div class="hero-video-wrap" id="heroVideoWrap">
             <video class="hero-video active" id="heroVid0" src="/videos/hero/hero-1.mp4" autoplay muted playsinline preload="auto"></video>
-            <!-- slot 2 — no src yet -->
             <video class="hero-video" id="heroVid1" muted playsinline preload="none"></video>
-            <!-- slot 3 — no src yet -->
             <video class="hero-video" id="heroVid2" muted playsinline preload="none"></video>
-            <!-- slot 4 — no src yet -->
             <video class="hero-video" id="heroVid3" muted playsinline preload="none"></video>
-            <!-- slot 5 — no src yet -->
             <video class="hero-video" id="heroVid4" muted playsinline preload="none"></video>
         </div>
         <div class="hero-video-overlay"></div>
-        <!-- Orbs kept subtle on top of the video -->
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
     </div>
@@ -179,6 +173,7 @@
 </section>
 
 <!-- COACHES ON DECK -->
+<!-- COACHES ON DECK -->
 <section class="section trainers-section" id="trainers">
     <h2 class="section-title">Coaches on Deck</h2>
     <p class="section-sub">Meet the pros who'll push you past your limits.</p>
@@ -208,6 +203,81 @@
             <span class="trainer-avail">Next: Tonight 22:30</span>
         </div>
     </div>
+</section>
+
+<!-- GYM PARTNER CTA -->
+<section class="gym-network-section" id="academy-partner">
+
+    <div class="gym-network-inner">
+        <div class="gym-network-header">
+            <span class="gym-network-kicker">FitPlay Affiliate Program</span>
+            <h2 class="gym-network-title">Your Space. <span>Our Network.</span></h2>
+        </div>
+
+        <div class="gn-panel" id="gnPanel">
+
+            <!-- Images layer -->
+            <div class="gn-images">
+                <img class="gn-img gn-img-1"
+                     src="https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg?auto=compress&cs=tinysrgb&w=1600"
+                     alt="Get Discovered" />
+                <img class="gn-img gn-img-2 is-active"
+                     src="https://images.pexels.com/photos/841130/pexels-photo-841130.jpeg?auto=compress&cs=tinysrgb&w=1600"
+                     alt="Manage Everything" />
+                <img class="gn-img gn-img-3"
+                     src="https://images.pexels.com/photos/2261477/pexels-photo-2261477.jpeg?auto=compress&cs=tinysrgb&w=1600"
+                     alt="Earn Automatically" />
+            </div>
+
+            <!-- Segments layer -->
+            <div class="gn-segments" id="gnSegments">
+
+                <div class="gn-seg" data-idx="0">
+                    <div class="gn-seg-body">
+                        <span class="gn-seg-title">Get Discovered</span>
+                        <a href="#" class="gn-seg-btn">Visibility &amp; Reach</a>
+                    </div>
+                </div>
+
+                <div class="gn-seg is-active" data-idx="1">
+                    <div class="gn-seg-body">
+                        <span class="gn-seg-title">Manage Everything</span>
+                        <a href="#" class="gn-seg-btn">Smart Management</a>
+                    </div>
+                </div>
+
+                <div class="gn-seg" data-idx="2">
+                    <div class="gn-seg-body">
+                        <span class="gn-seg-title">Earn Automatically</span>
+                        <a href="#" class="gn-seg-btn">Become a Gym Partner</a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="gym-network-footer">
+            <span class="gym-network-footer-tagline">You provide the space. We connect the right coaches.</span>
+            <div>
+                <AuthorizeView Roles="GymAdmin">
+                    <Authorized>
+                        <a href="/gym/dashboard" class="gym-network-btn">
+                            Go to my dashboard
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        </a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/academy/register" class="gym-network-btn">
+                            Become a Gym Partner
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        </a>
+                        <a href="/academy/login" class="gym-network-link">Already have an account? Log in</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+
 </section>
 
 <!-- MEMBERSHIP PERKS -->
@@ -247,8 +317,41 @@
     </div>
 </section>
 
+<!-- TESTIMONIALS -->
+<section class="section testimonials-section">
+    <h2 class="section-title">What Members Say</h2>
+    <div class="testimonials-grid">
+        <div class="testimonial-card">
+            <p class="quote">"Best gym experience ever. The vibe is unmatched — it's like a club but you leave healthier."</p>
+            <span class="author">— Alex T.</span>
+        </div>
+        <div class="testimonial-card">
+            <p class="quote">"I've never been motivated to work out at 10pm until FitPlay. The energy is insane."</p>
+            <span class="author">— Jordan K.</span>
+        </div>
+        <div class="testimonial-card">
+            <p class="quote">"The gamification keeps me coming back. Leveling up feels so rewarding!"</p>
+            <span class="author">— Sam R.</span>
+        </div>
+    </div>
+</section>
+
+<!-- CTA FOOTER -->
+<section class="cta-footer" id="contact">
+    <h2>Ready to Train Like It's Friday Night?</h2>
+    <p>Join FitPlay today and transform your fitness journey.</p>
+    <a href="Account/Register" class="btn-primary btn-large" data-enhanced-nav="false">Get Started</a>
+</section>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+</footer>
+
 <style>
-    /* ── Profile Dropdown ── */
+
+
+/* ── Profile Dropdown ── */
     .profile-dropdown {
         position: relative;
     }
@@ -388,8 +491,6 @@
         }
     }
 
-    /* ── End Profile Dropdown ── */
-
     .dropdown-logout-section {
         padding: 4px 2px 2px;
     }
@@ -461,57 +562,337 @@
             text-align: left;
         }
     }
+
+    @@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,300;0,400;0,600;1,300&display=swap');
+
+    /* ── Gym Network Section ── */
+    .gym-network-section {
+        --gn-accent: #39ff14;
+        --gn-white: #f5f2ee;
+        --gn-black: #0a0a0a;
+        --seg-default: 33.333%;
+        --seg-active: 58%;
+        --seg-shrink: 21%;
+        width: 100%;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--gn-black);
+        padding: 40px 0;
+        scroll-snap-align: center;
+        scroll-snap-stop: always;
+    }
+
+    /* Make the page scroll-snap aware */
+    html {
+        scroll-snap-type: y proximity;
+        scroll-behavior: smooth;
+    }
+
+    .gym-network-inner {
+        width: 100%;
+        max-width: 1400px;
+        padding: 0 40px;
+    }
+
+    .gym-network-header {
+        text-align: center;
+        margin-bottom: 24px;
+        margin-top: 20px;
+    }
+
+    .gym-network-kicker {
+        font-family: 'Barlow', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: var(--gn-accent);
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    .gym-network-title {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: clamp(30px, 3.5vw, 52px);
+        letter-spacing: 0.04em;
+        color: var(--gn-white);
+        text-transform: uppercase;
+        line-height: 1;
+        margin: 0;
+    }
+
+        .gym-network-title span {
+            color: var(--gn-accent);
+        }
+
+    /* ── Panel ── */
+    .gn-panel {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        overflow: hidden;
+        background: rgba(0,0,0,0.2);
+    }
+
+    /* ── Images layer ── */
+    .gn-images {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .gn-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transform: scale(1.1);
+        transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+
+    .gn-img.is-active {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    /* ── Segments layer ── */
+    .gn-segments {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        z-index: 3;
+    }
+
+    .gn-seg {
+        flex: 0 0 var(--seg-default);
+        width: var(--seg-default);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        background: rgba(0,0,0,0.60);
+        cursor: pointer;
+        transition: flex-basis 0.45s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+        border-right: 1px solid rgba(255,255,255,0.15);
+        overflow: hidden;
+        position: relative;
+    }
+
+    .gn-seg:last-child {
+        border-right: none;
+    }
+
+    /* Green top bar */
+    .gn-seg::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: var(--gn-accent);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.35s ease;
+        z-index: 5;
+    }
+
+    /* When a sibling is hovered: shrink idle segs */
+    .gn-segments.has-hover .gn-seg {
+        flex-basis: var(--seg-shrink);
+    }
+
+    /* Active/hovered segment: expand */
+    .gn-segments.has-hover .gn-seg.is-active,
+    .gn-seg:hover {
+        flex-basis: var(--seg-active);
+        background: rgba(0,0,0,0.12);
+    }
+
+    .gn-seg.is-active::after,
+    .gn-seg:hover::after {
+        transform: scaleX(1);
+    }
+
+    /* Segment body */
+    .gn-seg-body {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+        padding: 0 16px 40px;
+    }
+
+    .gn-seg-title {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: clamp(20px, 2vw, 30px);
+        font-weight: 400;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: #fff;
+        text-align: center;
+        padding-bottom: 20px;
+        text-shadow: 0 2px 20px rgba(0,0,0,0.8);
+        white-space: nowrap;
+    }
+
+    .gn-seg-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 180px;
+        height: 44px;
+        padding: 0 20px;
+        font-family: 'Barlow', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #fff;
+        text-decoration: none;
+        border: 1px solid #fff;
+        background: rgba(0,0,0,0.15);
+        transition: background 0.2s, color 0.2s, border-color 0.2s;
+        white-space: nowrap;
+    }
+
+    .gn-seg-btn:hover {
+        background: var(--gn-accent);
+        border-color: var(--gn-accent);
+        color: #0a0a0a;
+        font-weight: 700;
+    }
+
+    /* Footer strip */
+    .gym-network-footer {
+        margin-top: 24px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid rgba(245,242,238,0.1);
+        padding-top: 20px;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .gym-network-footer-tagline {
+        font-family: 'Barlow', sans-serif;
+        font-size: 11px;
+        font-weight: 300;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(245,242,238,0.35);
+    }
+
+    .gym-network-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--gn-white);
+        text-decoration: none;
+        padding: 14px 28px;
+        border: 1px solid rgba(245,242,238,0.25);
+        font-family: 'Barlow', sans-serif;
+        transition: border-color 0.3s, color 0.3s, background 0.3s;
+    }
+
+        .gym-network-btn:hover {
+            border-color: var(--gn-accent);
+            color: var(--gn-accent);
+            background: rgba(57,255,20,0.05);
+        }
+
+    .gym-network-link {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 16px;
+        font-family: 'Barlow', sans-serif;
+        font-size: 11px;
+        font-weight: 300;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: rgba(245,242,238,0.5);
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+
+        .gym-network-link:hover {
+            color: var(--gn-accent);
+        }
+
+    /* Responsive */
+    @@media (max-width: 1024px) {
+        .gym-network-inner {
+            padding: 0 20px;
+        }
+
+        .gn-panel {
+            height: 100vh;
+            width: 100vw;
+            margin-left: calc(50% - 50vw);
+            margin-right: calc(50% - 50vw);
+        }
+
+        .gn-segments {
+            flex-direction: column;
+        }
+
+        .gn-seg,
+        .gn-segments.has-hover .gn-seg,
+        .gn-segments.has-hover .gn-seg.is-active,
+        .gn-seg:hover {
+            flex-basis: 33.333% !important;
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+        }
+
+        .gn-seg:last-child {
+            border-bottom: none;
+        }
+
+        .gym-network-footer {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .gym-network-link {
+            margin-left: 0;
+            margin-top: 4px;
+            display: block;
+        }
+    }
 </style>
-
-<!-- TESTIMONIALS -->
-<section class="section testimonials-section">
-    <h2 class="section-title">What Members Say</h2>
-    <div class="testimonials-grid">
-        <div class="testimonial-card">
-            <p class="quote">"Best gym experience ever. The vibe is unmatched — it's like a club but you leave healthier."</p>
-            <span class="author">— Alex T.</span>
-        </div>
-        <div class="testimonial-card">
-            <p class="quote">"I've never been motivated to work out at 10pm until FitPlay. The energy is insane."</p>
-            <span class="author">— Jordan K.</span>
-        </div>
-        <div class="testimonial-card">
-            <p class="quote">"The gamification keeps me coming back. Leveling up feels so rewarding!"</p>
-            <span class="author">— Sam R.</span>
-        </div>
-    </div>
-</section>
-
-<!-- CTA FOOTER -->
-<section class="cta-footer" id="contact">
-    <h2>Ready to Train Like It's Friday Night?</h2>
-    <p>Join FitPlay today and transform your fitness journey.</p>
-    <a href="Account/Register" class="btn-primary btn-large" data-enhanced-nav="false">Get Started</a>
-</section>
-
-<!-- FOOTER -->
-<footer class="site-footer">
-    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
-</footer>
 
 @code {
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Small delay gives the browser one paint cycle to commit the DOM before
-        // JS tries to getElementById. Combined with the JS DOM-ready guard this
-        // eliminates the "elements not found" race on initial load and re-navigation.
         await Task.Delay(50);
         await JS.InvokeVoidAsync("initHeroVideo");
+        if (firstRender)
+            await JS.InvokeVoidAsync("initGymPanel");
     }
 
     public async ValueTask DisposeAsync()
     {
-        // Prevent stacked timers when the component is torn down on navigation.
         try
         {
             await JS.InvokeVoidAsync("disposeHeroVideo");
         }
-        catch (JSDisconnectedException) { /* circuit already gone — safe to ignore */ }
+        catch (JSDisconnectedException) { }
     }
 
     private static string GetInitials(string? name)
