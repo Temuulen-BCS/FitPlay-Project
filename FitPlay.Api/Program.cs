@@ -71,6 +71,13 @@ builder.Services.AddScoped<TrainingService>();
 builder.Services.AddScoped<ClassScheduleService>();
 builder.Services.AddScoped<MembershipService>();
 
+// Register gym/sessions services
+builder.Services.AddScoped<IAcademyService, AcademyService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
+builder.Services.AddScoped<ICheckInService, CheckInService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -146,7 +153,7 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var role in new[] { "Trainer", "User" })
+    foreach (var role in new[] { "Admin", "Trainer", "User" })
     {
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
@@ -154,3 +161,5 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+

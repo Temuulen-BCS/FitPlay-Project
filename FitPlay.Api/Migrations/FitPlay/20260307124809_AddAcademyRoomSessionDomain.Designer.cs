@@ -4,6 +4,7 @@ using FitPlay.Domain.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FitPlay.Api.Migrations.FitPlay
 {
     [DbContext(typeof(FitPlayContext))]
-    partial class FitPlayContextModelSnapshot : ModelSnapshot
+    [Migration("20260307124809_AddAcademyRoomSessionDomain")]
+    partial class AddAcademyRoomSessionDomain
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,6 +24,47 @@ namespace FitPlay.Api.Migrations.FitPlay
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("FitPlay.Domain.Models.Academy", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CNPJ")
+                        .IsRequired()
+                        .HasMaxLength(18)
+                        .HasColumnType("nvarchar(18)");
+
+                    b.Property<decimal>("CancelFeeRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("decimal(5,4)");
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("decimal(5,4)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("StripeAccountId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CNPJ")
+                        .IsUnique();
+
+                    b.ToTable("Academies");
+                });
 
             modelBuilder.Entity("FitPlay.Domain.Models.Achievement", b =>
                 {
@@ -285,47 +329,6 @@ namespace FitPlay.Api.Migrations.FitPlay
                     b.ToTable("ExerciseLogs");
                 });
 
-            modelBuilder.Entity("FitPlay.Domain.Models.Gym", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CNPJ")
-                        .IsRequired()
-                        .HasMaxLength(18)
-                        .HasColumnType("nvarchar(18)");
-
-                    b.Property<decimal>("CancelFeeRate")
-                        .HasPrecision(5, 4)
-                        .HasColumnType("decimal(5,4)");
-
-                    b.Property<decimal>("CommissionRate")
-                        .HasPrecision(5, 4)
-                        .HasColumnType("decimal(5,4)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("StripeAccountId")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CNPJ")
-                        .IsUnique();
-
-                    b.ToTable("Gyms");
-                });
-
             modelBuilder.Entity("FitPlay.Domain.Models.GymLocation", b =>
                 {
                     b.Property<int>("Id")
@@ -333,6 +336,9 @@ namespace FitPlay.Api.Migrations.FitPlay
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AcademyId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Address")
                         .IsRequired()
@@ -343,9 +349,6 @@ namespace FitPlay.Api.Migrations.FitPlay
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("GymId")
-                        .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -373,7 +376,7 @@ namespace FitPlay.Api.Migrations.FitPlay
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GymId");
+                    b.HasIndex("AcademyId");
 
                     b.ToTable("GymLocations");
                 });
@@ -432,12 +435,12 @@ namespace FitPlay.Api.Migrations.FitPlay
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("ClassEnrollmentId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("GymAmount")
+                    b.Property<decimal>("AcademyAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ClassEnrollmentId")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("PlatformAmount")
                         .HasPrecision(18, 2)
@@ -698,7 +701,7 @@ namespace FitPlay.Api.Migrations.FitPlay
                     b.ToTable("TeacherProfiles");
                 });
 
-            modelBuilder.Entity("FitPlay.Domain.Models.TrainerGymLink", b =>
+            modelBuilder.Entity("FitPlay.Domain.Models.TrainerAcademyLink", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -706,11 +709,11 @@ namespace FitPlay.Api.Migrations.FitPlay
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("AcademyId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<int>("GymId")
-                        .HasColumnType("int");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -722,12 +725,12 @@ namespace FitPlay.Api.Migrations.FitPlay
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GymId");
+                    b.HasIndex("AcademyId");
 
-                    b.HasIndex("TrainerId", "GymId")
+                    b.HasIndex("TrainerId", "AcademyId")
                         .IsUnique();
 
-                    b.ToTable("TrainerGymLinks");
+                    b.ToTable("TrainerAcademyLinks");
                 });
 
             modelBuilder.Entity("FitPlay.Domain.Models.Training", b =>
@@ -1026,13 +1029,13 @@ namespace FitPlay.Api.Migrations.FitPlay
 
             modelBuilder.Entity("FitPlay.Domain.Models.GymLocation", b =>
                 {
-                    b.HasOne("FitPlay.Domain.Models.Gym", "Gym")
+                    b.HasOne("FitPlay.Domain.Models.Academy", "Academy")
                         .WithMany("GymLocations")
-                        .HasForeignKey("GymId")
+                        .HasForeignKey("AcademyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Gym");
+                    b.Navigation("Academy");
                 });
 
             modelBuilder.Entity("FitPlay.Domain.Models.PaymentSplit", b =>
@@ -1079,15 +1082,15 @@ namespace FitPlay.Api.Migrations.FitPlay
                     b.Navigation("ClassEnrollment");
                 });
 
-            modelBuilder.Entity("FitPlay.Domain.Models.TrainerGymLink", b =>
+            modelBuilder.Entity("FitPlay.Domain.Models.TrainerAcademyLink", b =>
                 {
-                    b.HasOne("FitPlay.Domain.Models.Gym", "Gym")
+                    b.HasOne("FitPlay.Domain.Models.Academy", "Academy")
                         .WithMany()
-                        .HasForeignKey("GymId")
+                        .HasForeignKey("AcademyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Gym");
+                    b.Navigation("Academy");
                 });
 
             modelBuilder.Entity("FitPlay.Domain.Models.Training", b =>
@@ -1173,6 +1176,11 @@ namespace FitPlay.Api.Migrations.FitPlay
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FitPlay.Domain.Models.Academy", b =>
+                {
+                    b.Navigation("GymLocations");
+                });
+
             modelBuilder.Entity("FitPlay.Domain.Models.ClassEnrollment", b =>
                 {
                     b.Navigation("CheckIns");
@@ -1183,11 +1191,6 @@ namespace FitPlay.Api.Migrations.FitPlay
             modelBuilder.Entity("FitPlay.Domain.Models.ClassSession", b =>
                 {
                     b.Navigation("Enrollments");
-                });
-
-            modelBuilder.Entity("FitPlay.Domain.Models.Gym", b =>
-                {
-                    b.Navigation("GymLocations");
                 });
 
             modelBuilder.Entity("FitPlay.Domain.Models.GymLocation", b =>
