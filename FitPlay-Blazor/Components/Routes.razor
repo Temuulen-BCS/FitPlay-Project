@@ -1,9 +1,23 @@
-﻿@using FitPlay_Blazor.Components.Account.Shared
+@using FitPlay_Blazor.Components.Account.Shared
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
             <NotAuthorized>
-                <RedirectToLogin />
+                @* 
+                    NotAuthorized fires both when unauthenticated AND when authenticated
+                    but lacking the required policy (e.g. no active membership).
+                    We use a nested AuthorizeView with a unique Context name to distinguish:
+                      - Authenticated → missing membership → redirect to /membership
+                      - Not authenticated → redirect to login
+                *@
+                <AuthorizeView Context="innerAuth">
+                    <Authorized>
+                        <RedirectToMembership />
+                    </Authorized>
+                    <NotAuthorized>
+                        <RedirectToLogin />
+                    </NotAuthorized>
+                </AuthorizeView>
             </NotAuthorized>
         </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />

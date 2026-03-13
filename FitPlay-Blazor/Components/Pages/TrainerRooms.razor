@@ -1,0 +1,124 @@
+@page "/trainer/rooms"
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+
+<PageTitle>Rooms - FitPlay</PageTitle>
+
+<div class="page-wrap">
+    <h1>Rooms Availability</h1>
+
+    <div class="toolbar">
+        <input type="date" @bind="_selectedDate" />
+        <button @onclick="Load">Refresh</button>
+    </div>
+
+    @if (_loading)
+    {
+        <p>Loading...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="error">@_error</p>
+    }
+    else
+    {
+        @foreach (var group in _roomsByLocation)
+        {
+            <h3>@group.Key</h3>
+            <div class="grid">
+                @foreach (var room in group.Value)
+                {
+                    <article class="card">
+                        <h4>@room.Name</h4>
+                        <p>Capacity: @room.Capacity | @room.PricePerHour.ToString("C")/h</p>
+                        @if (_availability.TryGetValue(room.Id, out var av))
+                        {
+                            <ul>
+                                @foreach (var slot in av.Slots.Take(6))
+                                {
+                                    <li class="@(slot.IsAvailable ? "free" : "busy")">
+                                        @slot.StartTime.ToLocalTime().ToString("HH:mm") - @slot.EndTime.ToLocalTime().ToString("HH:mm")
+                                        (@(slot.IsAvailable ? "Free" : "Busy"))
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private readonly Dictionary<string, List<ApiClient.RoomRead>> _roomsByLocation = new();
+    private readonly Dictionary<int, ApiClient.RoomAvailability> _availability = new();
+    private bool _loading = true;
+    private string? _error;
+    private DateTime _selectedDate = DateTime.UtcNow.Date;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        _error = null;
+        _roomsByLocation.Clear();
+        _availability.Clear();
+
+        try
+        {
+            var gyms = await Api.GetGyms(true);
+            var date = DateOnly.FromDateTime(_selectedDate);
+
+            foreach (var gym in gyms)
+            {
+                var locations = await Api.GetGymLocations(gym.Id, true);
+                foreach (var location in locations)
+                {
+                    var rooms = await Api.GetRoomsByLocation(location.Id, true);
+                    if (!rooms.Any()) continue;
+
+                    var key = $"{gym.Name} - {location.Name}";
+                    _roomsByLocation[key] = rooms;
+
+                    foreach (var room in rooms)
+                    {
+                        var av = await Api.GetRoomAvailability(room.Id, date);
+                        if (av is not null)
+                        {
+                            _availability[room.Id] = av;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
+
+<style>
+    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+    .card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; }
+    .free { color: #7dff8e; }
+    .busy { color: #ff9aa2; }
+    .error { color: #ff9aa2; }
+</style>
+

@@ -1,32 +1,136 @@
-﻿@page "/Account/RegisterConfirmation"
+@page "/Account/RegisterConfirmation"
+@layout FitPlay_Blazor.Components.Layout.EmptyLayout
 
 @using System.Text
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using FitPlay_Blazor.Data
+@using FitPlay_Blazor.Components.Layout
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IEmailSender<ApplicationUser> EmailSender
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Register confirmation</PageTitle>
+<PageTitle>Check Your Email - FitPlay</PageTitle>
 
-<h1>Register confirmation</h1>
+<!-- TOP NAV BAR -->
+<header class="top-nav">
+    <div class="nav-inner">
+        <a href="/" class="logo">FIT<span>PLAY</span></a>
+        <nav class="nav-links-top">
+            <a href="/">Home</a>
+            <a href="/#classes">Classes</a>
+            <a href="/#trainers">Trainers</a>
+        </nav>
+        <a href="Account/Login" class="btn-secondary-nav" data-enhanced-nav="false">Login</a>
+    </div>
+</header>
 
-<StatusMessage Message="@statusMessage" />
+<!-- REGISTER CONFIRMATION HERO -->
+<section class="auth-hero">
+    <div class="auth-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
 
-@if (emailConfirmationLink is not null)
-{
-    <p>
-        This app does not currently have a real email sender registered, see <a href="https://aka.ms/aspaccountconf">these docs</a> for how to configure a real email sender.
-        Normally this would be emailed: <a href="@emailConfirmationLink">Click here to confirm your account</a>
-    </p>
-}
-else
-{
-    <p>Please check your email to confirm your account.</p>
-}
+    <div class="auth-container auth-container-centered">
+        <div class="auth-card">
+            <div class="confirm-icon confirm-icon-email">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M2 7l10 7 10-7" />
+                </svg>
+            </div>
+
+            <h2>Check Your Email</h2>
+            <p class="card-subtitle">We've sent a confirmation link to <strong>@Email</strong>. Click it to activate your account.</p>
+
+            <StatusMessage Message="@statusMessage" />
+
+            @if (emailConfirmationLink is not null)
+            {
+                <div class="dev-notice">
+                    <p class="dev-label">Dev mode — no real email sender configured</p>
+                    <a href="@emailConfirmationLink" class="btn-primary btn-full" style="text-align:center;text-decoration:none;">Confirm Account</a>
+                </div>
+            }
+            else
+            {
+                <div class="perks-list" style="margin-top:1.5rem;">
+                    <div class="perk">
+                        <span class="perk-icon">1</span>
+                        <span>Open the email we sent you</span>
+                    </div>
+                    <div class="perk">
+                        <span class="perk-icon">2</span>
+                        <span>Click the confirmation link</span>
+                    </div>
+                    <div class="perk">
+                        <span class="perk-icon">3</span>
+                        <span>Sign in and start your journey</span>
+                    </div>
+                </div>
+
+                <p class="auth-login-prompt" style="margin-top:1.5rem;">
+                    Didn't receive it? <a href="Account/ResendEmailConfirmation">Resend confirmation email</a>
+                </p>
+            }
+        </div>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+</footer>
+
+<style>
+    .auth-container-centered {
+        justify-content: center;
+        align-items: center;
+        min-height: calc(100vh - 180px);
+    }
+
+    .confirm-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+    }
+
+    .confirm-icon svg {
+        width: 36px;
+        height: 36px;
+    }
+
+    .confirm-icon-email {
+        background: rgba(168, 85, 247, 0.2);
+        border: 2px solid rgba(168, 85, 247, 0.5);
+        color: #a855f7;
+    }
+
+    .dev-notice {
+        margin-top: 1.5rem;
+        padding: 16px;
+        background: rgba(255, 183, 3, 0.08);
+        border: 1px solid rgba(255, 183, 3, 0.25);
+        border-radius: 12px;
+        display: grid;
+        gap: 12px;
+    }
+
+    .dev-label {
+        margin: 0;
+        font-size: 0.8rem;
+        color: rgba(255, 183, 3, 0.8);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+</style>
 
 @code {
     private string? emailConfirmationLink;

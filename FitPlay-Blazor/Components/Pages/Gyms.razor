@@ -1,0 +1,90 @@
+@page "/gyms"
+@attribute [Authorize]
+@layout UserLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+
+<BuilderHtml Model="page" UrlPath="/gyms">
+<PageTitle>Gyms - FitPlay</PageTitle>
+
+<div class="page-wrap">
+    <h1>Gyms and Locations</h1>
+
+    @if (_loading)
+    {
+        <p>Loading gyms...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="error">@_error</p>
+    }
+    else if (!_gyms.Any())
+    {
+        <p>No gyms available.</p>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var gym in _gyms)
+            {
+                <article class="card">
+                    <h3>@gym.Name</h3>
+                    <p>CNPJ: @gym.CNPJ</p>
+                    <p>Commission: @(gym.CommissionRate * 100m)%</p>
+                    <h4>Locations</h4>
+                    @if (_locations.TryGetValue(gym.Id, out var list) && list.Any())
+                    {
+                        <ul>
+                            @foreach (var loc in list)
+                            {
+                                <li>@loc.Name - @loc.City, @loc.State</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p>No locations.</p>
+                    }
+                </article>
+            }
+        </div>
+    }
+</div>
+</BuilderHtml>
+
+@code {
+    private List<ApiClient.GymRead> _gyms = new();
+    private readonly Dictionary<int, List<ApiClient.GymLocationRead>> _locations = new();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _gyms = await Api.GetGyms(true);
+            foreach (var gym in _gyms)
+            {
+                _locations[gym.Id] = await Api.GetGymLocations(gym.Id, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
+
+<style>
+    .page-wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 14px; padding: 14px; }
+    .error { color: #ff9aa2; }
+</style>

@@ -1,0 +1,166 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+
+@inject NavigationManager NavigationManager
+
+<div class="ga-shell">
+    <!-- LEFT SIDEBAR -->
+    <aside class="ga-sidebar">
+
+        <!-- Brand -->
+        <div class="ga-brand">
+            <a href="/gym/dashboard" class="ga-logo">FIT<span>PLAY</span></a>
+            <span class="ga-role-badge">GYM</span>
+        </div>
+
+        <!-- Nav links grouped in two sections -->
+        <nav class="ga-nav">
+            <div class="nav-section">
+                <div class="nav-section-label">VISÃO GERAL</div>
+                <NavLink href="/gym/dashboard" Match="NavLinkMatch.All" class="nav-item ga-nav-item" ActiveClass="active">
+                    <span class="nav-icon">
+                        <!-- unique icon: Dashboard -->
+                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="1.5" y="1.5" width="6" height="6" rx="1.5"/>
+                          <rect x="10.5" y="1.5" width="6" height="6" rx="1.5"/>
+                          <rect x="10.5" y="10.5" width="6" height="6" rx="1.5"/>
+                          <rect x="1.5" y="10.5" width="6" height="6" rx="1.5"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Dashboard</span>
+                </NavLink>
+
+                <NavLink href="/gym/setup" class="nav-item ga-nav-item" ActiveClass="active">
+                    <span class="nav-icon">
+                        <!-- unique icon: My Gym -->
+                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M2 7L9 2l7 5v7.5a2 2 0 01-2 2h-10a2 2 0 01-2-2z"/>
+                          <polyline points="7 16.5 7 9 11 9 11 16.5" />
+                        </svg>
+                    </span>
+                    <span class="nav-label">My Gym</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-label">GESTÃO</div>
+                <NavLink href="/gym/locations" class="nav-item ga-nav-item" ActiveClass="active">
+                    <span class="nav-icon">
+                        <!-- unique icon: Locations -->
+                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M16 8c0 5.25-7 9-7 9S2 13.25 2 8a7 7 0 1114 0z"/>
+                          <circle cx="9" cy="8" r="2.5"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Locations</span>
+                </NavLink>
+
+                <NavLink href="/gym/rooms" class="nav-item ga-nav-item" ActiveClass="active">
+                    <span class="nav-icon">
+                        <!-- unique icon: Rooms -->
+                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="2" y="2" width="14" height="14" rx="2"/>
+                          <path d="M2 6h14M6 16V6"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Rooms</span>
+                </NavLink>
+
+                <NavLink href="/gym/trainers" class="nav-item ga-nav-item" ActiveClass="active">
+                    <span class="nav-icon">
+                        <!-- unique icon: Trainers -->
+                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M13.5 16v-1.5a3.5 3.5 0 0 0-3.5-3.5h-4a3.5 3.5 0 0 0-3.5 3.5V16"/>
+                          <circle cx="7" cy="5" r="3"/>
+                          <path d="M16 16v-1.5a3 3 0 0 0-2.4-2.93"/>
+                          <path d="M12.5 2.57a3 3 0 0 1 0 4.86"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Trainers</span>
+                    @if (_pendingTrainerCount > 0)
+                    {
+                        <span class="nav-badge">@_pendingTrainerCount</span>
+                    }
+                </NavLink>
+
+                <NavLink href="/gym/sessions" class="nav-item ga-nav-item" ActiveClass="active">
+                    <span class="nav-icon">
+                        <!-- unique icon: Sessions -->
+                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M6 1.5v3M12 1.5v3"/>
+                          <rect x="2" y="4" width="14" height="12" rx="2"/>
+                          <path d="M2 8h14"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Sessions</span>
+                </NavLink>
+            </div>
+        </nav>
+
+        <!-- Footer w/ user profile and logout -->
+        <div class="ga-bottom">
+            <AuthorizeView>
+                <Authorized>
+                    @{
+                        var displayName = context.User.FindFirst("full_name")?.Value
+                                          ?? context.User.Identity?.Name
+                                          ?? "GymAdmin";
+                        var userEmail = context.User.FindFirst("email")?.Value
+                                        ?? context.User.Identity?.Name
+                                        ?? "admin@gym.com";
+                    }
+                    <div class="ga-profile-foot">
+                        <span class="ga-avatar">@GetInitials(displayName)</span>
+                        <div class="ga-profile-details">
+                            <span class="ga-username">@displayName</span>
+                            <span class="ga-email">@userEmail</span>
+                            <span class="ga-role-chip">Administrador</span>
+                        </div>
+                    </div>
+                    <form action="Account/Logout" method="post" class="ga-logout-form">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="/" />
+                        <button type="submit" class="ga-logout-btn" title="Sair" aria-label="Sair">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16 17 21 12 16 7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                            <span>Sair</span>
+                        </button>
+                    </form>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="ga-content">
+        @Body
+    </main>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+        => StateHasChanged();
+
+    public void Dispose()
+        => NavigationManager.LocationChanged -= OnLocationChanged;
+
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+            : name[0].ToString().ToUpperInvariant();
+    }
+
+    private readonly int _pendingTrainerCount = 3;
+}

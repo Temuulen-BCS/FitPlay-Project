@@ -1,4 +1,4 @@
-@page "/Account/Register"
+﻿@page "/Account/Register"
 @attribute [AllowAnonymous]
 @layout EmptyLayout
 
@@ -65,7 +65,7 @@
             </div>
 
             <p class="auth-login-prompt">
-                Already have an account? <a href="Account/Login" data-enhanced-nav="false">Login here</a>
+                Already have an account? <a href="Account/Login" data-enhanced-nav="false">Log in</a>
             </p>
         </div>
 
@@ -145,7 +145,7 @@
 
 <!-- FOOTER -->
 <footer class="site-footer">
-    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+    <p>Â© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
 </footer>
 
 <style>
@@ -203,6 +203,21 @@
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? AccountType { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(AccountType, "Trainer", StringComparison.OrdinalIgnoreCase))
+        {
+            Input.AccountType = "Trainer";
+        }
+        else if (string.Equals(AccountType, "User", StringComparison.OrdinalIgnoreCase))
+        {
+            Input.AccountType = "User";
+        }
+    }
 
     public async Task RegisterUser(EditContext editContext)
     {
@@ -333,3 +348,4 @@
         public string ConfirmPassword { get; set; } = "";
     }
 }
+
