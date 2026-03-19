@@ -76,15 +76,11 @@ var app = builder.Build();
 // Seed Identity roles
 using (var scope = app.Services.CreateScope())
 {
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-foreach (var role in new[] { "Trainer", "User", "GymAdmin" })
-{
-    var existingRole = await roleManager.FindByNameAsync(role);
-    if (existingRole is null)
-    {
-        await roleManager.CreateAsync(new IdentityRole(role));
-    }
-}
+    var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+
+    await db1.Database.MigrateAsync();
+    await db2.Database.MigrateAsync();
 }
 
 // Configure the HTTP request pipeline.
