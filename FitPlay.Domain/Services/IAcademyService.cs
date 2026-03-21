@@ -13,7 +13,7 @@ public interface IAcademyService
 
     Task<List<GymLocationResponseDto>> GetGymLocationsAsync(int gymId, bool? isActive = null);
     Task<GymLocationResponseDto> CreateGymLocationAsync(CreateGymLocationRequest request);
-    Task<GymLocationResponseDto?> UpdateGymLocationAsync(int locationId, UpdateGymLocationRequest request);
+    Task<GymLocationResponseDto?> UpdateGymLocationAsync(int gymId, int locationId, UpdateGymLocationRequest request);
     Task<bool> DeleteGymLocationAsync(int gymId, int locationId);
 
     Task<List<TrainerGymLinkResponseDto>> GetGymTrainerLinksAsync(int gymId);

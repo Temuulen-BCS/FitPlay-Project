@@ -234,6 +234,7 @@ public class ApiClient
     public record CreateGymRequest(string Name, string CNPJ, decimal CommissionRate, decimal CancelFeeRate);
     public record UpdateGymRequest(string Name, decimal CommissionRate, decimal CancelFeeRate, bool IsActive);
     public record CreateGymLocationRequest(string Name, string Address, string City, string State, string ZipCode, double? Latitude, double? Longitude);
+    public record UpdateGymLocationRequest(string Name, string Address, string City, string State, string ZipCode, double? Latitude, double? Longitude, bool IsActive);
     public record CreateRoomRequest(string Name, string? Description, int Capacity, decimal PricePerHour);
     public record UpdateRoomRequest(string Name, string? Description, int Capacity, decimal PricePerHour, bool IsActive);
     public record TrainerLinkRead(int Id, string TrainerId, string TrainerName, string TrainerEmail, int GymId, string Status, DateTime CreatedAt);
@@ -542,6 +543,13 @@ public class ApiClient
     public async Task<GymLocationRead?> CreateGymLocation(int gymId, CreateGymLocationRequest request)
     {
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/academies/{gymId}/locations", request);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<GymLocationRead>();
+    }
+
+    public async Task<GymLocationRead?> UpdateGymLocation(int gymId, int locationId, UpdateGymLocationRequest request)
+    {
+        var res = await _http.PutAsJsonAsync($"{BaseUrl}/academies/{gymId}/locations/{locationId}", request);
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<GymLocationRead>();
     }

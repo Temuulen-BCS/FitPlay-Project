@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using FitPlay.Domain.Data;
 using FitPlay.Domain.DTOs;
 using FitPlay.Domain.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,10 +13,12 @@ namespace FitPlay.Api.Controllers;
 public class RoomsController : ControllerBase
 {
     private readonly IRoomService _roomService;
+    private readonly FitPlayContext _db;
 
-    public RoomsController(IRoomService roomService)
+    public RoomsController(IRoomService roomService, FitPlayContext db)
     {
         _roomService = roomService;
+        _db = db;
     }
 
     [HttpGet("/api/locations/{id:int}/rooms")]
@@ -24,10 +28,51 @@ public class RoomsController : ControllerBase
         return Ok(rooms);
     }
 
+    [HttpPost("/api/locations/{locationId:int}/rooms")]
+    [Authorize(Roles = "Admin,GymAdmin")]
+    public async Task<ActionResult<RoomResponseDto>> CreateRoom(int locationId, [FromBody] CreateRoomRequest request)
+    {
+        var gymId = await _db.GymLocations.AsNoTracking()
+            .Where(gl => gl.Id == locationId)
+            .Select(gl => (int?)gl.GymId)
+            .FirstOrDefaultAsync();
+
+        if (!gymId.HasValue)
+            return NotFound();
+
+        var authResult = await EnsureCanManageGymAsync(gymId.Value);
+        if (authResult is not null)
+            return authResult;
+
+        var req = request with { GymLocationId = locationId };
+
+        try
+        {
+            var room = await _roomService.CreateRoomAsync(req);
+            return Created($"/api/rooms/{room.Id}", room);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPut("/api/rooms/{id:int}")]
     [Authorize(Roles = "Admin,GymAdmin")]
     public async Task<ActionResult<RoomResponseDto>> UpdateRoom(int id, [FromBody] UpdateRoomRequest request)
     {
+        var gymId = await _db.Rooms.AsNoTracking()
+            .Where(r => r.Id == id)
+            .Join(_db.GymLocations.AsNoTracking(), r => r.GymLocationId, gl => gl.Id, (_, gl) => (int?)gl.GymId)
+            .FirstOrDefaultAsync();
+
+        if (!gymId.HasValue)
+            return NotFound();
+
+        var authResult = await EnsureCanManageGymAsync(gymId.Value);
+        if (authResult is not null)
+            return authResult;
+
         try
         {
             var room = await _roomService.UpdateRoomAsync(id, request);
@@ -44,6 +89,18 @@ public class RoomsController : ControllerBase
     [Authorize(Roles = "Admin,GymAdmin")]
     public async Task<IActionResult> DeleteRoom(int id)
     {
+        var gymId = await _db.Rooms.AsNoTracking()
+            .Where(r => r.Id == id)
+            .Join(_db.GymLocations.AsNoTracking(), r => r.GymLocationId, gl => gl.Id, (_, gl) => (int?)gl.GymId)
+            .FirstOrDefaultAsync();
+
+        if (!gymId.HasValue)
+            return NotFound();
+
+        var authResult = await EnsureCanManageGymAsync(gymId.Value);
+        if (authResult is not null)
+            return authResult;
+
         var deleted = await _roomService.DeleteRoomAsync(id);
         if (!deleted) return NotFound();
         return NoContent();
@@ -109,6 +166,24 @@ public class RoomsController : ControllerBase
         {
             return Forbid();
         }
+    }
+
+    private async Task<ActionResult?> EnsureCanManageGymAsync(int gymId)
+    {
+        if (User.IsInRole("Admin"))
+            return null;
+
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var canManageGym = await _db.Gyms.AsNoTracking()
+            .AnyAsync(g => g.Id == gymId && g.OwnerUserId == actorId);
+
+        if (!canManageGym)
+            return Forbid();
+
+        return null;
     }
 }
 

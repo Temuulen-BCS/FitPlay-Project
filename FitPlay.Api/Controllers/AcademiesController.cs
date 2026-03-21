@@ -56,6 +56,7 @@ public class AcademiesController : ControllerBase
     public async Task<ActionResult<GymResponseDto>> Create([FromBody] CreateGymRequest request)
     {
         var ownerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(ownerUserId)) return Unauthorized();
         var gym = await _academyService.CreateGymAsync(request, ownerUserId);
         return CreatedAtAction(nameof(GetById), new { id = gym.Id }, gym);
     }
@@ -64,6 +65,15 @@ public class AcademiesController : ControllerBase
     [Authorize(Roles = "Admin,GymAdmin")]
     public async Task<ActionResult<GymResponseDto>> Update(int id, [FromBody] UpdateGymRequest request)
     {
+        if (!User.IsInRole("Admin"))
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            var myGym = await _academyService.GetMyGymAsync(userId);
+            if (myGym is null || myGym.Id != id) return Forbid();
+        }
+
         var gym = await _academyService.UpdateGymAsync(id, request);
         if (gym is null) return NotFound();
         return Ok(gym);
@@ -87,6 +97,24 @@ public class AcademiesController : ControllerBase
         var req = request with { GymId = id };
         var location = await _academyService.CreateGymLocationAsync(req);
         return Created($"/api/academies/{id}/locations/{location.Id}", location);
+    }
+
+    [HttpPut("{gymId:int}/locations/{locationId:int}")]
+    [Authorize(Roles = "Admin,GymAdmin")]
+    public async Task<ActionResult<GymLocationResponseDto>> UpdateLocation(int gymId, int locationId, [FromBody] UpdateGymLocationRequest request)
+    {
+        if (!User.IsInRole("Admin"))
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            var myGym = await _academyService.GetMyGymAsync(userId);
+            if (myGym is null || myGym.Id != gymId) return Forbid();
+        }
+
+        var location = await _academyService.UpdateGymLocationAsync(gymId, locationId, request);
+        if (location is null) return NotFound();
+        return Ok(location);
     }
 
     [HttpDelete("{gymId:int}/locations/{locationId:int}")]

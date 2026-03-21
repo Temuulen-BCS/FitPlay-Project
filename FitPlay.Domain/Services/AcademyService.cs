@@ -117,9 +117,9 @@ public class AcademyService : IAcademyService
         return ToDto(location);
     }
 
-    public async Task<GymLocationResponseDto?> UpdateGymLocationAsync(int locationId, UpdateGymLocationRequest request)
+    public async Task<GymLocationResponseDto?> UpdateGymLocationAsync(int gymId, int locationId, UpdateGymLocationRequest request)
     {
-        var location = await _db.GymLocations.FirstOrDefaultAsync(gl => gl.Id == locationId);
+        var location = await _db.GymLocations.FirstOrDefaultAsync(gl => gl.Id == locationId && gl.GymId == gymId);
         if (location is null) return null;
 
         location.Name = request.Name.Trim();
