@@ -12,12 +12,15 @@ public interface IRoomService
 
     Task<RoomAvailabilityResponseDto> GetRoomAvailabilityAsync(int roomId, DateOnly date);
     Task<List<RoomBookingResponseDto>> GetRoomBookingsAsync(int roomId, DateTime? from = null, DateTime? to = null);
-    Task<List<RoomBookingResponseDto>> GetTrainerBookingsAsync(string trainerIdentityId, DateTime? from = null, DateTime? to = null);
 
     Task<RoomBookingResponseDto> CreateBookingAsync(int roomId, string trainerId, CreateRoomBookingRequest request);
     Task<RoomBookingResponseDto?> UpdateBookingAsync(int bookingId, string actorUserId, bool isAdmin, UpdateRoomBookingRequest request);
     Task<bool> CancelBookingAsync(int bookingId, string actorUserId, bool isAdmin);
 
     Task<List<RoomResponseDto>> GetAvailableRoomsAsync(AvailableRoomsQueryDto query);
+
+    Task<List<RoomBookingResponseDto>> GetTrainerBookingsAsync(string trainerId, DateTime? from = null, DateTime? to = null);
+    Task<RoomBookingResponseDto?> ConfirmBookingAsync(int bookingId, string actorUserId, bool isAdmin);
+    Task<CancellationPreviewDto?> GetCancellationPreviewAsync(int bookingId, string actorUserId);
 }
 

@@ -2,13 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FitPlay.Domain.DTOs;
 
-public record RoomOperatingHoursDto(
-    DayOfWeek DayOfWeek,
-    TimeOnly? OpenTime,
-    TimeOnly? CloseTime,
-    bool IsClosed
-);
-
 public record RoomResponseDto(
     int Id,
     int GymLocationId,
@@ -16,8 +9,7 @@ public record RoomResponseDto(
     string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive,
-    List<RoomOperatingHoursDto> OperatingHours
+    bool IsActive
 );
 
 public record CreateRoomRequest(
@@ -26,8 +18,7 @@ public record CreateRoomRequest(
     [MaxLength(500)] string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive = true,
-    List<RoomOperatingHoursDto>? OperatingHours = null
+    bool IsActive = true
 );
 
 public record UpdateRoomRequest(
@@ -35,8 +26,7 @@ public record UpdateRoomRequest(
     [MaxLength(500)] string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive,
-    List<RoomOperatingHoursDto>? OperatingHours = null
+    bool IsActive
 );
 
 public record RoomBookingResponseDto(
@@ -53,8 +43,8 @@ public record RoomBookingResponseDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     string? RoomName = null,
-    string? LocationName = null,
-    string? GymName = null
+    string? GymName = null,
+    string? LocationName = null
 );
 
 public record CreateRoomBookingRequest(
@@ -91,4 +81,11 @@ public record AvailableRoomsQueryDto(
     int GymLocationId,
     DateTime StartTime,
     DateTime EndTime
+);
+
+public record CancellationPreviewDto(
+    int BookingId,
+    decimal TotalCost,
+    decimal CancelFeeRate,
+    decimal FeeAmount
 );

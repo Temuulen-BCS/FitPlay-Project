@@ -125,20 +125,6 @@ public class RoomsController : ControllerBase
         return Ok(bookings);
     }
 
-    [HttpGet("/api/trainers/me/bookings")]
-    [Authorize(Roles = "Admin,Trainer")]
-    public async Task<ActionResult<List<RoomBookingResponseDto>>> GetMyBookings(
-        [FromQuery] DateTime? from = null,
-        [FromQuery] DateTime? to = null)
-    {
-        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(actorId))
-            return Unauthorized();
-
-        var bookings = await _roomService.GetTrainerBookingsAsync(actorId, from, to);
-        return Ok(bookings);
-    }
-
     [HttpPost("/api/rooms/{id:int}/bookings")]
     [Authorize(Roles = "Admin,Trainer")]
     public async Task<ActionResult<RoomBookingResponseDto>> CreateBooking(int id, [FromBody] CreateRoomBookingRequest request)
@@ -180,6 +166,57 @@ public class RoomsController : ControllerBase
         {
             return Forbid();
         }
+    }
+
+    [HttpGet("/api/bookings/mine")]
+    [Authorize(Roles = "Admin,Trainer")]
+    public async Task<ActionResult<List<RoomBookingResponseDto>>> GetMyBookings(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var bookings = await _roomService.GetTrainerBookingsAsync(actorId, from, to);
+        return Ok(bookings);
+    }
+
+    [HttpPost("/api/bookings/{id:int}/confirm")]
+    [Authorize(Roles = "Admin,Trainer")]
+    public async Task<IActionResult> ConfirmBooking(int id)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        try
+        {
+            var result = await _roomService.ConfirmBookingAsync(id, actorId, User.IsInRole("Admin"));
+            if (result is null) return NotFound();
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("/api/bookings/{id:int}/cancel-preview")]
+    [Authorize(Roles = "Admin,Trainer")]
+    public async Task<IActionResult> GetCancellationPreview(int id)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var preview = await _roomService.GetCancellationPreviewAsync(id, actorId);
+        if (preview is null) return NotFound();
+        return Ok(preview);
     }
 
     private async Task<ActionResult?> EnsureCanManageGymAsync(int gymId)
