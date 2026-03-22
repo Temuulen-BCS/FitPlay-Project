@@ -217,7 +217,9 @@
     }
 
     .btn-award {
-        background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-magenta) 100%);
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
         color: white;
     }
 
@@ -228,6 +230,12 @@
 
     .btn-award:hover:not(:disabled), .btn-reset:hover:not(:disabled) {
         opacity: 0.9;
+    }
+
+    .btn-award:hover:not(:disabled) {
+        border-color: rgba(14,240,255,0.7);
+        box-shadow: 0 0 28px rgba(14,240,255,0.35);
+        background: linear-gradient(135deg, rgba(14,240,255,0.14), rgba(255,77,250,0.14));
     }
 
     .btn-award:disabled, .btn-reset:disabled {

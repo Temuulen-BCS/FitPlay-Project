@@ -309,15 +309,20 @@
     }
 
     .toolbar button {
-        background: linear-gradient(135deg, var(--accent-teal), var(--accent-magenta));
-        border: none;
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
         color: #fff;
         font-weight: 700;
         cursor: pointer;
-        transition: opacity 0.2s;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     }
 
-    .toolbar button:hover { opacity: 0.9; }
+    .toolbar button:hover { 
+        border-color: rgba(14,240,255,0.7);
+        box-shadow: 0 0 28px rgba(14,240,255,0.35);
+        background: linear-gradient(135deg, rgba(14,240,255,0.14), rgba(255,77,250,0.14));
+    }
 
     .grid {
         display: grid;
@@ -809,17 +814,23 @@
     .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .btn-primary {
-        background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-magenta) 100%);
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
         color: #fff;
-        border: none;
         padding: 10px 20px;
         border-radius: 9px;
         cursor: pointer;
         font-size: 14px;
         font-weight: 700;
-        transition: opacity 0.2s, transform 0.1s;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, transform 0.1s;
     }
-    .btn-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:hover:not(:disabled) { 
+        border-color: rgba(14,240,255,0.7);
+        box-shadow: 0 0 28px rgba(14,240,255,0.35);
+        background: linear-gradient(135deg, rgba(14,240,255,0.14), rgba(255,77,250,0.14));
+        transform: translateY(-1px);
+    }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
     /* Responsive */

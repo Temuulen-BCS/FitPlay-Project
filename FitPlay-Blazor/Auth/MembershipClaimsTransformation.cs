@@ -35,26 +35,42 @@ public class MembershipClaimsTransformation : IClaimsTransformation
         if (string.IsNullOrWhiteSpace(identityId))
             return principal;
 
-        // Look up the domain user and their active subscription
-        var domainUser = await _db.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.IdentityUserId == identityId);
-
-        if (domainUser is null)
-            return principal;
-
-        // Always inject the full name claim so the UI can display it
         var claimsToAdd = new List<Claim>();
 
-        if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
-            claimsToAdd.Add(new Claim("full_name", domainUser.Name));
+        // Check if user is a GymAdmin
+        var isGymAdmin = principal.IsInRole("GymAdmin");
 
-        var hasActiveMembership = await _db.Subscriptions
-            .AsNoTracking()
-            .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
+        if (isGymAdmin)
+        {
+            // For gym admins, look up the gym name
+            var gym = await _db.Gyms
+                .AsNoTracking()
+                .FirstOrDefaultAsync(g => g.OwnerUserId == identityId);
 
-        if (hasActiveMembership)
-            claimsToAdd.Add(new Claim("membership", "active"));
+            if (gym is not null && !string.IsNullOrWhiteSpace(gym.Name) && !principal.HasClaim("full_name", gym.Name))
+                claimsToAdd.Add(new Claim("full_name", gym.Name));
+        }
+        else
+        {
+            // Look up the domain user and their active subscription
+            var domainUser = await _db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.IdentityUserId == identityId);
+
+            if (domainUser is null)
+                return principal;
+
+            // Always inject the full name claim so the UI can display it
+            if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
+                claimsToAdd.Add(new Claim("full_name", domainUser.Name));
+
+            var hasActiveMembership = await _db.Subscriptions
+                .AsNoTracking()
+                .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
+
+            if (hasActiveMembership)
+                claimsToAdd.Add(new Claim("membership", "active"));
+        }
 
         if (claimsToAdd.Count == 0)
             return principal;

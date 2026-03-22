@@ -102,12 +102,11 @@
             <AuthorizeView>
                 <Authorized>
                     @{
-                        var displayName = context.User.FindFirst("full_name")?.Value
-                                          ?? context.User.Identity?.Name
-                                          ?? "GymAdmin";
                         var userEmail = context.User.FindFirst("email")?.Value
                                         ?? context.User.Identity?.Name
                                         ?? "admin@gym.com";
+                        var displayName = context.User.FindFirst("full_name")?.Value
+                                          ?? userEmail;
                     }
                     <div class="ga-profile-foot">
                         <span class="ga-avatar">@GetInitials(displayName)</span>

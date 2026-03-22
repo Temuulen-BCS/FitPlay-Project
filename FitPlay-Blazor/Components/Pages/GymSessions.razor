@@ -92,10 +92,12 @@
                         <tr>
                             <th>Session</th>
                             <th>Trainer</th>
+                            <th>Room</th>
                             <th>Date &amp; Time</th>
                             <th>Duration</th>
                             <th>Students</th>
                             <th>Price</th>
+                            <th>Booking</th>
                             <th>Status</th>
                             <th></th>
                         </tr>
@@ -114,9 +116,23 @@
                                 </td>
                                 <td>
                                     <div class="trainer-cell">
-                                        <div class="trainer-avatar">@GetInitials(s.TrainerId)</div>
-                                        <span class="trainer-id">@s.TrainerId</span>
+                                        <div class="trainer-avatar">@GetInitials(s.TrainerName ?? s.TrainerId)</div>
+                                        <span class="trainer-id">@(s.TrainerName ?? GetShortId(s.TrainerId))</span>
                                     </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(s.RoomName))
+                                    {
+                                        <div class="room-name">@s.RoomName</div>
+                                        @if (!string.IsNullOrEmpty(s.LocationName))
+                                        {
+                                            <div class="room-location">@s.LocationName</div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="muted-text">—</span>
+                                    }
                                 </td>
                                 <td>
                                     <div class="date-primary">@s.StartTime.ToString("MMM dd, yyyy")</div>
@@ -141,6 +157,26 @@
                                 </td>
                                 <td>
                                     <span class="price-value">@s.PricePerStudent.ToString("C")</span>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(s.BookingPurpose))
+                                    {
+                                        <div class="booking-info">
+                                            <span class="booking-purpose-badge">@s.BookingPurpose</span>
+                                            @if (!string.IsNullOrEmpty(s.BookingStatus))
+                                            {
+                                                <span class="booking-status-badge @GetBookingStatusClass(s.BookingStatus)">@s.BookingStatus</span>
+                                            }
+                                            @if (s.BookingCost.HasValue)
+                                            {
+                                                <div class="booking-cost">Room: @s.BookingCost.Value.ToString("C")</div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted-text">—</span>
+                                    }
                                 </td>
                                 <td>
                                     <span class="status-badge @GetStatusClass(s.Status)">@s.Status</span>
@@ -270,6 +306,21 @@
         "completed" => "status-completed",
         "cancelled" => "status-cancelled",
         _           => "status-unknown"
+    };
+
+    private static string GetShortId(string trainerId)
+    {
+        if (string.IsNullOrWhiteSpace(trainerId)) return "?";
+        return trainerId.Length >= 8 ? trainerId[..8] : trainerId;
+    }
+
+    private static string GetBookingStatusClass(string status) => status?.ToLower() switch
+    {
+        "confirmed" => "booking-status-confirmed",
+        "pending" => "booking-status-pending",
+        "cancelled" => "booking-status-cancelled",
+        "completed" => "booking-status-completed",
+        _ => "booking-status-unknown"
     };
 
     private void ConfirmCancel(ApiClient.ClassSessionRead session)
@@ -566,6 +617,84 @@
     .status-completed { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
     .status-cancelled { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
     .status-unknown   { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
+
+    /* Room cell */
+    .room-name { 
+        font-weight: 600; 
+        color: #0F172A; 
+        font-size: 0.875rem; 
+    }
+    .room-location { 
+        font-size: 0.78rem; 
+        color: #64748B; 
+        margin-top: 2px; 
+    }
+    .muted-text { 
+        color: #94A3B8; 
+        font-style: italic; 
+    }
+
+    /* Booking info */
+    .booking-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .booking-purpose-badge {
+        display: inline-block;
+        background: #EEF3FD;
+        color: #3B6FE8;
+        border: 1px solid #C7D9F8;
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 12px;
+        text-transform: capitalize;
+        white-space: nowrap;
+    }
+
+    .booking-status-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .booking-status-confirmed { 
+        background: #D1FAE5; 
+        color: #059669; 
+        border: 1px solid #A7F3D0; 
+    }
+    .booking-status-pending { 
+        background: #FEF3C7; 
+        color: #D97706; 
+        border: 1px solid #FDE68A; 
+    }
+    .booking-status-cancelled { 
+        background: #FEE2E2; 
+        color: #DC2626; 
+        border: 1px solid #FECACA; 
+    }
+    .booking-status-completed { 
+        background: #E0E7FF; 
+        color: #6366F1; 
+        border: 1px solid #C7D2FE; 
+    }
+    .booking-status-unknown { 
+        background: #F1F5F9; 
+        color: #64748B; 
+        border: 1px solid #CBD5E1; 
+    }
+
+    .booking-cost {
+        font-size: 0.75rem;
+        color: #64748B;
+        margin-top: 2px;
+    }
 
     /* Buttons */
     .btn-gym-primary {

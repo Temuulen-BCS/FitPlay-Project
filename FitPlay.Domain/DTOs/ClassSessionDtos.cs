@@ -13,7 +13,14 @@ public record ClassSessionResponseDto(
     DateTime StartTime,
     DateTime EndTime,
     string Status,
-    int EnrolledStudents
+    int EnrolledStudents,
+    string? TrainerName = null,
+    string? RoomName = null,
+    string? LocationName = null,
+    string? BookingPurpose = null,
+    string? BookingStatus = null,
+    decimal? BookingCost = null,
+    string? BookingNotes = null
 );
 
 public record CreateClassSessionRequest(

@@ -158,12 +158,17 @@
     }
 
     .btn-start {
-        background: linear-gradient(135deg, var(--accent-magenta) 0%, var(--accent-teal) 100%);
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
         color: white;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     }
 
     .btn-start:hover {
-        opacity: 0.9;
+        border-color: rgba(14,240,255,0.7);
+        box-shadow: 0 0 28px rgba(14,240,255,0.35);
+        background: linear-gradient(135deg, rgba(14,240,255,0.14), rgba(255,77,250,0.14));
     }
 </style>
 

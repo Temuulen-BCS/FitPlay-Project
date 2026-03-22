@@ -62,7 +62,8 @@ public class ClassSessionService : IClassSessionService
         if (to.HasValue)   query = query.Where(s => s.StartTime <= to.Value);
 
         var sessions = await query.OrderByDescending(s => s.StartTime).ToListAsync();
-        return sessions.Select(ToDto).ToList();
+        
+        return sessions.Select(s => ToDtoWithBooking(s)).ToList();
     }
 
     public async Task<ClassSessionResponseDto> CreateSessionAsync(int bookingId, string trainerId, CreateClassSessionRequest request)
@@ -274,6 +275,48 @@ public class ClassSessionService : IClassSessionService
         session.EndTime,
         session.Status.ToString(),
         session.Enrollments?.Count(e => e.Status == ClassEnrollmentStatus.Confirmed) ?? 0
+    );
+
+    private static ClassSessionResponseDto ToDtoWithBooking(ClassSession session) => new(
+        session.Id,
+        session.RoomBookingId,
+        session.TrainerId,
+        session.Title,
+        session.Description,
+        session.MaxStudents,
+        session.PricePerStudent,
+        session.StartTime,
+        session.EndTime,
+        session.Status.ToString(),
+        session.Enrollments?.Count(e => e.Status == ClassEnrollmentStatus.Confirmed) ?? 0,
+        null, // TrainerName - not available in domain context
+        session.RoomBooking?.Room?.Name,
+        session.RoomBooking?.Room?.GymLocation?.Name,
+        session.RoomBooking?.Purpose.ToString(),
+        session.RoomBooking?.Status.ToString(),
+        session.RoomBooking?.TotalCost,
+        session.RoomBooking?.Notes
+    );
+
+    private static ClassSessionResponseDto ToDto(ClassSession session, string? trainerName) => new(
+        session.Id,
+        session.RoomBookingId,
+        session.TrainerId,
+        session.Title,
+        session.Description,
+        session.MaxStudents,
+        session.PricePerStudent,
+        session.StartTime,
+        session.EndTime,
+        session.Status.ToString(),
+        session.Enrollments?.Count(e => e.Status == ClassEnrollmentStatus.Confirmed) ?? 0,
+        trainerName,
+        session.RoomBooking?.Room?.Name,
+        session.RoomBooking?.Room?.GymLocation?.Name,
+        session.RoomBooking?.Purpose.ToString(),
+        session.RoomBooking?.Status.ToString(),
+        session.RoomBooking?.TotalCost,
+        session.RoomBooking?.Notes
     );
 
     private static ClassEnrollmentResponseDto ToDto(ClassEnrollment enrollment) => new(

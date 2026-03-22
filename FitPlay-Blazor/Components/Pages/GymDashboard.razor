@@ -9,23 +9,26 @@
 @inject ApiClient Api
 @inject IJSRuntime JS
 
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
 <PageTitle>Dashboard - FitPlay Gym</PageTitle>
 
-<div class="gymdash-shell">
+<div class="gym-page">
     @if (_loading)
     {
-        <div class="gymdash-loading">
-            <div class="gymdash-spinner"></div>
+        <div class="gym-loading">
+            <div class="loading-spinner"></div>
             <p>Loading your gym operations...</p>
         </div>
     }
     else
     {
         <div class="page-header">
-            <h1>@(_gym?.Name ?? "My Gym")</h1>
-            <p>@DateTime.Now.ToString("dddd, dd MMM yyyy")</p>
+            <div>
+                <p class="page-eyebrow">Gym Partner</p>
+                <h1 class="page-title">@(_gym?.Name ?? "My Gym")</h1>
+                <p class="page-sub">@DateTime.Now.ToString("dddd, dd MMM yyyy")</p>
+            </div>
         </div>
 
         <div class="stat-grid">
@@ -346,20 +349,20 @@
 }
 
 <style>
-    .gymdash-shell {
+    .gym-page {
         font-family: 'DM Sans', 'Segoe UI', sans-serif;
         background: #F4F7FB;
         color: #0F172A;
-        /* cancel article px-4 padding so the background fills edge-to-edge */
-        margin: 0 -1.5rem 0 -2rem;
-        padding: 28px 2.5rem 48px;
-        min-height: calc(100vh - 3.5rem);
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0;
     }
 
     /* ── PAGE HEADER ── */
     .page-header { margin-bottom: 28px; }
-    .page-header h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin: 0; }
-    .page-header p { color: #64748B; margin-top: 4px; font-size: 14px; }
+    .page-eyebrow { margin: 0 0 4px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.18em; color: #3B6FE8; font-weight: 600; }
+    .page-title { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin: 0; }
+    .page-sub { margin-top: 4px; color: #64748B; font-size: 14px; }
 
     /* ── STAT CARDS ── */
     .stat-grid {
@@ -482,14 +485,12 @@
 
     .gym-toast { position: fixed; right: 1.2rem; bottom: 1.2rem; background: #fff0f0; border: 1px solid #f2b8b8; color: #8f1d1d; border-radius: 12px; padding: 0.75rem 1rem; font-size: 0.85rem; box-shadow: 0 8px 24px rgba(120,18,18,0.16); z-index: 1000; }
 
-    .gymdash-loading { min-height: 46vh; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.65rem; color: #64748B; }
-    .gymdash-spinner { width: 38px; height: 38px; border-radius: 50%; border: 3px solid rgba(59,111,232,0.2); border-top-color: #3B6FE8; animation: spin 0.9s linear infinite; }
+    .gym-loading { min-height: 46vh; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.65rem; color: #64748B; }
+    .loading-spinner { width: 38px; height: 38px; border-radius: 50%; border: 3px solid rgba(59,111,232,0.2); border-top-color: #3B6FE8; animation: spin 0.9s linear infinite; }
     @@keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── RESPONSIVE ── */
     @@media (max-width: 640px) {
-        /* on mobile article has px-4 (1.5rem) on both sides */
-        .gymdash-shell { margin: 0 -1.5rem 0 -1.5rem; padding: 20px 1.25rem 40px; }
         .stat-grid { grid-template-columns: 1fr; }
     }
     @@media (min-width: 641px) and (max-width: 1200px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
