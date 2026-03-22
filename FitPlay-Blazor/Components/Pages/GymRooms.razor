@@ -108,6 +108,60 @@
                         </div>
                     }
                 </div>
+
+                <!-- Operating Hours Section -->
+                <div class="operating-hours-section">
+                    <div class="operating-hours-header">
+                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #3B6FE8;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 6px;">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            Operating Hours
+                        </h4>
+                        <p style="margin: 0.4rem 0 0; font-size: 0.8rem; color: #64748B;">Define when this room is available for booking</p>
+                    </div>
+                    
+                    @foreach (var day in Enum.GetValues<DayOfWeek>())
+                    {
+                        var hours = GetOperatingHours(day);
+                        <div class="operating-hours-row">
+                            <div class="day-name">@day</div>
+                            <div class="day-closed-toggle">
+                                <label class="toggle-label-small">
+                                    <input type="checkbox" class="toggle-input" @bind="hours.IsClosed" />
+                                    <span class="toggle-track-small"></span>
+                                    <span>Closed</span>
+                                </label>
+                            </div>
+                            @if (!hours.IsClosed)
+                            {
+                                <div class="time-inputs">
+                                    <input type="time" class="time-input" @bind="hours.OpenTime" />
+                                    <span class="time-separator">to</span>
+                                    <input type="time" class="time-input" @bind="hours.CloseTime" />
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="time-inputs-placeholder"></div>
+                            }
+                        </div>
+                    }
+                    
+                    <div style="margin-top: 0.75rem;">
+                        <button type="button" class="btn-quick-action" @onclick="ApplyMondayToAll">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="17 1 21 5 17 9"></polyline>
+                                <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                                <polyline points="7 23 3 19 7 15"></polyline>
+                                <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                            </svg>
+                            Apply Monday's hours to all days
+                        </button>
+                    </div>
+                </div>
+                
                 <div class="form-actions">
                     <button class="btn-gym-primary" @onclick="SaveRoom" disabled="@_saving">
                         @if (_saving)
@@ -230,6 +284,16 @@
     private int _fCapacity = 20;
     private decimal _fPrice = 100;
     private bool _fIsActive = true;
+    private List<OperatingHoursFormData> _fOperatingHours = new();
+
+    // Helper class for operating hours form data
+    private class OperatingHoursFormData
+    {
+        public DayOfWeek DayOfWeek { get; set; }
+        public TimeOnly? OpenTime { get; set; }
+        public TimeOnly? CloseTime { get; set; }
+        public bool IsClosed { get; set; }
+    }
 
     private IEnumerable<ApiClient.GymLocationRead> FilteredLocations =>
         _selectedLocationId.HasValue
@@ -264,6 +328,7 @@
         _fCapacity = 20;
         _fPrice = 100;
         _fIsActive = true;
+        InitializeOperatingHours(null);
         _showForm = true;
     }
 
@@ -277,10 +342,48 @@
         _fCapacity = room.Capacity;
         _fPrice = room.PricePerHour;
         _fIsActive = room.IsActive;
+        InitializeOperatingHours(room.OperatingHours);
         _showForm = true;
     }
 
     private void CancelForm() { _showForm = false; _editId = null; _editLocationId = null; }
+
+    private void InitializeOperatingHours(List<ApiClient.RoomOperatingHoursDto>? existingHours)
+    {
+        _fOperatingHours = new List<OperatingHoursFormData>();
+        
+        foreach (DayOfWeek day in Enum.GetValues<DayOfWeek>())
+        {
+            var existing = existingHours?.FirstOrDefault(h => h.DayOfWeek == day);
+            _fOperatingHours.Add(new OperatingHoursFormData
+            {
+                DayOfWeek = day,
+                OpenTime = existing?.OpenTime ?? new TimeOnly(8, 0),
+                CloseTime = existing?.CloseTime ?? new TimeOnly(22, 0),
+                IsClosed = existing?.IsClosed ?? false
+            });
+        }
+    }
+
+    private OperatingHoursFormData GetOperatingHours(DayOfWeek day)
+    {
+        return _fOperatingHours.FirstOrDefault(oh => oh.DayOfWeek == day) 
+            ?? new OperatingHoursFormData { DayOfWeek = day, OpenTime = new TimeOnly(8, 0), CloseTime = new TimeOnly(22, 0) };
+    }
+
+    private void ApplyMondayToAll()
+    {
+        var monday = GetOperatingHours(DayOfWeek.Monday);
+        foreach (var day in _fOperatingHours)
+        {
+            if (day.DayOfWeek != DayOfWeek.Monday)
+            {
+                day.OpenTime = monday.OpenTime;
+                day.CloseTime = monday.CloseTime;
+                day.IsClosed = monday.IsClosed;
+            }
+        }
+    }
 
     private async Task SaveRoom()
     {
@@ -295,14 +398,22 @@
         _successMsg = _errorMsg = null;
         try
         {
+            // Convert operating hours to DTO
+            var operatingHoursDto = _fOperatingHours.Select(oh => new ApiClient.RoomOperatingHoursDto(
+                oh.DayOfWeek,
+                oh.IsClosed ? null : oh.OpenTime,
+                oh.IsClosed ? null : oh.CloseTime,
+                oh.IsClosed
+            )).ToList();
+
             if (_editId.HasValue)
             {
-                var req = new ApiClient.UpdateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, _fIsActive);
+                var req = new ApiClient.UpdateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, _fIsActive, operatingHoursDto);
                 await Api.UpdateRoom(_editId.Value, req);
             }
             else
             {
-                var req = new ApiClient.CreateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice);
+                var req = new ApiClient.CreateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, operatingHoursDto);
                 await Api.CreateRoom(_fLocationId, req);
             }
             var affectedLocationId = _editId.HasValue ? _editLocationId : _fLocationId;
@@ -395,6 +506,113 @@
     .form-input:focus { outline: none; border-color: #3B6FE8; box-shadow: 0 0 0 3px rgba(59,111,232,0.15); }
     .form-input::placeholder { color: #94A3B8; }
     .form-actions { display: flex; gap: 0.75rem; margin-top: 1.25rem; align-items: center; flex-wrap: wrap; }
+
+    /* Operating Hours */
+    .operating-hours-section { 
+        background: #F8FAFC; 
+        border: 1px solid #E8EDF5; 
+        border-radius: 12px; 
+        padding: 1.25rem; 
+        margin-bottom: 1.25rem; 
+    }
+    .operating-hours-header { margin-bottom: 1rem; }
+    .operating-hours-row {
+        display: grid;
+        grid-template-columns: 100px 100px 1fr;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid #E8EDF5;
+    }
+    .operating-hours-row:last-child { border-bottom: none; }
+    .day-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #0F172A;
+    }
+    .day-closed-toggle { }
+    .toggle-label-small {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: #64748B;
+    }
+    .toggle-track-small {
+        width: 32px;
+        height: 18px;
+        background: #E8EDF5;
+        border: 1px solid #CBD5E1;
+        border-radius: 20px;
+        position: relative;
+        flex-shrink: 0;
+        transition: background 0.2s;
+    }
+    .toggle-track-small::after {
+        content: '';
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: #fff;
+        border-radius: 50%;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+    }
+    .toggle-input:checked + .toggle-track-small {
+        background: #EF4444;
+        border-color: #EF4444;
+    }
+    .toggle-input:checked + .toggle-track-small::after {
+        transform: translateX(14px);
+    }
+    .time-inputs {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .time-inputs-placeholder {
+        height: 1px;
+    }
+    .time-input {
+        padding: 0.5rem 0.7rem;
+        background: #ffffff;
+        border: 1px solid #E8EDF5;
+        border-radius: 8px;
+        color: #0F172A;
+        font-size: 0.85rem;
+        font-family: inherit;
+        transition: border-color 0.2s;
+        width: 110px;
+    }
+    .time-input:focus {
+        outline: none;
+        border-color: #3B6FE8;
+        box-shadow: 0 0 0 2px rgba(59,111,232,0.1);
+    }
+    .time-separator {
+        font-size: 0.8rem;
+        color: #64748B;
+    }
+    .btn-quick-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+        color: #3B6FE8;
+        border: 1px solid #C7D9F8;
+        padding: 0.5rem 0.9rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .btn-quick-action:hover {
+        background: #EEF3FD;
+    }
 
     /* Toggle */
     .toggle-label { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; }

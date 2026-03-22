@@ -22,7 +22,12 @@ public class RoomService : IRoomService
 
     public async Task<List<RoomResponseDto>> GetRoomsByLocationAsync(int locationId, bool? isActive = null)
     {
-        var query = _db.Rooms.AsNoTracking().Where(r => r.GymLocationId == locationId).AsQueryable();
+        var query = _db.Rooms
+            .AsNoTracking()
+            .Include(r => r.OperatingHours)
+            .Where(r => r.GymLocationId == locationId)
+            .AsQueryable();
+        
         if (isActive.HasValue)
         {
             query = query.Where(r => r.IsActive == isActive.Value);
@@ -34,12 +39,21 @@ public class RoomService : IRoomService
 
     public async Task<RoomResponseDto?> GetRoomByIdAsync(int roomId)
     {
-        var room = await _db.Rooms.AsNoTracking().FirstOrDefaultAsync(r => r.Id == roomId);
+        var room = await _db.Rooms
+            .AsNoTracking()
+            .Include(r => r.OperatingHours)
+            .FirstOrDefaultAsync(r => r.Id == roomId);
         return room is null ? null : ToDto(room);
     }
 
     public async Task<RoomResponseDto> CreateRoomAsync(CreateRoomRequest request)
     {
+        // Validate operating hours if provided
+        if (request.OperatingHours?.Any() == true)
+        {
+            ValidateOperatingHours(request.OperatingHours);
+        }
+
         var room = new Room
         {
             GymLocationId = request.GymLocationId,
@@ -53,12 +67,44 @@ public class RoomService : IRoomService
         _db.Rooms.Add(room);
         await _db.SaveChangesAsync();
 
+        // Add operating hours if provided
+        if (request.OperatingHours?.Any() == true)
+        {
+            foreach (var oh in request.OperatingHours)
+            {
+                var hours = new RoomOperatingHours
+                {
+                    RoomId = room.Id,
+                    DayOfWeek = oh.DayOfWeek,
+                    OpenTime = oh.OpenTime ?? TimeOnly.MinValue,
+                    CloseTime = oh.CloseTime ?? TimeOnly.MaxValue,
+                    IsClosed = oh.IsClosed
+                };
+                _db.RoomOperatingHours.Add(hours);
+            }
+            await _db.SaveChangesAsync();
+
+            // Reload room with operating hours
+            room = await _db.Rooms
+                .Include(r => r.OperatingHours)
+                .FirstAsync(r => r.Id == room.Id);
+        }
+
         return ToDto(room);
     }
 
     public async Task<RoomResponseDto?> UpdateRoomAsync(int roomId, UpdateRoomRequest request)
     {
-        var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
+        // Validate operating hours if provided
+        if (request.OperatingHours?.Any() == true)
+        {
+            ValidateOperatingHours(request.OperatingHours);
+        }
+
+        var room = await _db.Rooms
+            .Include(r => r.OperatingHours)
+            .FirstOrDefaultAsync(r => r.Id == roomId);
+        
         if (room is null) return null;
 
         room.Name = request.Name.Trim();
@@ -67,7 +113,37 @@ public class RoomService : IRoomService
         room.PricePerHour = request.PricePerHour;
         room.IsActive = request.IsActive;
 
+        // Update operating hours if provided
+        if (request.OperatingHours != null)
+        {
+            // Remove existing operating hours
+            var existingHours = await _db.RoomOperatingHours
+                .Where(oh => oh.RoomId == roomId)
+                .ToListAsync();
+            _db.RoomOperatingHours.RemoveRange(existingHours);
+
+            // Add new operating hours
+            foreach (var oh in request.OperatingHours)
+            {
+                var hours = new RoomOperatingHours
+                {
+                    RoomId = room.Id,
+                    DayOfWeek = oh.DayOfWeek,
+                    OpenTime = oh.OpenTime ?? TimeOnly.MinValue,
+                    CloseTime = oh.CloseTime ?? TimeOnly.MaxValue,
+                    IsClosed = oh.IsClosed
+                };
+                _db.RoomOperatingHours.Add(hours);
+            }
+        }
+
         await _db.SaveChangesAsync();
+        
+        // Reload to get the updated operating hours
+        room = await _db.Rooms
+            .Include(r => r.OperatingHours)
+            .FirstAsync(r => r.Id == roomId);
+        
         return ToDto(room);
     }
 
@@ -158,6 +234,7 @@ public class RoomService : IRoomService
         var purpose = ParsePurpose(request.Purpose);
         ValidateTimeRange(request.StartTime, request.EndTime);
 
+        await ValidateBookingAgainstOperatingHours(roomId, request.StartTime, request.EndTime);
         await EnsureNoConflictAsync(roomId, request.StartTime, request.EndTime);
 
         var booking = new RoomBooking
@@ -198,6 +275,7 @@ public class RoomService : IRoomService
 
         if (BlockingStatuses.Contains(newStatus))
         {
+            await ValidateBookingAgainstOperatingHours(booking.RoomId, request.StartTime, request.EndTime);
             await EnsureNoConflictAsync(booking.RoomId, request.StartTime, request.EndTime, bookingId);
         }
 
@@ -266,6 +344,42 @@ public class RoomService : IRoomService
             throw new ArgumentException("EndTime must be greater than StartTime.");
     }
 
+    private static void ValidateOperatingHours(List<RoomOperatingHoursDto> hours)
+    {
+        foreach (var oh in hours.Where(h => !h.IsClosed))
+        {
+            if (oh.OpenTime == null || oh.CloseTime == null)
+                throw new ArgumentException($"Open and close times are required for {oh.DayOfWeek} when not closed.");
+            
+            if (oh.OpenTime >= oh.CloseTime)
+                throw new ArgumentException($"Open time must be before close time for {oh.DayOfWeek}.");
+        }
+    }
+
+    private async Task ValidateBookingAgainstOperatingHours(int roomId, DateTime startTime, DateTime endTime)
+    {
+        var dayOfWeek = startTime.DayOfWeek;
+        var operatingHours = await _db.RoomOperatingHours
+            .AsNoTracking()
+            .FirstOrDefaultAsync(oh => oh.RoomId == roomId && oh.DayOfWeek == dayOfWeek);
+        
+        if (operatingHours == null)
+            return; // No operating hours configured, allow booking
+        
+        if (operatingHours.IsClosed)
+            throw new InvalidOperationException($"Room is closed on {dayOfWeek}.");
+        
+        var bookingStartTime = TimeOnly.FromDateTime(startTime);
+        var bookingEndTime = TimeOnly.FromDateTime(endTime);
+        
+        if (bookingStartTime < operatingHours.OpenTime || bookingEndTime > operatingHours.CloseTime)
+        {
+            throw new InvalidOperationException(
+                $"Booking must be within operating hours for {dayOfWeek}: " +
+                $"{operatingHours.OpenTime:HH:mm} - {operatingHours.CloseTime:HH:mm}");
+        }
+    }
+
     private static decimal CalculateCost(decimal pricePerHour, DateTime startTime, DateTime endTime)
     {
         var hours = (decimal)(endTime - startTime).TotalMinutes / 60m;
@@ -293,7 +407,13 @@ public class RoomService : IRoomService
         room.Description,
         room.Capacity,
         room.PricePerHour,
-        room.IsActive
+        room.IsActive,
+        room.OperatingHours?.Select(oh => new RoomOperatingHoursDto(
+            oh.DayOfWeek,
+            oh.IsClosed ? null : oh.OpenTime,
+            oh.IsClosed ? null : oh.CloseTime,
+            oh.IsClosed
+        )).ToList() ?? new List<RoomOperatingHoursDto>()
     );
 
     private static RoomBookingResponseDto ToDto(RoomBooking booking) => new(
