@@ -125,6 +125,20 @@ public class RoomsController : ControllerBase
         return Ok(bookings);
     }
 
+    [HttpGet("/api/trainers/me/bookings")]
+    [Authorize(Roles = "Admin,Trainer")]
+    public async Task<ActionResult<List<RoomBookingResponseDto>>> GetMyBookings(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var bookings = await _roomService.GetTrainerBookingsAsync(actorId, from, to);
+        return Ok(bookings);
+    }
+
     [HttpPost("/api/rooms/{id:int}/bookings")]
     [Authorize(Roles = "Admin,Trainer")]
     public async Task<ActionResult<RoomBookingResponseDto>> CreateBooking(int id, [FromBody] CreateRoomBookingRequest request)

@@ -175,7 +175,10 @@ public class ApiClient
         decimal TotalCost,
         string? Notes,
         DateTime CreatedAt,
-        DateTime UpdatedAt
+        DateTime UpdatedAt,
+        string? RoomName = null,
+        string? LocationName = null,
+        string? GymName = null
     );
 
     public record CreateRoomBookingBody(string Purpose, string? PurposeDescription, DateTime StartTime, DateTime EndTime, string? Notes);
@@ -461,6 +464,16 @@ public class ApiClient
     }
 
     public async Task<RoomAvailability?> GetRoomAvailability(int roomId, DateOnly date) => await _http.GetFromJsonAsync<RoomAvailability>($"{BaseUrl}/rooms/{roomId}/availability?date={date:yyyy-MM-dd}");
+
+    public async Task<List<RoomBookingRead>> GetMyBookings(DateTime? from = null, DateTime? to = null)
+    {
+        var queryParams = new List<string>();
+        if (from.HasValue) queryParams.Add($"from={from.Value:yyyy-MM-ddTHH:mm:ssZ}");
+        if (to.HasValue) queryParams.Add($"to={to.Value:yyyy-MM-ddTHH:mm:ssZ}");
+        
+        var query = queryParams.Any() ? "?" + string.Join("&", queryParams) : "";
+        return await _http.GetFromJsonAsync<List<RoomBookingRead>>($"{BaseUrl}/trainers/me/bookings{query}") ?? new();
+    }
 
     public async Task<RoomBookingRead?> CreateRoomBooking(int roomId, CreateRoomBookingBody body)
     {

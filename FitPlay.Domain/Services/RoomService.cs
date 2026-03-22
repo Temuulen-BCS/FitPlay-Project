@@ -210,6 +210,38 @@ public class RoomService : IRoomService
         return bookings.Select(ToDto).ToList();
     }
 
+    public async Task<List<RoomBookingResponseDto>> GetTrainerBookingsAsync(string trainerIdentityId, DateTime? from = null, DateTime? to = null)
+    {
+        var normalizedTrainerId = trainerIdentityId.Trim();
+        
+        var query = _db.RoomBookings
+            .AsNoTracking()
+            .Include(b => b.Room)
+                .ThenInclude(r => r!.GymLocation)
+                    .ThenInclude(gl => gl!.Gym)
+            .Where(b => b.TrainerId == normalizedTrainerId)
+            .AsQueryable();
+
+        if (from.HasValue)
+        {
+            query = query.Where(b => b.EndTime >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            query = query.Where(b => b.StartTime <= to.Value);
+        }
+
+        var bookings = await query.OrderByDescending(b => b.StartTime).ToListAsync();
+        
+        return bookings.Select(b => ToDto(
+            b,
+            b.Room?.Name,
+            b.Room?.GymLocation?.Name,
+            b.Room?.GymLocation?.Gym?.Name
+        )).ToList();
+    }
+
     public async Task<RoomBookingResponseDto> CreateBookingAsync(int roomId, string trainerId, CreateRoomBookingRequest request)
     {
         var room = await _db.Rooms
@@ -429,5 +461,23 @@ public class RoomService : IRoomService
         booking.Notes,
         booking.CreatedAt,
         booking.UpdatedAt
+    );
+
+    private static RoomBookingResponseDto ToDto(RoomBooking booking, string? roomName, string? locationName, string? gymName) => new(
+        booking.Id,
+        booking.RoomId,
+        booking.TrainerId,
+        booking.Purpose.ToString(),
+        booking.PurposeDescription,
+        booking.StartTime,
+        booking.EndTime,
+        booking.Status.ToString(),
+        booking.TotalCost,
+        booking.Notes,
+        booking.CreatedAt,
+        booking.UpdatedAt,
+        roomName,
+        locationName,
+        gymName
     );
 }

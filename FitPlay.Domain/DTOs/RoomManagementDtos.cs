@@ -51,7 +51,10 @@ public record RoomBookingResponseDto(
     decimal TotalCost,
     string? Notes,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    string? RoomName = null,
+    string? LocationName = null,
+    string? GymName = null
 );
 
 public record CreateRoomBookingRequest(
