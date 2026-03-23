@@ -167,8 +167,7 @@ public class ApiClient
         int Id,
         int RoomId,
         string TrainerId,
-        string Purpose,
-        string? PurposeDescription,
+        string Modality,
         DateTime StartTime,
         DateTime EndTime,
         string Status,
@@ -181,7 +180,7 @@ public class ApiClient
         string? LocationName = null
     );
 
-    public record CreateRoomBookingBody(DateTime StartTime, DateTime EndTime, string? Notes);
+    public record CreateRoomBookingBody(DateTime StartTime, DateTime EndTime, string Modality, string? Notes);
 
     public record AvailabilitySlot(DateTime StartTime, DateTime EndTime, bool IsAvailable, int? BookingId);
     public record RoomAvailability(int RoomId, DateOnly Date, List<AvailabilitySlot> Slots);
@@ -201,7 +200,7 @@ public class ApiClient
         string? TrainerName = null,
         string? RoomName = null,
         string? LocationName = null,
-        string? BookingPurpose = null,
+    
         string? BookingStatus = null,
         decimal? BookingCost = null
     );
@@ -249,6 +248,9 @@ public class ApiClient
     public record UpdateRoomRequest(string Name, string? Description, int Capacity, decimal PricePerHour, bool IsActive, List<RoomOperatingHoursDto>? OperatingHours = null);
     public record TrainerLinkRead(int Id, string TrainerId, string TrainerName, string TrainerEmail, int GymId, string Status, DateTime CreatedAt);
     public record UpdateTrainerLinkStatusRequest(string Status);
+
+    // Trainer's own gym link records
+    public record TrainerGymLinkSelf(int Id, string TrainerId, string GymName, int GymId, string Status, DateTime CreatedAt);
     public record CancellationPreview(decimal CancelFeeRate, decimal FeeAmount);
     #endregion
 
@@ -661,6 +663,22 @@ public class ApiClient
         var res = await _http.PatchAsJsonAsync($"{BaseUrl}/academies/{gymId}/trainers/{linkId}/status", body);
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<TrainerLinkRead>();
+    }
+
+    // Trainer self-service gym links
+    public async Task<List<TrainerGymLinkSelf>> GetMyGymLinks()
+    {
+        var res = await _http.GetAsync($"{BaseUrl}/academies/my-links");
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<List<TrainerGymLinkSelf>>() ?? new();
+    }
+
+    public async Task<TrainerGymLinkSelf?> RequestGymJoin(int gymId, string trainerId)
+    {
+        var body = new { TrainerId = trainerId, GymId = gymId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/academies/{gymId}/link-trainer", body);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<TrainerGymLinkSelf>();
     }
 
     // Sessions in gym

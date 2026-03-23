@@ -28,6 +28,16 @@
     {
         <p class="error">@_error</p>
     }
+    else if (_noApprovedGyms)
+    {
+        <div class="no-gyms-cta">
+            <div class="cta-icon">🏢</div>
+            <h2>No Approved Gyms</h2>
+            <p>You need to be approved by a gym before you can book rooms.</p>
+            <p>Visit the Gyms page to browse available gyms and send a join request.</p>
+            <a href="/trainer/gyms" class="btn-cta">Go to Gyms</a>
+        </div>
+    }
     else
     {
         @foreach (var group in _roomsByLocation)
@@ -133,7 +143,7 @@
                                 @if (slot.IsAvailable)
                                 {
                                     <span class="slot-dur">(@dur.ToString("F1")h)</span>
-                                    <span class="slot-label free">Free</span>
+                              
                                 }
                                 else
                                 {
@@ -824,6 +834,51 @@
     }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
+    /* No approved gyms CTA */
+    .no-gyms-cta {
+        text-align: center;
+        padding: 48px 24px;
+        background: var(--glass-bg);
+        border: 1px dashed var(--glass-border);
+        border-radius: 16px;
+        max-width: 500px;
+        margin: 40px auto;
+    }
+
+    .no-gyms-cta .cta-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+    }
+
+    .no-gyms-cta h2 {
+        font-size: 20px;
+        margin: 0 0 10px 0;
+    }
+
+    .no-gyms-cta p {
+        color: var(--text-muted);
+        font-size: 14px;
+        margin: 4px 0;
+    }
+
+    .btn-cta {
+        display: inline-block;
+        margin-top: 20px;
+        background: linear-gradient(135deg, var(--accent-teal), var(--accent-magenta));
+        color: #fff;
+        text-decoration: none;
+        padding: 12px 28px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 14px;
+        transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .btn-cta:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
     /* Responsive */
     @@media (max-width: 768px) {
         .modal {
@@ -934,6 +989,7 @@
     private bool _loading = true;
     private string? _error;
     private DateTime _selectedDate = DateTime.UtcNow.Date;
+    private bool _noApprovedGyms;
 
     // ── Modal state ─────────────────────────────────────────────────────────
     private bool _showModal;
@@ -949,6 +1005,7 @@
 
     // ── Trainer context ─────────────────────────────────────────────────────
     private int? _currentTrainerId;
+    private HashSet<int> _approvedGymIds = new();
 
     // ── Lifecycle ───────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
@@ -962,15 +1019,30 @@
     {
         _loading = true;
         _error = null;
+        _noApprovedGyms = false;
         _roomsByLocation.Clear();
         _availability.Clear();
 
         try
         {
+            // Fetch trainer's approved gym links
+            var myLinks = await Api.GetMyGymLinks();
+            _approvedGymIds = myLinks
+                .Where(l => string.Equals(l.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+                .Select(l => l.GymId)
+                .ToHashSet();
+
+            if (!_approvedGymIds.Any())
+            {
+                _noApprovedGyms = true;
+                return;
+            }
+
             var gyms = await Api.GetGyms(true);
+            var approvedGyms = gyms.Where(g => _approvedGymIds.Contains(g.Id)).ToList();
             var date = DateOnly.FromDateTime(_selectedDate);
 
-            foreach (var gym in gyms)
+            foreach (var gym in approvedGyms)
             {
                 var locations = await Api.GetGymLocations(gym.Id, true);
                 foreach (var location in locations)
@@ -1266,9 +1338,9 @@
                 var endUtc = CombineDateAndTime(_selectedDate, block.EndTime!);
 
                 var bookingBody = new ApiClient.CreateRoomBookingBody(
-                   
                     StartTime: startUtc,
                     EndTime: endUtc,
+                    Modality: _bookingForm.Modality!.Trim(),
                     Notes: $"Class: {_bookingForm.Modality}"
                 );
 

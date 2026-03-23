@@ -519,7 +519,7 @@
     .operating-hours-header { margin-bottom: 1rem; }
     .operating-hours-row {
         display: grid;
-        grid-template-columns: 100px 100px 1fr;
+        grid-template-columns: minmax(80px, 100px) minmax(80px, 110px) 1fr;
         align-items: center;
         gap: 0.75rem;
         padding: 0.6rem 0;
@@ -585,7 +585,10 @@
         font-size: 0.85rem;
         font-family: inherit;
         transition: border-color 0.2s;
-        width: 110px;
+        min-width: 80px;
+        width: 100%;
+        max-width: 130px;
+        box-sizing: border-box;
     }
     .time-input:focus {
         outline: none;

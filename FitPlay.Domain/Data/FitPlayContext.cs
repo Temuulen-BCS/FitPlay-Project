@@ -171,8 +171,9 @@ public class FitPlayContext : DbContext
             .IsRequired();
 
         b.Entity<RoomBooking>()
-            .Property(rb => rb.PurposeDescription)
-            .HasMaxLength(1000);
+            .Property(rb => rb.Modality)
+            .HasMaxLength(100)
+            .IsRequired();
 
         b.Entity<RoomBooking>()
             .Property(rb => rb.TotalCost)

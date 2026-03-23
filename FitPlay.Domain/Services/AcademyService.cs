@@ -144,7 +144,25 @@ public class AcademyService : IAcademyService
 
         if (existing is not null)
         {
-            return ToDto(existing);
+            // Allow re-request if rejected more than 7 days ago
+            if (existing.Status == TrainerGymLinkStatus.Rejected)
+            {
+                var daysSinceCreated = (DateTime.UtcNow - existing.CreatedAt).TotalDays;
+                if (daysSinceCreated < 7)
+                {
+                    var daysLeft = (int)Math.Ceiling(7 - daysSinceCreated);
+                    throw new InvalidOperationException(
+                        $"Your previous request was rejected. You can re-apply in {daysLeft} day(s).");
+                }
+
+                // Remove old rejected link and create a new Pending one
+                _db.TrainerGymLinks.Remove(existing);
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                return ToDto(existing);
+            }
         }
 
         var link = new TrainerGymLink
@@ -217,6 +235,27 @@ public class AcademyService : IAcademyService
                 l.CreatedAt
             );
         }).ToList();
+    }
+
+    public async Task<List<TrainerGymLinkResponseDto>> GetTrainerLinksAsync(string trainerId)
+    {
+        var id = trainerId.Trim();
+        var links = await _db.TrainerGymLinks
+            .AsNoTracking()
+            .Include(l => l.Gym)
+            .Where(l => l.TrainerId == id)
+            .OrderBy(l => l.CreatedAt)
+            .ToListAsync();
+
+        return links.Select(l => new TrainerGymLinkResponseDto(
+            l.Id,
+            l.TrainerId,
+            TrainerName: l.Gym?.Name ?? string.Empty,
+            TrainerEmail: string.Empty,
+            l.GymId,
+            l.Status.ToString(),
+            l.CreatedAt
+        )).ToList();
     }
 
     public async Task<bool> IsTrainerLinkedToGymAsync(string trainerId, int gymId)

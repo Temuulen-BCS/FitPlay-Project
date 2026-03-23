@@ -15,8 +15,8 @@ public record RoomResponseDto(
 
 public record RoomOperatingHoursDto(
     DayOfWeek DayOfWeek,
-    TimeOnly OpenTime,
-    TimeOnly CloseTime,
+    TimeOnly? OpenTime,
+    TimeOnly? CloseTime,
     bool IsClosed
 );
 
@@ -26,7 +26,8 @@ public record CreateRoomRequest(
     [MaxLength(500)] string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive = true
+    bool IsActive = true,
+    List<RoomOperatingHoursDto>? OperatingHours = null
 );
 
 public record UpdateRoomRequest(
@@ -34,15 +35,15 @@ public record UpdateRoomRequest(
     [MaxLength(500)] string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive
+    bool IsActive,
+    List<RoomOperatingHoursDto>? OperatingHours = null
 );
 
 public record RoomBookingResponseDto(
     int Id,
     int RoomId,
     string TrainerId,
-    string Purpose,
-    string? PurposeDescription,
+    string Modality,
     DateTime StartTime,
     DateTime EndTime,
     string Status,
@@ -56,16 +57,14 @@ public record RoomBookingResponseDto(
 );
 
 public record CreateRoomBookingRequest(
-    [Required] string Purpose,
-    string? PurposeDescription,
+    [Required][MaxLength(100)] string Modality,
     DateTime StartTime,
     DateTime EndTime,
     string? Notes
 );
 
 public record UpdateRoomBookingRequest(
-    [Required] string Purpose,
-    string? PurposeDescription,
+    [Required][MaxLength(100)] string Modality,
     DateTime StartTime,
     DateTime EndTime,
     [Required] string Status,

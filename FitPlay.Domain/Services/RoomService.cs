@@ -53,6 +53,15 @@ public class RoomService : IRoomService
         _db.Rooms.Add(room);
         await _db.SaveChangesAsync();
 
+        if (request.OperatingHours is not null)
+        {
+            await ReplaceOperatingHoursAsync(room.Id, request.OperatingHours);
+        }
+        else
+        {
+            await SeedDefaultOperatingHoursAsync(room.Id);
+        }
+
         return ToDto(room);
     }
 
@@ -68,6 +77,16 @@ public class RoomService : IRoomService
         room.IsActive = request.IsActive;
 
         await _db.SaveChangesAsync();
+
+        if (request.OperatingHours is not null)
+        {
+            await ReplaceOperatingHoursAsync(room.Id, request.OperatingHours);
+        }
+        else
+        {
+            await SeedDefaultOperatingHoursAsync(room.Id);
+        }
+
         return ToDto(room);
     }
 
@@ -155,7 +174,6 @@ public class RoomService : IRoomService
         if (!isLinked)
             throw new InvalidOperationException("Trainer is not approved for this gym.");
 
-        var purpose = ParsePurpose(request.Purpose);
         ValidateTimeRange(request.StartTime, request.EndTime);
 
         await EnsureNoConflictAsync(roomId, request.StartTime, request.EndTime);
@@ -164,8 +182,7 @@ public class RoomService : IRoomService
         {
             RoomId = roomId,
             TrainerId = normalizedTrainerId,
-            Purpose = purpose,
-            PurposeDescription = request.PurposeDescription?.Trim(),
+            Modality = request.Modality.Trim(),
             StartTime = DateTime.SpecifyKind(request.StartTime, DateTimeKind.Utc),
             EndTime = DateTime.SpecifyKind(request.EndTime, DateTimeKind.Utc),
             Status = RoomBookingStatus.Pending,
@@ -201,8 +218,7 @@ public class RoomService : IRoomService
             await EnsureNoConflictAsync(booking.RoomId, request.StartTime, request.EndTime, bookingId);
         }
 
-        booking.Purpose = ParsePurpose(request.Purpose);
-        booking.PurposeDescription = request.PurposeDescription?.Trim();
+        booking.Modality = request.Modality.Trim();
         booking.StartTime = DateTime.SpecifyKind(request.StartTime, DateTimeKind.Utc);
         booking.EndTime = DateTime.SpecifyKind(request.EndTime, DateTimeKind.Utc);
         booking.Status = newStatus;
@@ -273,13 +289,6 @@ public class RoomService : IRoomService
         return decimal.Round(hours * pricePerHour, 2, MidpointRounding.AwayFromZero);
     }
 
-    private static RoomBookingPurpose ParsePurpose(string purpose)
-    {
-        if (!Enum.TryParse<RoomBookingPurpose>(purpose, true, out var parsed))
-            throw new ArgumentException("Invalid booking purpose.");
-        return parsed;
-    }
-
     private static RoomBookingStatus ParseStatus(string status)
     {
         if (!Enum.TryParse<RoomBookingStatus>(status, true, out var parsed))
@@ -307,8 +316,7 @@ public class RoomService : IRoomService
         booking.Id,
         booking.RoomId,
         booking.TrainerId,
-        booking.Purpose.ToString(),
-        booking.PurposeDescription,
+        booking.Modality,
         booking.StartTime,
         booking.EndTime,
         booking.Status.ToString(),
@@ -359,5 +367,44 @@ public class RoomService : IRoomService
         await _db.SaveChangesAsync();
 
         return ToDto(booking);
+    }
+
+    private async Task ReplaceOperatingHoursAsync(int roomId, List<RoomOperatingHoursDto> operatingHours)
+    {
+        var entities = operatingHours.Select(oh => new RoomOperatingHours
+        {
+            RoomId = roomId,
+            DayOfWeek = oh.DayOfWeek,
+            OpenTime = oh.IsClosed ? TimeOnly.MinValue : oh.OpenTime ?? TimeOnly.MinValue,
+            CloseTime = oh.IsClosed ? TimeOnly.MinValue : oh.CloseTime ?? TimeOnly.MinValue,
+            IsClosed = oh.IsClosed
+        }).ToList();
+
+        var existing = _db.RoomOperatingHours.Where(oh => oh.RoomId == roomId);
+        _db.RoomOperatingHours.RemoveRange(existing);
+        await _db.SaveChangesAsync();
+
+        if (entities.Count == 0)
+        {
+            return;
+        }
+
+        _db.RoomOperatingHours.AddRange(entities);
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task SeedDefaultOperatingHoursAsync(int roomId)
+    {
+        var defaultHours = Enum.GetValues<DayOfWeek>().Select(d => new RoomOperatingHours
+        {
+            RoomId = roomId,
+            DayOfWeek = d,
+            OpenTime = new TimeOnly(8, 0),
+            CloseTime = new TimeOnly(22, 0),
+            IsClosed = false
+        }).ToList();
+
+        _db.RoomOperatingHours.AddRange(defaultHours);
+        await _db.SaveChangesAsync();
     }
 }

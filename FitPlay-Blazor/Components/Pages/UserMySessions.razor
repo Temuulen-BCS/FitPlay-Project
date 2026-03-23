@@ -8,7 +8,6 @@
 @using System.Security.Claims
 @using FitPlay.Blazor.Services
 @using FitPlay_Blazor.Components.Layout
-@using FitPlay_Blazor.Components.Gamification
 
 @inject ApiClient Api
 @inject NavigationManager Nav
@@ -23,9 +22,9 @@
             <p class="ms-eyebrow">My Account</p>
             <h1 class="ms-title">My Sessions</h1>
         </div>
-        <a href="/user/sessions/enroll" class="btn-primary-ms">
+        <a href="/user/book-class" class="btn-primary-ms">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Enroll in Session
+            Book a Class
         </a>
     </div>
 
@@ -36,19 +35,11 @@
         <button class="ms-tab @(_tab == "all" ? "active" : "")" @onclick='() => _tab = "all"'>All</button>
     </div>
 
-    @if (_enrollmentsError)
-    {
-        <div class="ms-warn-banner">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Session enrollments could not be loaded. Showing booked classes only.
-        </div>
-    }
-
     @if (_bookedClassesError)
     {
         <div class="ms-warn-banner">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Booked classes could not be loaded. Showing session enrollments only.
+            Booked classes could not be loaded. Please try again later.
         </div>
     }
 
@@ -59,174 +50,62 @@
             <p>Loading your sessions...</p>
         </div>
     }
-    else if (_combinedFiltered.Count == 0)
+    else if (_filtered.Count == 0)
     {
         <div class="ms-empty">
             <div class="ms-empty-icon">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
             </div>
             <p>No sessions found for this filter.</p>
-            <a href="/user/sessions/enroll" class="btn-primary-ms">Find a Session</a>
+            <a href="/user/book-class" class="btn-primary-ms">Book a Class</a>
         </div>
     }
     else
     {
         <div class="ms-cards">
-            @foreach (var item in _combinedFiltered)
+            @foreach (var b in _filtered)
             {
-                if (item.Enrollment is not null)
-                {
-                    var e = item.Enrollment;
-                    var isPast = e.StartTime < DateTime.UtcNow;
-                    var isCancelled = string.Equals(e.EnrollmentStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(e.SessionStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
-                    var canCheckIn = !isCancelled && !e.CheckedIn && !isPast;
-                    var canCancel = !isCancelled && !isPast;
+                var isPast = b.ScheduledAt < DateTime.UtcNow;
+                var isCancelled = string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+                var isCompleted = string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+                var canCancelBooking = !isPast && !isCancelled && !isCompleted;
 
-                    <div class="ms-card @(isCancelled ? "card-cancelled" : isPast ? "card-past" : "card-upcoming")">
-                        <div class="ms-card-header">
-                            <div class="ms-card-meta">
-                                <span class="enroll-badge @GetEnrollBadgeClass(e.EnrollmentStatus)">@e.EnrollmentStatus</span>
-                                @if (e.CheckedIn)
-                                {
-                                    <span class="checkin-badge">Checked In</span>
-                                }
-                            </div>
-                            <div class="ms-card-actions">
-                                @if (canCheckIn)
-                                {
-                                    <button class="btn-checkin"
-                                            @onclick="() => OpenCheckIn(e)"
-                                            disabled="@(_checkingInId == e.EnrollmentId)">
-                                        @(_checkingInId == e.EnrollmentId ? "Checking in..." : "Check In")
-                                    </button>
-                                }
-                                @if (canCancel)
-                                {
-                                    <button class="btn-cancel-enroll"
-                                            @onclick="() => ConfirmCancelEnrollment(e)"
-                                            disabled="@(_cancellingEnrollId == e.EnrollmentId)">
-                                        @(_cancellingEnrollId == e.EnrollmentId ? "..." : "Cancel")
-                                    </button>
-                                }
-                            </div>
+                <div class="ms-card @(isCancelled ? "card-cancelled" : isPast || isCompleted ? "card-past" : "card-upcoming")">
+                    <div class="ms-card-header">
+                        <div class="ms-card-meta">
+                            <span class="schedule-badge @GetScheduleBadgeClass(b.Status)">@b.Status</span>
                         </div>
-
-                        <h3 class="ms-card-title">@e.SessionTitle</h3>
-                        @if (!string.IsNullOrWhiteSpace(e.SessionDescription))
-                        {
-                            <p class="ms-card-desc">@e.SessionDescription</p>
-                        }
-
-                        <div class="ms-card-details">
-                            <div class="ms-detail">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                <span>@e.StartTime.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @e.StartTime.ToLocalTime().ToString("HH:mm") &ndash; @e.EndTime.ToLocalTime().ToString("HH:mm")</span>
-                            </div>
-                            <div class="ms-detail">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                <span>@e.EnrolledStudents / @e.MaxStudents students</span>
-                            </div>
-                            <div class="ms-detail">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                                <span>@e.PricePerStudent.ToString("C")</span>
-                            </div>
+                        <div class="ms-card-actions">
+                            @if (canCancelBooking)
+                            {
+                                <button class="btn-cancel"
+                                        @onclick="() => ConfirmCancelBooking(b)"
+                                        disabled="@(_cancellingBookId == b.Id)">
+                                    @(_cancellingBookId == b.Id ? "..." : "Cancel Booking")
+                                </button>
+                            }
                         </div>
                     </div>
-                }
-                else if (item.BookedClass is not null)
-                {
-                    var b = item.BookedClass;
-                    var isPast = b.ScheduledAt < DateTime.UtcNow;
-                    var isCancelled = string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
-                    var isCompleted = string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase);
-                    var canCancelBooking = !isPast && !isCancelled && !isCompleted;
 
-                    <div class="ms-card @(isCancelled ? "card-cancelled" : isPast || isCompleted ? "card-past" : "card-upcoming")">
-                        <div class="ms-card-header">
-                            <div class="ms-card-meta">
-                                <span class="schedule-badge @GetScheduleBadgeClass(b.Status)">@b.Status</span>
-                            </div>
-                            <div class="ms-card-actions">
-                                @if (canCancelBooking)
-                                {
-                                    <button class="btn-cancel-enroll"
-                                            @onclick="() => ConfirmCancelBooking(b)"
-                                            disabled="@(_cancellingBookId == b.Id)">
-                                        @(_cancellingBookId == b.Id ? "..." : "Cancel Booking")
-                                    </button>
-                                }
-                            </div>
-                        </div>
+                    <h3 class="ms-card-title">@b.Modality</h3>
+                    <p class="ms-booked-coach">Coach: @b.TrainerName</p>
+                    @if (!string.IsNullOrWhiteSpace(b.Notes))
+                    {
+                        <p class="ms-card-desc ms-booked-note">@b.Notes</p>
+                    }
 
-                        <h3 class="ms-card-title">@b.Modality</h3>
-                        <p class="ms-booked-coach">Coach: @b.TrainerName</p>
-                        @if (!string.IsNullOrWhiteSpace(b.Notes))
-                        {
-                            <p class="ms-card-desc ms-booked-note">@b.Notes</p>
-                        }
-
-                        <div class="ms-card-details">
-                            <div class="ms-detail">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                <span>@b.ScheduledAt.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @b.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
-                            </div>
+                    <div class="ms-card-details">
+                        <div class="ms-detail">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <span>@b.ScheduledAt.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @b.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
                         </div>
                     </div>
-                }
+                </div>
             }
         </div>
     }
 
 </div>
-
-<!-- Check-in confirm overlay -->
-@if (_checkInTarget != null && !_checkInDone)
-{
-    <div class="ms-overlay" @onclick="CloseCheckIn">
-        <div class="ms-modal" @onclick:stopPropagation>
-            <h3 class="ms-modal-title">Check In</h3>
-            <p class="ms-modal-body">
-                Confirm check-in for <strong>@_checkInTarget.SessionTitle</strong>?<br />
-                You will earn XP for attending.
-            </p>
-            <div class="ms-modal-actions">
-                <button class="btn-modal-ghost" @onclick="CloseCheckIn">Cancel</button>
-                <button class="btn-modal-teal" @onclick="ExecuteCheckIn" disabled="@(_checkingInId.HasValue)">
-                    @(_checkingInId.HasValue ? "Checking in..." : "Yes, Check In")
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-<!-- XP reward toast -->
-@if (_checkInDone && _xpEarned > 0)
-{
-    <div class="ms-xp-toast">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        Check-in confirmed! +@_xpEarned XP
-    </div>
-}
-
-<!-- Cancel enrollment confirm -->
-@if (_cancelEnrollTarget != null)
-{
-    <div class="ms-overlay" @onclick="CloseCancelEnroll">
-        <div class="ms-modal" @onclick:stopPropagation>
-            <h3 class="ms-modal-title">Cancel Enrollment</h3>
-            <p class="ms-modal-body">
-                Are you sure you want to cancel your enrollment in <strong>@_cancelEnrollTarget.SessionTitle</strong>?
-            </p>
-            <div class="ms-modal-actions">
-                <button class="btn-modal-ghost" @onclick="CloseCancelEnroll">Keep</button>
-                <button class="btn-modal-danger" @onclick="ExecuteCancelEnroll" disabled="@(_cancellingEnrollId.HasValue)">
-                    @(_cancellingEnrollId.HasValue ? "Cancelling..." : "Yes, Cancel")
-                </button>
-            </div>
-        </div>
-    </div>
-}
 
 <!-- Cancel booked class confirm -->
 @if (_cancelBookTarget != null)
@@ -259,60 +138,33 @@
     private string? _error;
     private string _tab = "upcoming";
 
-    private List<ApiClient.UserEnrollmentWithSession> _all = new();
     private List<ApiClient.ClassScheduleWithTrainer> _bookedClasses = new();
-
-    private ApiClient.UserEnrollmentWithSession? _checkInTarget;
-    private int? _checkingInId;
-    private bool _checkInDone;
-    private int _xpEarned;
-
-    private ApiClient.UserEnrollmentWithSession? _cancelEnrollTarget;
-    private int? _cancellingEnrollId;
-
-    private bool _enrollmentsError;
     private bool _bookedClassesError;
 
     private ApiClient.ClassScheduleWithTrainer? _cancelBookTarget;
     private int? _cancellingBookId;
 
-    private List<SessionListItem> _combinedFiltered
+    private List<ApiClient.ClassScheduleWithTrainer> _filtered
     {
         get
         {
             var now = DateTime.UtcNow;
 
-            var enrollments = _all
-                .Select(e => new SessionListItem(e.StartTime, e, null));
-
-            var bookedClasses = _bookedClasses
-                .Select(b => new SessionListItem(b.ScheduledAt, null, b));
-
-            IEnumerable<SessionListItem> all = enrollments.Concat(bookedClasses);
-
             var filtered = _tab switch
             {
-                "upcoming" => all.Where(item =>
-                    item.Enrollment is not null
-                        ? item.Enrollment.StartTime >= now
-                          && !string.Equals(item.Enrollment.EnrollmentStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
-                          && !string.Equals(item.Enrollment.SessionStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
-                        : item.BookedClass is not null
-                          && item.BookedClass.ScheduledAt >= now
-                          && string.Equals(item.BookedClass.Status, "Scheduled", StringComparison.OrdinalIgnoreCase)),
-                "past" => all.Where(item =>
-                    item.Enrollment is not null
-                        ? item.Enrollment.StartTime < now
-                        : item.BookedClass is not null
-                          && (item.BookedClass.ScheduledAt < now
-                              || string.Equals(item.BookedClass.Status, "Completed", StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(item.BookedClass.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))),
-                _ => all
+                "upcoming" => _bookedClasses.Where(b =>
+                    b.ScheduledAt >= now
+                    && string.Equals(b.Status, "Scheduled", StringComparison.OrdinalIgnoreCase)),
+                "past" => _bookedClasses.Where(b =>
+                    b.ScheduledAt < now
+                    || string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)),
+                _ => _bookedClasses.AsEnumerable()
             };
 
             return _tab == "upcoming"
-                ? filtered.OrderBy(item => item.SortTime).ToList()
-                : filtered.OrderByDescending(item => item.SortTime).ToList();
+                ? filtered.OrderBy(b => b.ScheduledAt).ToList()
+                : filtered.OrderByDescending(b => b.ScheduledAt).ToList();
         }
     }
 
@@ -326,9 +178,6 @@
                 _error = "Could not resolve user profile.";
                 return;
             }
-
-            try { _all = await Api.GetMyEnrollments(); }
-            catch { _enrollmentsError = true; }
 
             try { _bookedClasses = await Api.GetUserScheduleWithTrainer(currentUserId.Value); }
             catch { _bookedClassesError = true; }
@@ -370,86 +219,6 @@
         return domainUser.Id;
     }
 
-    private void OpenCheckIn(ApiClient.UserEnrollmentWithSession e)
-    {
-        _checkInTarget = e;
-        _checkInDone = false;
-        _xpEarned = 0;
-        _error = null;
-    }
-
-    private void CloseCheckIn()
-    {
-        _checkInTarget = null;
-        _checkInDone = false;
-    }
-
-    private async Task ExecuteCheckIn()
-    {
-        if (_checkInTarget is null) return;
-        _checkingInId = _checkInTarget.EnrollmentId;
-        try
-        {
-            var result = await Api.CheckInEnrollment(_checkInTarget.EnrollmentId);
-            _xpEarned = result?.XpAwarded ?? 0;
-            _checkInDone = true;
-
-            // Update local list
-            var idx = _all.FindIndex(e => e.EnrollmentId == _checkInTarget.EnrollmentId);
-            if (idx >= 0)
-                _all[idx] = _all[idx] with { CheckedIn = true };
-
-            _checkInTarget = null;
-
-            // Auto-hide toast after 4s
-            _ = Task.Delay(4000).ContinueWith(_ =>
-            {
-                _checkInDone = false;
-                InvokeAsync(StateHasChanged);
-            });
-        }
-        catch (Exception ex)
-        {
-            _error = $"Check-in failed: {ex.Message}";
-        }
-        finally
-        {
-            _checkingInId = null;
-        }
-    }
-
-    private void ConfirmCancelEnrollment(ApiClient.UserEnrollmentWithSession e)
-    {
-        _cancelEnrollTarget = e;
-        _error = null;
-    }
-
-    private void CloseCancelEnroll() => _cancelEnrollTarget = null;
-
-    private async Task ExecuteCancelEnroll()
-    {
-        if (_cancelEnrollTarget is null) return;
-        _cancellingEnrollId = _cancelEnrollTarget.EnrollmentId;
-        try
-        {
-            await Api.CancelEnrollment(_cancelEnrollTarget.EnrollmentId);
-
-            var idx = _all.FindIndex(e => e.EnrollmentId == _cancelEnrollTarget.EnrollmentId);
-            if (idx >= 0)
-                _all[idx] = _all[idx] with { EnrollmentStatus = "Cancelled" };
-
-            _cancelEnrollTarget = null;
-        }
-        catch (Exception ex)
-        {
-            _error = $"Could not cancel: {ex.Message}";
-        }
-        finally
-        {
-            _cancellingEnrollId = null;
-        }
-    }
-
     private void ConfirmCancelBooking(ApiClient.ClassScheduleWithTrainer schedule)
     {
         _cancelBookTarget = schedule;
@@ -479,14 +248,6 @@
         }
     }
 
-    private static string GetEnrollBadgeClass(string status) => status?.ToLower() switch
-    {
-        "confirmed" => "badge-confirmed",
-        "pending"   => "badge-pending",
-        "cancelled" => "badge-cancelled",
-        _           => "badge-unknown"
-    };
-
     private static string GetScheduleBadgeClass(string status) => status?.ToLower() switch
     {
         "scheduled" => "badge-confirmed",
@@ -494,12 +255,6 @@
         "cancelled" => "badge-cancelled",
         _           => "badge-unknown"
     };
-
-    private sealed record SessionListItem(
-        DateTime SortTime,
-        ApiClient.UserEnrollmentWithSession? Enrollment,
-        ApiClient.ClassScheduleWithTrainer? BookedClass
-    );
 }
 
 <style>
@@ -639,12 +394,7 @@
     }
     .ms-card-meta { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 
-    /* Enrollment badges */
-    .enroll-badge {
-        font-size: 0.7rem; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.08em;
-        padding: 2px 9px; border-radius: 20px;
-    }
+    /* Badges */
     .schedule-badge {
         font-size: 0.7rem; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.08em;
@@ -655,29 +405,10 @@
     .badge-cancelled { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
     .badge-unknown   { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
 
-    .checkin-badge {
-        font-size: 0.7rem; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.08em;
-        padding: 2px 9px; border-radius: 20px;
-        background: rgba(109,255,157,0.12); color: #6dff9d; border: 1px solid rgba(109,255,157,0.3);
-    }
-
     /* Card actions */
     .ms-card-actions { display: flex; gap: 0.5rem; align-items: center; }
 
-    .btn-checkin {
-        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
-        color: #001e24;
-        border: none;
-        font-size: 0.8rem; font-weight: 700; font-family: inherit;
-        padding: 5px 14px; border-radius: 20px; cursor: pointer;
-        transition: transform 0.15s, box-shadow 0.15s;
-        box-shadow: 0 3px 12px rgba(14,240,255,0.3);
-    }
-    .btn-checkin:hover { transform: scale(1.04); box-shadow: 0 5px 20px rgba(14,240,255,0.5); }
-    .btn-checkin:disabled { opacity: 0.6; cursor: default; transform: none; }
-
-    .btn-cancel-enroll {
+    .btn-cancel {
         background: transparent;
         border: 1px solid rgba(255,47,180,0.3);
         color: #ff2fb4;
@@ -685,8 +416,8 @@
         padding: 4px 12px; border-radius: 20px; cursor: pointer;
         transition: background 0.15s, border-color 0.15s;
     }
-    .btn-cancel-enroll:hover { background: rgba(255,47,180,0.08); border-color: rgba(255,47,180,0.55); }
-    .btn-cancel-enroll:disabled { opacity: 0.5; cursor: default; }
+    .btn-cancel:hover { background: rgba(255,47,180,0.08); border-color: rgba(255,47,180,0.55); }
+    .btn-cancel:disabled { opacity: 0.5; cursor: default; }
 
     /* Card content */
     .ms-card-title { margin: 0 0 0.3rem; font-size: 1.1rem; font-weight: 700; }
@@ -730,17 +461,6 @@
     }
     .btn-modal-ghost:hover { border-color: rgba(255,255,255,0.3); color: #f8f9fb; }
 
-    .btn-modal-teal {
-        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
-        border: none; color: #001e24;
-        font-size: 0.9rem; font-weight: 700; font-family: inherit;
-        padding: 0.6rem 1.4rem; border-radius: 30px; cursor: pointer;
-        transition: transform 0.18s, box-shadow 0.18s;
-        box-shadow: 0 4px 16px rgba(14,240,255,0.35);
-    }
-    .btn-modal-teal:hover { transform: scale(1.03); box-shadow: 0 6px 24px rgba(14,240,255,0.55); }
-    .btn-modal-teal:disabled { opacity: 0.6; cursor: default; transform: none; }
-
     .btn-modal-danger {
         background: linear-gradient(135deg, #ff2fb4, #c0106a);
         border: none; color: #fff;
@@ -751,23 +471,6 @@
     }
     .btn-modal-danger:hover { transform: scale(1.03); box-shadow: 0 6px 24px rgba(255,47,180,0.55); }
     .btn-modal-danger:disabled { opacity: 0.6; cursor: default; transform: none; }
-
-    /* XP Toast */
-    .ms-xp-toast {
-        position: fixed;
-        bottom: 2rem; right: 2rem;
-        display: flex; align-items: center; gap: 10px;
-        background: rgba(109,255,157,0.12);
-        border: 1px solid rgba(109,255,157,0.35);
-        color: #6dff9d;
-        padding: 0.875rem 1.5rem;
-        border-radius: 12px;
-        font-size: 0.95rem; font-weight: 600;
-        z-index: 9600;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 6px 30px rgba(109,255,157,0.2);
-        animation: slideIn 0.3s ease;
-    }
 
     /* Error toast */
     .ms-toast.error {

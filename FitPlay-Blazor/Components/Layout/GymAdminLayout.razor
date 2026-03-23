@@ -143,6 +143,7 @@
 
 @code {
     private string? _gymName;
+    private int _pendingTrainerCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -152,6 +153,12 @@
         {
             var gym = await Api.GetMyGym();
             _gymName = gym?.Name;
+
+            if (gym is not null)
+            {
+                var links = await Api.GetGymTrainerLinks(gym.Id);
+                _pendingTrainerCount = links.Count(l => l.Status == "Pending");
+            }
         }
         catch
         {
@@ -173,6 +180,4 @@
             ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
             : name[0].ToString().ToUpperInvariant();
     }
-
-    private readonly int _pendingTrainerCount = 3;
 }
