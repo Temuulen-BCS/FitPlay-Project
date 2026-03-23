@@ -544,12 +544,7 @@ namespace FitPlay.Api.Migrations.FitPlay
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<int>("Purpose")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PurposeDescription")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                  
 
                     b.Property<int>("RoomId")
                         .HasColumnType("int");

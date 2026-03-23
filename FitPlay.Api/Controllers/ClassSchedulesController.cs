@@ -25,12 +25,12 @@ public class ClassSchedulesController : ControllerBase
     }
 
     [HttpGet("user/{userId:int}")]
-    public async Task<ActionResult<List<ClassScheduleDto>>> GetUserSchedule(
+    public async Task<ActionResult<List<ClassScheduleWithTrainerDto>>> GetUserSchedule(
         int userId,
         [FromQuery] DateTime? from = null,
         [FromQuery] DateTime? to = null)
     {
-        var result = await _scheduleService.GetUserScheduleAsync(userId, from, to);
+        var result = await _scheduleService.GetUserScheduleWithTrainerAsync(userId, from, to);
         return Ok(result);
     }
 

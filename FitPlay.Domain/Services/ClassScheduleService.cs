@@ -37,6 +37,38 @@ public class ClassScheduleService
         return items.Select(ToDto).ToList();
     }
 
+    public async Task<List<ClassScheduleWithTrainerDto>> GetUserScheduleWithTrainerAsync(int userId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = _db.ClassSchedules
+            .Where(s => s.UserId == userId)
+            .AsQueryable();
+
+        if (from.HasValue)
+        {
+            query = query.Where(s => s.ScheduledAt >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            query = query.Where(s => s.ScheduledAt <= to.Value);
+        }
+
+        var items = await query
+            .Include(s => s.Trainer)
+            .OrderBy(s => s.ScheduledAt)
+            .ToListAsync();
+
+        return items.Select(s => new ClassScheduleWithTrainerDto(
+            s.Id,
+            s.TrainerId,
+            s.Trainer?.Name ?? "TBA",
+            s.Modality,
+            s.ScheduledAt,
+            s.Status.ToString(),
+            s.Notes
+        )).ToList();
+    }
+
     public async Task<ClassScheduleDto?> GetByIdAsync(int id)
     {
         var schedule = await _db.ClassSchedules

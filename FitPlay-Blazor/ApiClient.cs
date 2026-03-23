@@ -181,7 +181,7 @@ public class ApiClient
         string? LocationName = null
     );
 
-    public record CreateRoomBookingBody(string Purpose, string? PurposeDescription, DateTime StartTime, DateTime EndTime, string? Notes);
+    public record CreateRoomBookingBody(DateTime StartTime, DateTime EndTime, string? Notes);
 
     public record AvailabilitySlot(DateTime StartTime, DateTime EndTime, bool IsAvailable, int? BookingId);
     public record RoomAvailability(int RoomId, DateOnly Date, List<AvailabilitySlot> Slots);
@@ -380,6 +380,15 @@ public class ApiClient
         if (to.HasValue) query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
         var qs = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
         return await _http.GetFromJsonAsync<List<ClassSchedule>>($"{BaseUrl}/classeschedules/user/{userId}{qs}") ?? new();
+    }
+
+    public async Task<List<ClassScheduleWithTrainer>> GetUserScheduleWithTrainer(int userId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue) query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        if (to.HasValue) query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        var qs = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ClassScheduleWithTrainer>>($"{BaseUrl}/classeschedules/user/{userId}{qs}") ?? new();
     }
 
     public async Task<List<ClassSchedule>> GetTrainerSchedule(int trainerId, DateTime? from = null, DateTime? to = null)

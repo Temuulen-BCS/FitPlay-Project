@@ -317,6 +317,12 @@ public class FitPlayContext : DbContext
         b.Entity<ClassSchedule>()
             .HasIndex(ts => new { ts.TrainerId, ts.ScheduledAt });
 
+        b.Entity<ClassSchedule>()
+            .HasOne(s => s.Trainer)
+            .WithMany()
+            .HasForeignKey(s => s.TrainerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Gamification indexes
         b.Entity<UserLevel>()
             .HasIndex(ul => ul.UserId)
