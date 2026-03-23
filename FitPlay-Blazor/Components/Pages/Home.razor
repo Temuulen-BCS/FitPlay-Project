@@ -7,7 +7,6 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<BuilderHtml Model="page" UrlPath="/" OnResolved="HandleBuilderResolved">
 <!-- TOP NAV BAR -->
 <header class="top-nav">
     <div class="nav-inner">
@@ -927,16 +926,13 @@
     }
 </style>
 
-</BuilderHtml>
-
 @code {
     private bool _hasInitializedJs;
-    private bool _builderHasContent;
     private bool _jsInitialized;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_jsInitialized || _builderHasContent)
+        if (_jsInitialized)
             return;
 
         await Task.Delay(50);
@@ -970,10 +966,5 @@
             : name[0].ToString().ToUpperInvariant();
     }
 
-    private Task HandleBuilderResolved(bool hasContent)
-    {
-        _builderHasContent = hasContent;
-        return Task.CompletedTask;
-    }
 }
 
