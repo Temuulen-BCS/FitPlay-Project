@@ -21,5 +21,7 @@ public interface IRoomService
 
     Task<List<RoomBookingResponseDto>> GetTrainerBookingsAsync(string trainerId, DateTime? from = null, DateTime? to = null);
     Task<RoomBookingResponseDto?> ConfirmBookingAsync(int bookingId, string actorUserId, bool isAdmin);
+
+    Task<List<RoomBookingResponseDto>> GetGymBookingsAsync(int gymId, DateTime? from = null, DateTime? to = null);
 }
 

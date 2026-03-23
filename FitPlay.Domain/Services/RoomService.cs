@@ -407,4 +407,24 @@ public class RoomService : IRoomService
         _db.RoomOperatingHours.AddRange(defaultHours);
         await _db.SaveChangesAsync();
     }
+
+    public async Task<List<RoomBookingResponseDto>> GetGymBookingsAsync(int gymId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = _db.RoomBookings.AsNoTracking()
+            .Include(b => b.Room)
+                .ThenInclude(r => r!.GymLocation)
+                    .ThenInclude(gl => gl!.Gym)
+            .Where(b => b.Room != null
+                        && b.Room.GymLocation != null
+                        && b.Room.GymLocation.GymId == gymId)
+            .AsQueryable();
+
+        if (from.HasValue)
+            query = query.Where(b => b.EndTime >= from.Value);
+        if (to.HasValue)
+            query = query.Where(b => b.StartTime <= to.Value);
+
+        var bookings = await query.OrderByDescending(b => b.StartTime).ToListAsync();
+        return bookings.Select(ToDto).ToList();
+    }
 }

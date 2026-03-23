@@ -200,7 +200,7 @@ public class ApiClient
         string? TrainerName = null,
         string? RoomName = null,
         string? LocationName = null,
-    
+
         string? BookingStatus = null,
         decimal? BookingCost = null
     );
@@ -689,6 +689,16 @@ public class ApiClient
         if (to.HasValue) query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
         var qs = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
         return await _http.GetFromJsonAsync<List<ClassSessionRead>>($"{BaseUrl}/academies/{gymId}/sessions{qs}") ?? new();
+    }
+
+    // Room bookings in gym
+    public async Task<List<RoomBookingRead>> GetGymBookings(int gymId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue) query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        if (to.HasValue) query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        var qs = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<RoomBookingRead>>($"{BaseUrl}/academies/{gymId}/bookings{qs}") ?? new();
     }
 
     public async Task CancelSession(int sessionId)

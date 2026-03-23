@@ -13,11 +13,13 @@ public class AcademiesController : ControllerBase
 {
     private readonly IAcademyService _academyService;
     private readonly IClassSessionService _classSessionService;
+    private readonly IRoomService _roomService;
 
-    public AcademiesController(IAcademyService academyService, IClassSessionService classSessionService)
+    public AcademiesController(IAcademyService academyService, IClassSessionService classSessionService, IRoomService roomService)
     {
         _academyService = academyService;
         _classSessionService = classSessionService;
+        _roomService = roomService;
     }
 
     // ── Gyms ──────────────────────────────────────────────────────────────────
@@ -207,5 +209,18 @@ public class AcademiesController : ControllerBase
     {
         var sessions = await _classSessionService.GetSessionsByGymAsync(id, from, to);
         return Ok(sessions);
+    }
+
+    // ── Room Bookings ─────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/bookings")]
+    [Authorize(Roles = "Admin,GymAdmin")]
+    public async Task<ActionResult<List<FitPlay.Domain.DTOs.RoomBookingResponseDto>>> GetBookings(
+        int id,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+    {
+        var bookings = await _roomService.GetGymBookingsAsync(id, from, to);
+        return Ok(bookings);
     }
 }
