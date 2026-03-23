@@ -320,7 +320,7 @@
             }
 
             try { _all = await Api.GetMyEnrollments(); }
-            catch (Exception ex) { _error = $"Could not load enrollments: {ex.Message}"; }
+            catch { _enrollmentsError = true; }
 
             try { _bookedClasses = await Api.GetUserScheduleWithTrainer(currentUserId.Value); }
             catch { _bookedClassesError = true; }
