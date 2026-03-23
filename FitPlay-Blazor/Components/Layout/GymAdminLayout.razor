@@ -2,6 +2,7 @@
 @implements IDisposable
 
 @inject NavigationManager NavigationManager
+@inject ApiClient Api
 
 <div class="ga-shell">
     <!-- LEFT SIDEBAR -->
@@ -111,7 +112,7 @@
                     <div class="ga-profile-foot">
                         <span class="ga-avatar">@GetInitials(displayName)</span>
                         <div class="ga-profile-details">
-                            <span class="ga-username">@displayName</span>
+                            <span class="ga-username">@(_gymName ?? displayName)</span>
                             <span class="ga-email">@userEmail</span>
                             <span class="ga-role-chip">Gym Admin</span>
                         </div>
@@ -141,9 +142,21 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private string? _gymName;
+
+    protected override async Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
+
+        try
+        {
+            var gym = await Api.GetMyGym();
+            _gymName = gym?.Name;
+        }
+        catch
+        {
+            // fallback: _gymName stays null, the UI shows displayName instead
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
