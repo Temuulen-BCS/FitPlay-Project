@@ -184,7 +184,7 @@ public class RoomsController : ControllerBase
 
     [HttpPost("/api/bookings/{id:int}/confirm")]
     [Authorize(Roles = "Admin,Trainer")]
-    public async Task<IActionResult> ConfirmBooking(int id)
+    public async Task<ActionResult<RoomBookingResponseDto>> ConfirmBooking(int id)
     {
         var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(actorId))
@@ -208,15 +208,21 @@ public class RoomsController : ControllerBase
 
     [HttpGet("/api/bookings/{id:int}/cancel-preview")]
     [Authorize(Roles = "Admin,Trainer")]
-    public async Task<IActionResult> GetCancellationPreview(int id)
+    public async Task<ActionResult> GetCancellationPreview(int id)
     {
-        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(actorId))
-            return Unauthorized();
+        var booking = await _db.RoomBookings.AsNoTracking()
+            .Include(b => b.Room)
+                .ThenInclude(r => r!.GymLocation)
+                    .ThenInclude(gl => gl!.Gym)
+            .FirstOrDefaultAsync(b => b.Id == id);
 
-        var preview = await _roomService.GetCancellationPreviewAsync(id, actorId);
-        if (preview is null) return NotFound();
-        return Ok(preview);
+        if (booking is null) return NotFound();
+
+        var gym = booking.Room?.GymLocation?.Gym;
+        var cancelFeeRate = gym?.CancelFeeRate ?? 0m;
+        var feeAmount = decimal.Round(booking.TotalCost * cancelFeeRate, 2, MidpointRounding.AwayFromZero);
+
+        return Ok(new { CancelFeeRate = cancelFeeRate, FeeAmount = feeAmount });
     }
 
     private async Task<ActionResult?> EnsureCanManageGymAsync(int gymId)

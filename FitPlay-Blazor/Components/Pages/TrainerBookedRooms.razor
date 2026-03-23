@@ -153,13 +153,85 @@
                                 </div>
                             </div>
                             
-                            @if (isCancellable)
+                            @* Pay and Confirm button for Pending bookings *@
+                            @if (isUpcoming && booking.Status == "Pending")
+                            {
+                                <div class="card-actions">
+                                    <button class="btn-confirm" 
+                                            @onclick="() => ConfirmBooking(booking.Id)"
+                                            disabled="@(_confirmingBookingId == booking.Id)">
+                                        @if (_confirmingBookingId == booking.Id)
+                                        {
+                                            <text>Confirming...</text>
+                                        }
+                                        else
+                                        {
+                                            <span class="icon">✓</span>
+                                            <text>Pay and Confirm</text>
+                                        }
+                                    </button>
+                                </div>
+                            }
+                            
+                            @* Success message after confirmation *@
+                            @if (_confirmedBookingId == booking.Id && !string.IsNullOrEmpty(_confirmSuccessMessage))
+                            {
+                                <div class="success-message">
+                                    @_confirmSuccessMessage
+                                </div>
+                            }
+                            
+                            @* Cancel button with fee preview for Confirmed bookings *@
+                            @if (isCancellable && booking.Status == "Confirmed")
+                            {
+                                @if (_cancelPreviewBookingId == booking.Id && _cancelPreview != null)
+                                {
+                                    <div class="cancel-preview">
+                                        <p class="fee-warning">
+                                            ⚠️ Cancellation fee: @(_cancelPreview.CancelFeeRate.ToString("P0")) = @(_cancelPreview.FeeAmount.ToString("C"))
+                                        </p>
+                                        <div class="card-actions">
+                                            <button class="btn-cancel-confirm" 
+                                                    @onclick="() => ExecuteCancel(booking.Id)"
+                                                    disabled="@_cancelling">
+                                                @if (_cancelling)
+                                                {
+                                                    <text>Cancelling...</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Confirm Cancel</text>
+                                                }
+                                            </button>
+                                            <button class="btn-keep" 
+                                                    @onclick="ClosePreview"
+                                                    disabled="@_cancelling">
+                                                Keep Booking
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="card-actions">
+                                        <button class="btn-cancel" 
+                                                @onclick="() => ShowCancelPreview(booking.Id)"
+                                                disabled="@_cancelling">
+                                            <span class="icon">✕</span>
+                                            <text>Cancel Booking</text>
+                                        </button>
+                                    </div>
+                                }
+                            }
+                            
+                            @* Cancel button for Pending bookings (no fee) *@
+                            @if (isCancellable && booking.Status == "Pending")
                             {
                                 <div class="card-actions">
                                     <button class="btn-cancel" 
                                             @onclick="() => CancelBooking(booking.Id)"
                                             disabled="@_cancelling">
-                                        @if (_cancelling)
+                                        @if (_cancelling && _cancelPreviewBookingId == booking.Id)
                                         {
                                             <text>Cancelling...</text>
                                         }
@@ -554,6 +626,129 @@
         font-weight: 700;
     }
 
+    /* Pay and Confirm button */
+    .btn-confirm {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px;
+        background: rgba(0,230,180,0.15);
+        border: 1px solid rgba(0,230,180,0.4);
+        border-radius: 9px;
+        color: #00e6b4;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-confirm:hover:not(:disabled) {
+        background: rgba(0,230,180,0.25);
+        border-color: rgba(0,230,180,0.6);
+        transform: translateY(-1px);
+    }
+
+    .btn-confirm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-confirm .icon {
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    /* Success message */
+    .success-message {
+        padding: 10px 18px;
+        background: rgba(0,230,180,0.1);
+        border: 1px solid rgba(0,230,180,0.3);
+        border-radius: 8px;
+        color: #00e6b4;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 8px 18px 14px;
+        text-align: center;
+    }
+
+    /* Cancel preview */
+    .cancel-preview {
+        padding: 14px 18px;
+        background: rgba(255,77,109,0.08);
+        border-top: 1px solid rgba(255,77,109,0.2);
+    }
+
+    .fee-warning {
+        color: #ffb347;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 12px;
+        text-align: center;
+    }
+
+    .cancel-preview .card-actions {
+        display: flex;
+        gap: 10px;
+        padding: 0;
+        background: transparent;
+        border-top: none;
+    }
+
+    .btn-cancel-confirm {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px;
+        background: rgba(255,77,109,0.25);
+        border: 1px solid rgba(255,77,109,0.5);
+        border-radius: 9px;
+        color: #ff6b7a;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel-confirm:hover:not(:disabled) {
+        background: rgba(255,77,109,0.4);
+        border-color: rgba(255,77,109,0.7);
+    }
+
+    .btn-cancel-confirm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-keep {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 9px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-keep:hover:not(:disabled) {
+        background: rgba(255,255,255,0.12);
+        border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-keep:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
     /* Responsive */
     @@media (max-width: 768px) {
         .page-wrap {
@@ -610,6 +805,11 @@
     private Dictionary<DateOnly, List<ApiClient.RoomBookingRead>> _groupedBookings = new();
     private bool _loading = true;
     private bool _cancelling = false;
+    private int? _confirmingBookingId;
+    private int? _confirmedBookingId;
+    private string? _confirmSuccessMessage;
+    private int? _cancelPreviewBookingId;
+    private ApiClient.CancellationPreview? _cancelPreview;
     private string? _error;
     private DateTime? _fromDate;
     private DateTime? _toDate;
@@ -625,6 +825,10 @@
         _error = null;
         _bookings.Clear();
         _groupedBookings.Clear();
+        _confirmedBookingId = null;
+        _confirmSuccessMessage = null;
+        _cancelPreviewBookingId = null;
+        _cancelPreview = null;
 
         try
         {
@@ -649,16 +853,65 @@
         }
     }
 
-    private async Task CancelBooking(int bookingId)
+    private async Task ConfirmBooking(int bookingId)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this booking?");
-        if (!confirmed) return;
+        _confirmingBookingId = bookingId;
+        _error = null;
+        _confirmSuccessMessage = null;
+        _confirmedBookingId = null;
 
+        try
+        {
+            var result = await Api.ConfirmBooking(bookingId);
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Booking confirmed. Session created automatically.";
+            await Load();
+            // Re-set the success message after reload so it shows on the now-Confirmed card
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Booking confirmed. Session created automatically.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to confirm booking: {ex.Message}";
+        }
+        finally
+        {
+            _confirmingBookingId = null;
+        }
+    }
+
+    private async Task ShowCancelPreview(int bookingId)
+    {
+        _cancelPreviewBookingId = bookingId;
+        _cancelPreview = null;
+        _error = null;
+
+        try
+        {
+            _cancelPreview = await Api.GetCancellationPreview(bookingId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load cancellation info: {ex.Message}";
+            _cancelPreviewBookingId = null;
+        }
+    }
+
+    private void ClosePreview()
+    {
+        _cancelPreviewBookingId = null;
+        _cancelPreview = null;
+    }
+
+    private async Task ExecuteCancel(int bookingId)
+    {
         _cancelling = true;
         try
         {
             await Api.CancelRoomBooking(bookingId);
-            await Load(); // Reload the list
+            _cancelPreviewBookingId = null;
+            _cancelPreview = null;
+            await Load();
         }
         catch (Exception ex)
         {
@@ -667,6 +920,29 @@
         finally
         {
             _cancelling = false;
+        }
+    }
+
+    private async Task CancelBooking(int bookingId)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this booking?");
+        if (!confirmed) return;
+
+        _cancelling = true;
+        _cancelPreviewBookingId = bookingId;
+        try
+        {
+            await Api.CancelRoomBooking(bookingId);
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to cancel booking: {ex.Message}";
+        }
+        finally
+        {
+            _cancelling = false;
+            _cancelPreviewBookingId = null;
         }
     }
 

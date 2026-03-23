@@ -1013,7 +1013,7 @@
     private ApiClient.RoomOperatingHoursDto? GetOperatingHoursForSelectedDay(ApiClient.RoomRead room)
     {
         var day = _selectedDate.DayOfWeek;
-        return room.OperatingHours.FirstOrDefault(h => h.DayOfWeek == day);
+        return room.OperatingHours?.FirstOrDefault(h => h.DayOfWeek == day);
     }
 
     private bool IsClosedToday(ApiClient.RoomRead room)

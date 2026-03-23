@@ -9,7 +9,15 @@ public record RoomResponseDto(
     string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive
+    bool IsActive,
+    List<RoomOperatingHoursDto> OperatingHours
+);
+
+public record RoomOperatingHoursDto(
+    DayOfWeek DayOfWeek,
+    TimeOnly OpenTime,
+    TimeOnly CloseTime,
+    bool IsClosed
 );
 
 public record CreateRoomRequest(
@@ -81,11 +89,4 @@ public record AvailableRoomsQueryDto(
     int GymLocationId,
     DateTime StartTime,
     DateTime EndTime
-);
-
-public record CancellationPreviewDto(
-    int BookingId,
-    decimal TotalCost,
-    decimal CancelFeeRate,
-    decimal FeeAmount
 );

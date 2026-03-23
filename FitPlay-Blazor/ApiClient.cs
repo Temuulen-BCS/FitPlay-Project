@@ -160,8 +160,8 @@ public class ApiClient
 
     public record GymRead(int Id, string Name, string CNPJ, decimal CommissionRate, decimal CancelFeeRate, string? StripeAccountId, bool IsActive, string? OwnerUserId);
     public record GymLocationRead(int Id, int GymId, string Name, string Address, string City, string State, string ZipCode, double? Latitude, double? Longitude, bool IsActive);
+    public record RoomRead(int Id, int GymLocationId, string Name, string? Description, int Capacity, decimal PricePerHour, bool IsActive, List<RoomOperatingHoursDto>? OperatingHours);
     public record RoomOperatingHoursDto(DayOfWeek DayOfWeek, TimeOnly? OpenTime, TimeOnly? CloseTime, bool IsClosed);
-    public record RoomRead(int Id, int GymLocationId, string Name, string? Description, int Capacity, decimal PricePerHour, bool IsActive, List<RoomOperatingHoursDto> OperatingHours);
 
     public record RoomBookingRead(
         int Id,
@@ -177,8 +177,8 @@ public class ApiClient
         DateTime CreatedAt,
         DateTime UpdatedAt,
         string? RoomName = null,
-        string? LocationName = null,
-        string? GymName = null
+        string? GymName = null,
+        string? LocationName = null
     );
 
     public record CreateRoomBookingBody(string Purpose, string? PurposeDescription, DateTime StartTime, DateTime EndTime, string? Notes);
@@ -203,8 +203,7 @@ public class ApiClient
         string? LocationName = null,
         string? BookingPurpose = null,
         string? BookingStatus = null,
-        decimal? BookingCost = null,
-        string? BookingNotes = null
+        decimal? BookingCost = null
     );
 
     public record CreateClassSessionBody(string Title, string? Description, int MaxStudents, decimal PricePerStudent, DateTime StartTime, DateTime EndTime);
@@ -250,6 +249,7 @@ public class ApiClient
     public record UpdateRoomRequest(string Name, string? Description, int Capacity, decimal PricePerHour, bool IsActive, List<RoomOperatingHoursDto>? OperatingHours = null);
     public record TrainerLinkRead(int Id, string TrainerId, string TrainerName, string TrainerEmail, int GymId, string Status, DateTime CreatedAt);
     public record UpdateTrainerLinkStatusRequest(string Status);
+    public record CancellationPreview(decimal CancelFeeRate, decimal FeeAmount);
     #endregion
 
     #region Billing API
@@ -327,18 +327,15 @@ public class ApiClient
         return await _http.GetFromJsonAsync<List<TrainingSummary>>(url) ?? new();
     }
 
-    public async Task<List<TrainingSummary>> GetTrainerTrainings(int trainerId)
-    {
-        return await _http.GetFromJsonAsync<List<TrainingSummary>>($"{BaseUrl}/v2/trainings/trainer/{trainerId}") ?? new();
-    }
-
     public async Task<TrainingDetail?> GetTraining(int trainingId) => await _http.GetFromJsonAsync<TrainingDetail>($"{BaseUrl}/v2/trainings/{trainingId}");
 
-    public async Task<TrainingDetail?> CreateTraining(object request, int trainerId)
+    public async Task<List<TrainingSummary>> GetTrainerTrainings(int trainerId)
+        => await _http.GetFromJsonAsync<List<TrainingSummary>>($"{BaseUrl}/v2/trainings/trainer/{trainerId}") ?? new();
+
+    public async Task CreateTraining(object request, int trainerId)
     {
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/v2/trainings?trainerId={trainerId}", request);
         res.EnsureSuccessStatusCode();
-        return await res.Content.ReadFromJsonAsync<TrainingDetail>();
     }
     #endregion
 
@@ -369,13 +366,9 @@ public class ApiClient
     #endregion
 
     #region Users/Teachers API
-    public async Task<List<DomainUserRead>> GetUsers()
-    {
-        return await _http.GetFromJsonAsync<List<DomainUserRead>>($"{BaseUrl}/users") ?? new();
-    }
-
     public async Task<DomainUserRead?> GetUserByIdentity(string identityUserId) => await _http.GetFromJsonAsync<DomainUserRead>($"{BaseUrl}/users/by-identity/{identityUserId}");
     public async Task<TrainerRead?> GetTrainerByIdentity(string identityUserId) => await _http.GetFromJsonAsync<TrainerRead>($"{BaseUrl}/teachers/by-identity/{identityUserId}");
+    public async Task<List<DomainUserRead>> GetUsers() => await _http.GetFromJsonAsync<List<DomainUserRead>>($"{BaseUrl}/users") ?? new();
     public async Task<List<TrainerRead>> GetTeachers() => await _http.GetFromJsonAsync<List<TrainerRead>>($"{BaseUrl}/teachers") ?? new();
     #endregion
 
@@ -414,14 +407,6 @@ public class ApiClient
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
 
-    public async Task<ClassSchedule?> CreateTrainerClassSchedule(int trainerId, string modality, DateTime scheduledAt, string? notes)
-    {
-        var body = new { UserId = (int?)null, TrainerId = trainerId, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
-        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
-        res.EnsureSuccessStatusCode();
-        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
-    }
-
     public async Task<ClassSchedule?> UnbookClass(int scheduleId)
     {
         var res = await _http.PostAsync($"{BaseUrl}/classeschedules/{scheduleId}/unbook", null);
@@ -433,6 +418,21 @@ public class ApiClient
     {
         var body = new { Modality = modality, ScheduledAt = scheduledAt, Status = status, Notes = notes };
         var res = await _http.PutAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public async Task<ClassSchedule?> CreateTrainerClassSchedule(int trainerId, string modality, DateTime scheduledAt, string? notes)
+    {
+        var body = new
+        {
+            UserId = (int?)null,
+            TrainerId = trainerId,
+            Modality = modality,
+            ScheduledAt = scheduledAt,
+            Notes = notes
+        };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
@@ -472,27 +472,11 @@ public class ApiClient
 
     public async Task<RoomAvailability?> GetRoomAvailability(int roomId, DateOnly date) => await _http.GetFromJsonAsync<RoomAvailability>($"{BaseUrl}/rooms/{roomId}/availability?date={date:yyyy-MM-dd}");
 
-    public async Task<List<RoomBookingRead>> GetMyBookings(DateTime? from = null, DateTime? to = null)
-    {
-        var queryParams = new List<string>();
-        if (from.HasValue) queryParams.Add($"from={from.Value:yyyy-MM-ddTHH:mm:ssZ}");
-        if (to.HasValue) queryParams.Add($"to={to.Value:yyyy-MM-ddTHH:mm:ssZ}");
-        
-        var query = queryParams.Any() ? "?" + string.Join("&", queryParams) : "";
-        return await _http.GetFromJsonAsync<List<RoomBookingRead>>($"{BaseUrl}/trainers/me/bookings{query}") ?? new();
-    }
-
     public async Task<RoomBookingRead?> CreateRoomBooking(int roomId, CreateRoomBookingBody body)
     {
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/rooms/{roomId}/bookings", body);
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<RoomBookingRead>();
-    }
-
-    public async Task CancelRoomBooking(int bookingId)
-    {
-        var res = await _http.DeleteAsync($"{BaseUrl}/bookings/{bookingId}");
-        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
     }
 
     public async Task<ClassSessionRead?> CreateSessionFromBooking(int bookingId, CreateClassSessionBody body)
@@ -525,6 +509,31 @@ public class ApiClient
     {
         var res = await _http.DeleteAsync($"{BaseUrl}/enrollments/{enrollmentId}");
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+    }
+
+    public async Task<CancellationPreview?> GetCancellationPreview(int bookingId)
+        => await _http.GetFromJsonAsync<CancellationPreview>($"{BaseUrl}/bookings/{bookingId}/cancel-preview");
+
+    public async Task CancelRoomBooking(int bookingId)
+    {
+        var res = await _http.DeleteAsync($"{BaseUrl}/bookings/{bookingId}");
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+    }
+
+    public async Task<List<RoomBookingRead>> GetMyBookings(DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue) query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        if (to.HasValue) query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        var qs = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<RoomBookingRead>>($"{BaseUrl}/bookings/mine{qs}") ?? new();
+    }
+
+    public async Task<RoomBookingRead?> ConfirmBooking(int bookingId)
+    {
+        var res = await _http.PostAsync($"{BaseUrl}/bookings/{bookingId}/confirm", null);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<RoomBookingRead>();
     }
 
     public async Task<List<ClassSessionRead>> GetTrainerSessionsV3(string trainerIdentityId, DateTime? from = null, DateTime? to = null)

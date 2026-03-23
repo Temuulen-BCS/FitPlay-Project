@@ -20,6 +20,7 @@ public class FitPlayContext : DbContext
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<TrainerGymLink> TrainerGymLinks => Set<TrainerGymLink>();
     public DbSet<RoomBooking> RoomBookings => Set<RoomBooking>();
+    public DbSet<RoomOperatingHours> RoomOperatingHours => Set<RoomOperatingHours>();
     public DbSet<ClassSession> ClassSessions => Set<ClassSession>();
     public DbSet<ClassEnrollment> ClassEnrollments => Set<ClassEnrollment>();
     public DbSet<PaymentSplit> PaymentSplits => Set<PaymentSplit>();
@@ -128,6 +129,16 @@ public class FitPlayContext : DbContext
             .HasOne(r => r.GymLocation)
             .WithMany(gl => gl.Rooms)
             .HasForeignKey(r => r.GymLocationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<RoomOperatingHours>()
+            .HasIndex(oh => new { oh.RoomId, oh.DayOfWeek })
+            .IsUnique();
+
+        b.Entity<RoomOperatingHours>()
+            .HasOne(oh => oh.Room)
+            .WithMany(r => r.OperatingHours)
+            .HasForeignKey(oh => oh.RoomId)
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<TrainerGymLink>()

@@ -408,7 +408,8 @@
 
             if (_editId.HasValue)
             {
-                var req = new ApiClient.UpdateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, _fIsActive, operatingHoursDto);
+                var req = new 
+                ApiClient.UpdateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, _fIsActive, operatingHoursDto);
                 await Api.UpdateRoom(_editId.Value, req);
             }
             else

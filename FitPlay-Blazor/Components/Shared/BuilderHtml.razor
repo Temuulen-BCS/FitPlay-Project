@@ -1,16 +1,13 @@
 @using FitPlay.Blazor.Services
 @inject BuilderHtmlService BuilderService
 
-@if (_resolved)
+@if (_resolved && _hasContent)
 {
-    if (_hasContent)
-    {
-        @((MarkupString)_html)
-    }
-    else
-    {
-        @ChildContent
-    }
+    @((MarkupString)_html)
+}
+else
+{
+    @ChildContent
 }
 
 @code {
