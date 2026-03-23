@@ -5,12 +5,14 @@
 
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @using FitPlay.Blazor.Services
 @using FitPlay_Blazor.Components.Layout
 @using FitPlay_Blazor.Components.Gamification
 
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>My Sessions - FitPlay</PageTitle>
 
@@ -34,6 +36,14 @@
         <button class="ms-tab @(_tab == "all" ? "active" : "")" @onclick='() => _tab = "all"'>All</button>
     </div>
 
+    @if (_bookedClassesError)
+    {
+        <div class="ms-warn-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Booked classes could not be loaded. Showing session enrollments only.
+        </div>
+    }
+
     @if (_loading)
     {
         <div class="ms-loading">
@@ -41,7 +51,7 @@
             <p>Loading your sessions...</p>
         </div>
     }
-    else if (_filtered.Count == 0)
+    else if (_combinedFiltered.Count == 0)
     {
         <div class="ms-empty">
             <div class="ms-empty-icon">
@@ -54,63 +64,108 @@
     else
     {
         <div class="ms-cards">
-            @foreach (var e in _filtered)
+            @foreach (var item in _combinedFiltered)
             {
-                var isPast = e.StartTime < DateTime.UtcNow;
-                var isCancelled = e.EnrollmentStatus == "Cancelled" || e.SessionStatus == "Cancelled";
-                var canCheckIn = !isCancelled && !e.CheckedIn && !isPast && e.EnrollmentStatus != "Cancelled";
-                var canCancel = !isCancelled && !isPast;
+                if (item.Enrollment is not null)
+                {
+                    var e = item.Enrollment;
+                    var isPast = e.StartTime < DateTime.UtcNow;
+                    var isCancelled = string.Equals(e.EnrollmentStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(e.SessionStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
+                    var canCheckIn = !isCancelled && !e.CheckedIn && !isPast;
+                    var canCancel = !isCancelled && !isPast;
 
-                <div class="ms-card @(isCancelled ? "card-cancelled" : isPast ? "card-past" : "card-upcoming")">
-                    <div class="ms-card-header">
-                        <div class="ms-card-meta">
-                            <span class="enroll-badge @GetEnrollBadgeClass(e.EnrollmentStatus)">@e.EnrollmentStatus</span>
-                            @if (e.CheckedIn)
-                            {
-                                <span class="checkin-badge">Checked In</span>
-                            }
+                    <div class="ms-card @(isCancelled ? "card-cancelled" : isPast ? "card-past" : "card-upcoming")">
+                        <div class="ms-card-header">
+                            <div class="ms-card-meta">
+                                <span class="enroll-badge @GetEnrollBadgeClass(e.EnrollmentStatus)">@e.EnrollmentStatus</span>
+                                @if (e.CheckedIn)
+                                {
+                                    <span class="checkin-badge">Checked In</span>
+                                }
+                            </div>
+                            <div class="ms-card-actions">
+                                @if (canCheckIn)
+                                {
+                                    <button class="btn-checkin"
+                                            @onclick="() => OpenCheckIn(e)"
+                                            disabled="@(_checkingInId == e.EnrollmentId)">
+                                        @(_checkingInId == e.EnrollmentId ? "Checking in..." : "Check In")
+                                    </button>
+                                }
+                                @if (canCancel)
+                                {
+                                    <button class="btn-cancel-enroll"
+                                            @onclick="() => ConfirmCancelEnrollment(e)"
+                                            disabled="@(_cancellingEnrollId == e.EnrollmentId)">
+                                        @(_cancellingEnrollId == e.EnrollmentId ? "..." : "Cancel")
+                                    </button>
+                                }
+                            </div>
                         </div>
-                        <div class="ms-card-actions">
-                            @if (canCheckIn)
-                            {
-                                <button class="btn-checkin"
-                                        @onclick="() => OpenCheckIn(e)"
-                                        disabled="@(_checkingInId == e.EnrollmentId)">
-                                    @(_checkingInId == e.EnrollmentId ? "Checking in..." : "Check In")
-                                </button>
-                            }
-                            @if (canCancel)
-                            {
-                                <button class="btn-cancel-enroll"
-                                        @onclick="() => ConfirmCancelEnrollment(e)"
-                                        disabled="@(_cancellingEnrollId == e.EnrollmentId)">
-                                    @(_cancellingEnrollId == e.EnrollmentId ? "..." : "Cancel")
-                                </button>
-                            }
+
+                        <h3 class="ms-card-title">@e.SessionTitle</h3>
+                        @if (!string.IsNullOrWhiteSpace(e.SessionDescription))
+                        {
+                            <p class="ms-card-desc">@e.SessionDescription</p>
+                        }
+
+                        <div class="ms-card-details">
+                            <div class="ms-detail">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                <span>@e.StartTime.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @e.StartTime.ToLocalTime().ToString("HH:mm") &ndash; @e.EndTime.ToLocalTime().ToString("HH:mm")</span>
+                            </div>
+                            <div class="ms-detail">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                <span>@e.EnrolledStudents / @e.MaxStudents students</span>
+                            </div>
+                            <div class="ms-detail">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                                <span>@e.PricePerStudent.ToString("C")</span>
+                            </div>
                         </div>
                     </div>
+                }
+                else if (item.BookedClass is not null)
+                {
+                    var b = item.BookedClass;
+                    var isPast = b.ScheduledAt < DateTime.UtcNow;
+                    var isCancelled = string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+                    var isCompleted = string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+                    var canCancelBooking = !isPast && !isCancelled && !isCompleted;
 
-                    <h3 class="ms-card-title">@e.SessionTitle</h3>
-                    @if (!string.IsNullOrWhiteSpace(e.SessionDescription))
-                    {
-                        <p class="ms-card-desc">@e.SessionDescription</p>
-                    }
+                    <div class="ms-card @(isCancelled ? "card-cancelled" : isPast || isCompleted ? "card-past" : "card-upcoming")">
+                        <div class="ms-card-header">
+                            <div class="ms-card-meta">
+                                <span class="schedule-badge @GetScheduleBadgeClass(b.Status)">@b.Status</span>
+                            </div>
+                            <div class="ms-card-actions">
+                                @if (canCancelBooking)
+                                {
+                                    <button class="btn-cancel-enroll"
+                                            @onclick="() => ConfirmCancelBooking(b)"
+                                            disabled="@(_cancellingBookId == b.Id)">
+                                        @(_cancellingBookId == b.Id ? "..." : "Cancel Booking")
+                                    </button>
+                                }
+                            </div>
+                        </div>
 
-                    <div class="ms-card-details">
-                        <div class="ms-detail">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                            <span>@e.StartTime.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @e.StartTime.ToLocalTime().ToString("HH:mm") &ndash; @e.EndTime.ToLocalTime().ToString("HH:mm")</span>
-                        </div>
-                        <div class="ms-detail">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                            <span>@e.EnrolledStudents / @e.MaxStudents students</span>
-                        </div>
-                        <div class="ms-detail">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                            <span>@e.PricePerStudent.ToString("C")</span>
+                        <h3 class="ms-card-title">@b.Modality</h3>
+                        <p class="ms-booked-coach">Coach: @b.TrainerName</p>
+                        @if (!string.IsNullOrWhiteSpace(b.Notes))
+                        {
+                            <p class="ms-card-desc ms-booked-note">@b.Notes</p>
+                        }
+
+                        <div class="ms-card-details">
+                            <div class="ms-detail">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                <span>@b.ScheduledAt.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @b.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
+                            </div>
                         </div>
                     </div>
-                </div>
+                }
             }
         </div>
     }
@@ -165,6 +220,27 @@
     </div>
 }
 
+<!-- Cancel booked class confirm -->
+@if (_cancelBookTarget != null)
+{
+    <div class="ms-overlay" @onclick="CloseCancelBooking">
+        <div class="ms-modal" @onclick:stopPropagation>
+            <h3 class="ms-modal-title">Cancel Booking</h3>
+            <p class="ms-modal-body">
+                Are you sure you want to cancel your booking for
+                <strong>@_cancelBookTarget.Modality</strong>
+                with @(_cancelBookTarget.TrainerName)?
+            </p>
+            <div class="ms-modal-actions">
+                <button class="btn-modal-ghost" @onclick="CloseCancelBooking">Keep</button>
+                <button class="btn-modal-danger" @onclick="ExecuteCancelBooking" disabled="@(_cancellingBookId.HasValue)">
+                    @(_cancellingBookId.HasValue ? "Cancelling..." : "Yes, Cancel")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (!string.IsNullOrEmpty(_error))
 {
     <div class="ms-toast error">@_error</div>
@@ -176,6 +252,7 @@
     private string _tab = "upcoming";
 
     private List<ApiClient.UserEnrollmentWithSession> _all = new();
+    private List<ApiClient.ClassScheduleWithTrainer> _bookedClasses = new();
 
     private ApiClient.UserEnrollmentWithSession? _checkInTarget;
     private int? _checkingInId;
@@ -185,21 +262,68 @@
     private ApiClient.UserEnrollmentWithSession? _cancelEnrollTarget;
     private int? _cancellingEnrollId;
 
-    private List<ApiClient.UserEnrollmentWithSession> _filtered => _tab switch
+    private bool _enrollmentsError;
+    private bool _bookedClassesError;
+
+    private ApiClient.ClassScheduleWithTrainer? _cancelBookTarget;
+    private int? _cancellingBookId;
+
+    private List<SessionListItem> _combinedFiltered
     {
-        "upcoming" => _all.Where(e =>
-            e.StartTime >= DateTime.UtcNow &&
-            e.EnrollmentStatus != "Cancelled" &&
-            e.SessionStatus != "Cancelled").OrderBy(e => e.StartTime).ToList(),
-        "past" => _all.Where(e => e.StartTime < DateTime.UtcNow).OrderByDescending(e => e.StartTime).ToList(),
-        _ => _all.OrderByDescending(e => e.StartTime).ToList()
-    };
+        get
+        {
+            var now = DateTime.UtcNow;
+
+            var enrollments = _all
+                .Select(e => new SessionListItem(e.StartTime, e, null));
+
+            var bookedClasses = _bookedClasses
+                .Select(b => new SessionListItem(b.ScheduledAt, null, b));
+
+            IEnumerable<SessionListItem> all = enrollments.Concat(bookedClasses);
+
+            var filtered = _tab switch
+            {
+                "upcoming" => all.Where(item =>
+                    item.Enrollment is not null
+                        ? item.Enrollment.StartTime >= now
+                          && !string.Equals(item.Enrollment.EnrollmentStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                          && !string.Equals(item.Enrollment.SessionStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                        : item.BookedClass is not null
+                          && item.BookedClass.ScheduledAt >= now
+                          && string.Equals(item.BookedClass.Status, "Scheduled", StringComparison.OrdinalIgnoreCase)),
+                "past" => all.Where(item =>
+                    item.Enrollment is not null
+                        ? item.Enrollment.StartTime < now
+                        : item.BookedClass is not null
+                          && (item.BookedClass.ScheduledAt < now
+                              || string.Equals(item.BookedClass.Status, "Completed", StringComparison.OrdinalIgnoreCase)
+                              || string.Equals(item.BookedClass.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))),
+                _ => all
+            };
+
+            return _tab == "upcoming"
+                ? filtered.OrderBy(item => item.SortTime).ToList()
+                : filtered.OrderByDescending(item => item.SortTime).ToList();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _all = await Api.GetMyEnrollments();
+            var currentUserId = await ResolveCurrentUserIdAsync();
+            if (currentUserId is null)
+            {
+                _error = "Could not resolve user profile.";
+                return;
+            }
+
+            try { _all = await Api.GetMyEnrollments(); }
+            catch (Exception ex) { _error = $"Could not load enrollments: {ex.Message}"; }
+
+            try { _bookedClasses = await Api.GetUserScheduleWithTrainer(currentUserId.Value); }
+            catch { _bookedClassesError = true; }
         }
         catch (Exception ex)
         {
@@ -209,6 +333,33 @@
         {
             _loading = false;
         }
+    }
+
+    private async Task<int?> ResolveCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            Nav.NavigateTo("/Account/Login", true);
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            Nav.NavigateTo("/Account/Login", true);
+            return null;
+        }
+
+        var domainUser = await Api.GetUserByIdentity(identityId);
+        if (domainUser is null)
+        {
+            Nav.NavigateTo("/Account/Login", true);
+            return null;
+        }
+
+        return domainUser.Id;
     }
 
     private void OpenCheckIn(ApiClient.UserEnrollmentWithSession e)
@@ -291,6 +442,35 @@
         }
     }
 
+    private void ConfirmCancelBooking(ApiClient.ClassScheduleWithTrainer schedule)
+    {
+        _cancelBookTarget = schedule;
+        _error = null;
+    }
+
+    private void CloseCancelBooking() => _cancelBookTarget = null;
+
+    private async Task ExecuteCancelBooking()
+    {
+        if (_cancelBookTarget is null) return;
+
+        _cancellingBookId = _cancelBookTarget.Id;
+        try
+        {
+            await Api.UnbookClass(_cancelBookTarget.Id);
+            _bookedClasses.RemoveAll(s => s.Id == _cancelBookTarget.Id);
+            _cancelBookTarget = null;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not cancel booking: {ex.Message}";
+        }
+        finally
+        {
+            _cancellingBookId = null;
+        }
+    }
+
     private static string GetEnrollBadgeClass(string status) => status?.ToLower() switch
     {
         "confirmed" => "badge-confirmed",
@@ -298,6 +478,20 @@
         "cancelled" => "badge-cancelled",
         _           => "badge-unknown"
     };
+
+    private static string GetScheduleBadgeClass(string status) => status?.ToLower() switch
+    {
+        "scheduled" => "badge-confirmed",
+        "completed" => "badge-pending",
+        "cancelled" => "badge-cancelled",
+        _           => "badge-unknown"
+    };
+
+    private sealed record SessionListItem(
+        DateTime SortTime,
+        ApiClient.UserEnrollmentWithSession? Enrollment,
+        ApiClient.ClassScheduleWithTrainer? BookedClass
+    );
 }
 
 <style>
@@ -398,6 +592,20 @@
         display: flex; align-items: center; justify-content: center;
     }
 
+    /* Warning banner */
+    .ms-warn-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255,180,0,0.08);
+        border: 1px solid rgba(255,180,0,0.25);
+        color: #ffb400;
+        padding: 0.7rem 1.2rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        margin-bottom: 1.25rem;
+    }
+
     /* Cards */
     .ms-cards { display: flex; flex-direction: column; gap: 1rem; }
 
@@ -425,6 +633,11 @@
 
     /* Enrollment badges */
     .enroll-badge {
+        font-size: 0.7rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        padding: 2px 9px; border-radius: 20px;
+    }
+    .schedule-badge {
         font-size: 0.7rem; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.08em;
         padding: 2px 9px; border-radius: 20px;
@@ -470,6 +683,8 @@
     /* Card content */
     .ms-card-title { margin: 0 0 0.3rem; font-size: 1.1rem; font-weight: 700; }
     .ms-card-desc  { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-muted, #9aa0b5); line-height: 1.5; }
+    .ms-booked-coach { margin: 0 0 0.5rem; font-size: 0.85rem; color: #0ef0ff; }
+    .ms-booked-note { margin-bottom: 0.55rem; }
     .ms-card-details { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-top: 0.5rem; }
     .ms-detail {
         display: flex; align-items: center; gap: 6px;

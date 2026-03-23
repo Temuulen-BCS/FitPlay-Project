@@ -5,6 +5,7 @@
 
 @using Microsoft.AspNetCore.Authorization
 @using System.Security.Claims
+@using System.Globalization
 @using FitPlay.Blazor.Services
 @inject ApiClient Api
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -154,22 +155,9 @@
                 else
                 {
                     <div class="booking-form">
-                        @* Purpose & Description *@
+                    
                         <div class="form-row">
-                            <div class="form-group">
-                                <label>Booking Purpose</label>
-                                <select @bind="_bookingForm.Purpose">
-                                    <option value="">Select purpose</option>
-                                    <option value="GroupClass">Group Class</option>
-                                    <option value="PersonalTraining">Personal Training</option>
-                                    <option value="Rehabilitation">Rehabilitation</option>
-                                    <option value="Assessment">Assessment</option>
-                                    <option value="Yoga">Yoga</option>
-                                    <option value="Pilates">Pilates</option>
-                                    <option value="Crossfit">Crossfit</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
+
                             <div class="form-group">
                                 <label>Class Modality</label>
                                 <select class="neon-dropdown" @bind="_bookingForm.Modality">
@@ -192,14 +180,17 @@
                                     <option value="Cycling">Cycling</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label>Price per client </label>
+                                <input type="number"
+                                       min="0.01"
+                                       step="0.01"
+                                       @bind="_bookingForm.PricePerStudent"
+                                       placeholder="e.g. 19.99" />
+                            </div>
                         </div>
 
-                        <div class="form-group full-width">
-                            <label>Purpose Description (optional)</label>
-                            <textarea @bind="_bookingForm.PurposeDescription" 
-                                      rows="2" 
-                                      placeholder="Brief description of the booking purpose..."></textarea>
-                        </div>
+                    
 
                         @* Time Blocks *@
                         <div class="time-blocks-section">
@@ -1215,11 +1206,12 @@
 
     private string? ValidateBookingForm()
     {
-        if (string.IsNullOrWhiteSpace(_bookingForm.Purpose))
-            return "Please select a booking purpose.";
 
         if (string.IsNullOrWhiteSpace(_bookingForm.Modality))
             return "Please select a class modality.";
+
+        if (!_bookingForm.PricePerStudent.HasValue || _bookingForm.PricePerStudent.Value <= 0)
+            return "Please enter a valid price per student.";
 
         if (!_timeBlocks.Any(b => b.IsValid()))
             return "Please add at least one valid time block.";
@@ -1274,8 +1266,7 @@
                 var endUtc = CombineDateAndTime(_selectedDate, block.EndTime!);
 
                 var bookingBody = new ApiClient.CreateRoomBookingBody(
-                    Purpose: _bookingForm.Purpose!,
-                    PurposeDescription: _bookingForm.PurposeDescription,
+                   
                     StartTime: startUtc,
                     EndTime: endUtc,
                     Notes: $"Class: {_bookingForm.Modality}"
@@ -1295,7 +1286,10 @@
             // Step 2: Create class schedule linked to the first booking
             var firstBlock = _timeBlocks.First(b => b.IsValid());
             var scheduledAt = CombineDateAndTime(_selectedDate, firstBlock.StartTime!);
-            var notes = BuildNotesWithMultipleBookings(createdBookingIds, _bookingForm.Notes);
+            var notes = BuildNotesWithMultipleBookings(
+                createdBookingIds,
+                _bookingForm.PricePerStudent!.Value,
+                _bookingForm.Notes);
 
             await Api.CreateTrainerClassSchedule(
                 _currentTrainerId.Value,
@@ -1305,7 +1299,7 @@
             );
 
             var totalHours = _timeBlocks.Where(b => b.IsValid()).Sum(b => (double)CalculateHours(b.StartTime, b.EndTime));
-            _scheduleSuccess = $"✓ Room booked for {totalHours:F1}h and class scheduled at {scheduledAt.ToLocalTime():dd MMM yyyy HH:mm}";
+            _scheduleSuccess = $"✓ Room booked for {totalHours:F1}h and class scheduled at {scheduledAt.ToLocalTime():dd MMM yyyy HH:mm}. Price per student: {_bookingForm.PricePerStudent.Value.ToString("C")}";
         }
         catch (Exception ex)
         {
@@ -1340,11 +1334,12 @@
         return local.ToUniversalTime();
     }
 
-    private string BuildNotesWithMultipleBookings(List<int> bookingIds, string? additionalNotes)
+    private string BuildNotesWithMultipleBookings(List<int> bookingIds, decimal pricePerStudent, string? additionalNotes)
     {
         var parts = new List<string>();
         
         parts.Add($"Room Bookings: {string.Join(", ", bookingIds.Select(id => $"#{id}"))}");
+        parts.Add($"PricePerStudent={pricePerStudent.ToString("0.00", CultureInfo.InvariantCulture)}");
         
         var totalBlocks = _timeBlocks.Count(b => b.IsValid());
         parts.Add($"{totalBlocks} time block{(totalBlocks != 1 ? "s" : "")}");
@@ -1388,9 +1383,9 @@
 
     private class BookingForm
     {
-        public string? Purpose { get; set; }
-        public string? PurposeDescription { get; set; }
+  
         public string? Modality { get; set; }
+        public decimal? PricePerStudent { get; set; }
         public string? Notes { get; set; }
     }
 }

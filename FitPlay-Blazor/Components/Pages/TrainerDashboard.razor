@@ -689,12 +689,6 @@
             <a href="/trainer/users/1" class="stat-link">Manage &rarr;</a>
         </div>
 
-        <div class="stat-card teal schedule" @onclick="OpenScheduleModal" role="button" tabindex="0">
-            <div class="stat-badge">SCH</div>
-            <span class="stat-value">Schedule</span>
-            <span class="stat-label">Create Class</span>
-            <span class="stat-trend">Open &rarr;</span>
-        </div>
     </div>
 
     <!-- Bottom Row -->
@@ -704,7 +698,6 @@
                 <h2 class="section-title">Upcoming Sessions</h2>
                 <div class="list-actions">
                     <a href="/trainer/schedules" class="stat-link header-action">View all</a>
-                    <button type="button" class="stat-link header-action" @onclick="OpenScheduleModal">Schedule &rarr;</button>
                 </div>
             </div>
             @if (!string.IsNullOrEmpty(_scheduleListError))
@@ -946,11 +939,6 @@
     private int _pendingValidations;
     private int _activeStudents;
 
-    private bool _showScheduleModal;
-    private bool _scheduling;
-    private string? _scheduleError;
-    private ScheduleForm _scheduleForm = new();
-
     private bool _showTrainingModal;
     private bool _creatingTraining;
     private string? _trainingError;
@@ -980,8 +968,7 @@
             if (_currentTrainerId is null)
             {
                 _trainingError = "Trainer profile not found. Please sign in with a trainer account.";
-                _scheduleError = "Trainer profile not found. Please sign in with a trainer account.";
-                _scheduleListError = _scheduleError;
+                _scheduleListError = "Trainer profile not found. Please sign in with a trainer account.";
                 _upcomingSessions = new();
                 return;
             }
@@ -1069,9 +1056,6 @@
     }
 
     // ── modal helpers ──────────────────────────────────────────────────────
-    private void OpenScheduleModal() { _scheduleError = null; _showScheduleModal = true; }
-    private void CloseScheduleModal() { _showScheduleModal = false; }
-
     private void OpenTrainingModal()
     {
         _trainingError = null;
@@ -1087,32 +1071,6 @@
     private void CloseTrainingModal() { _showTrainingModal = false; }
 
     // ── actions ────────────────────────────────────────────────────────────
-    private async Task CreateSchedule()
-    {
-        if (_currentTrainerId is null)
-        {
-            _scheduleError = "Trainer profile not found.";
-            return;
-        }
-
-        _scheduleError = ValidateScheduleForm();
-        if (!string.IsNullOrEmpty(_scheduleError)) return;
-
-        _scheduling = true;
-        try
-        {
-            var scheduledAt = _scheduleForm.GetScheduledAtUtc();
-            if (!scheduledAt.HasValue) { _scheduleError = "Select date and time."; return; }
-
-            await Api.CreateTrainerClassSchedule(_currentTrainerId.Value, _scheduleForm.Modality.Trim(), scheduledAt.Value, _scheduleForm.Notes?.Trim());
-            _showScheduleModal = false;
-            ResetScheduleForm();
-            await LoadUpcomingSessions();
-        }
-        catch (Exception ex) { _scheduleError = $"Error creating schedule: {ex.Message}"; }
-        finally { _scheduling = false; }
-    }
-
     private async Task CreateTraining()
     {
         if (_currentTrainerId is null) { _trainingError = "Trainer profile not found."; return; }
@@ -1163,17 +1121,6 @@
     }
 
     // ── validation ─────────────────────────────────────────────────────────
-    private string? ValidateScheduleForm()
-    {
-        if (string.IsNullOrWhiteSpace(_scheduleForm.Modality)) return "Select a modality.";
-        if (_scheduleForm.Modality.Trim().Length > 20) return "Modality must be 20 characters or less.";
-        if (!_scheduleForm.GetScheduledAtLocal().HasValue) return "Select date and time.";
-        var utc = _scheduleForm.GetScheduledAtUtc();
-        if (!utc.HasValue) return "Select date and time.";
-        if (utc.Value <= DateTime.UtcNow) return "Scheduled time must be in the future.";
-        return null;
-    }
-
     private string? ValidateTrainingForm()
     {
         if (_currentTrainerId is null) return "Trainer profile not found.";
@@ -1205,9 +1152,6 @@
     }
 
     // ── misc helpers ───────────────────────────────────────────────────────
-    private void OnScheduleDateTimeChanged(ChangeEventArgs e)
-        => _scheduleForm.ScheduledAtLocalText = e.Value?.ToString() ?? string.Empty;
-
     private void ViewTraining(int trainingId)
         => Navigation.NavigateTo($"/training/{trainingId}");
 
@@ -1247,12 +1191,9 @@
         if (trainer is null)
         {
             _trainingError = "No trainer profile found for this account.";
-            _scheduleError = "No trainer profile found for this account.";
         }
         return trainer?.Id;
     }
-
-    private void ResetScheduleForm() { _scheduleForm = new ScheduleForm(); _scheduleError = null; }
 
     private void ResetTrainingForm()
     {
@@ -1267,32 +1208,6 @@
     }
 
     // ── inner types ────────────────────────────────────────────────────────
-    private class ScheduleForm
-    {
-        public string Modality { get; set; } = string.Empty;
-        public string ScheduledAtLocalText { get; set; } = string.Empty;
-        public string Notes { get; set; } = string.Empty;
-
-        public DateTime? GetScheduledAtLocal()
-        {
-            if (string.IsNullOrWhiteSpace(ScheduledAtLocalText)) return null;
-            return DateTime.TryParseExact(
-                ScheduledAtLocalText,
-                new[] { "yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss" },
-                System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None,
-                out var dt) ? dt : null;
-        }
-
-        public DateTime? GetScheduledAtUtc()
-        {
-            var local = GetScheduledAtLocal();
-            return local.HasValue
-                ? DateTime.SpecifyKind(local.Value, DateTimeKind.Local).ToUniversalTime()
-                : null;
-        }
-    }
-
     private class TrainingForm
     {
         public string Name { get; set; } = string.Empty;

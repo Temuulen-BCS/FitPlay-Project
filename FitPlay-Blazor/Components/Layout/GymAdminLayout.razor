@@ -105,7 +105,7 @@
                         var userEmail = context.User.FindFirst("email")?.Value
                                         ?? context.User.Identity?.Name
                                         ?? "admin@gym.com";
-                        var displayName = context.User.FindFirst("name")?.Value
+                        var displayName = context.User.FindFirst("full_name")?.Value
                                           ?? userEmail;
                     }
                     <div class="ga-profile-foot">
@@ -113,7 +113,7 @@
                         <div class="ga-profile-details">
                             <span class="ga-username">@displayName</span>
                             <span class="ga-email">@userEmail</span>
-                            <span class="ga-role-chip">GymAdmin</span>
+                            <span class="ga-role-chip">Gym Admin</span>
                         </div>
                     </div>
                     <form action="Account/Logout" method="post" class="ga-logout-form">
