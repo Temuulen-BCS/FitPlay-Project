@@ -221,6 +221,14 @@ public class ApiClient
         DateTime EnrolledAt
     );
 
+    public record SessionEnrollmentRead(
+        int Id,
+        string UserId,
+        string Status,
+        decimal PaidAmount,
+        DateTime EnrolledAt
+    );
+
     public record RoomCheckInRead(int Id, int ClassEnrollmentId, string UserId, DateTime CheckInTime, int XpAwarded);
 
     public record UserEnrollmentWithSession(
@@ -523,6 +531,9 @@ public class ApiClient
     }
 
     public async Task<ClassSessionRead?> GetSession(int sessionId) => await _http.GetFromJsonAsync<ClassSessionRead>($"{BaseUrl}/sessions/{sessionId}");
+
+    public async Task<List<SessionEnrollmentRead>> GetSessionEnrollments(int sessionId)
+        => await _http.GetFromJsonAsync<List<SessionEnrollmentRead>>($"{BaseUrl}/sessions/{sessionId}/enrollments") ?? new();
 
     public async Task<ClassEnrollmentRead?> EnrollSession(int sessionId)
     {

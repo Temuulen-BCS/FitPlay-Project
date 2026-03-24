@@ -93,5 +93,13 @@ public class SessionsController : ControllerBase
             return Forbid();
         }
     }
+
+    [HttpGet("/api/sessions/{id:int}/enrollments")]
+    [Authorize(Roles = "Admin,GymAdmin,Trainer")]
+    public async Task<ActionResult<List<SessionEnrollmentDto>>> GetSessionEnrollments(int id)
+    {
+        var enrollments = await _classSessionService.GetEnrollmentsBySessionAsync(id);
+        return Ok(enrollments);
+    }
 }
 

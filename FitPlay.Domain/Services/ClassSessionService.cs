@@ -262,6 +262,19 @@ public class ClassSessionService : IClassSessionService
             throw new ArgumentException("EndTime must be greater than StartTime.");
     }
 
+    public async Task<List<SessionEnrollmentDto>> GetEnrollmentsBySessionAsync(int sessionId)
+    {
+        var enrollments = await _db.ClassEnrollments
+            .AsNoTracking()
+            .Where(e => e.ClassSessionId == sessionId)
+            .OrderBy(e => e.EnrolledAt)
+            .ToListAsync();
+
+        return enrollments.Select(e => new SessionEnrollmentDto(
+            e.Id, e.UserId, e.Status.ToString(), e.PaidAmount, e.EnrolledAt
+        )).ToList();
+    }
+
     private static ClassSessionResponseDto ToDto(ClassSession session) => new(
         session.Id,
         session.RoomBookingId,
