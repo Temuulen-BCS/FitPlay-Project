@@ -21,6 +21,7 @@
         --accent-magenta: #ff2fb4;
         --accent-teal: #0ef0ff;
         --accent-gold: #ffd700;
+        --accent-green: #22c55e;
         --text-primary: #f8f9fb;
         --text-muted: #9aa0b5;
         --glass-border: rgba(255,255,255,0.08);
@@ -95,10 +96,32 @@
         color: var(--accent-teal);
     }
 
+    .stat-card.green .stat-badge {
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--accent-green);
+    }
+
+    .stat-card.green:hover {
+        border-color: var(--accent-green);
+        box-shadow: 0 0 24px rgba(34, 197, 94, 0.18);
+    }
+
     .stat-value {
         font-size: 2rem;
         font-weight: 700;
         line-height: 1;
+    }
+
+    .stat-card.magenta .stat-value {
+        color: var(--accent-magenta);
+    }
+
+    .stat-card.teal .stat-value {
+        color: var(--accent-teal);
+    }
+
+    .stat-card.green .stat-value {
+        color: var(--accent-green);
     }
 
     .stat-label {
@@ -129,6 +152,10 @@
 
     .stat-card.teal .stat-link {
         color: var(--accent-teal);
+    }
+
+    .stat-card.green .stat-link {
+        color: var(--accent-green);
     }
 
     .stat-link:hover {
@@ -685,8 +712,15 @@
         <div class="stat-card teal">
             <div class="stat-badge">USR</div>
             <span class="stat-value">@_activeStudents</span>
-            <span class="stat-label">Active Students</span>
+            <span class="stat-label">Active Users</span>
             <a href="/trainer/users/1" class="stat-link">Manage &rarr;</a>
+        </div>
+
+        <div class="stat-card green">
+            <div class="stat-badge">SES</div>
+            <span class="stat-value">@_givenClasses</span>
+            <span class="stat-label">Given Classes</span>
+            <a href="/trainer/dashboard" class="stat-link">View all &rarr;</a>
         </div>
 
     </div>
@@ -938,6 +972,7 @@
 
     private int _pendingValidations;
     private int _activeStudents;
+    private int _givenClasses;
 
     private bool _showTrainingModal;
     private bool _creatingTraining;
@@ -958,6 +993,7 @@
         await LoadScheduleData();
         await LoadUpcomingSessions();
         await LoadMyTrainings();
+        await LoadGivenClassesCount();
     }
 
     // ── data loading ───────────────────────────────────────────────────────
@@ -1038,6 +1074,28 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading my trainings: {ex.Message}");
+        }
+    }
+
+    private async Task LoadGivenClassesCount()
+    {
+        if (_currentTrainerId is null) return;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(identityId)) return;
+
+            var sessions = await Api.GetTrainerSessionsV3(identityId);
+            _givenClasses = sessions.Sum(s => s.EnrolledStudents);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading given classes count: {ex.Message}");
+            _givenClasses = 0;
         }
     }
 
