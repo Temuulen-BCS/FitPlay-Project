@@ -9,7 +9,9 @@ public record ClassScheduleDto(
     string Modality,
     DateTime ScheduledAt,
     string Status,
-    string? Notes
+    string? Notes,
+    string PaymentStatus = "None",
+    decimal? PaidAmount = null
 );
 
 public record CreateClassScheduleRequest(
@@ -38,5 +40,29 @@ public record ClassScheduleWithTrainerDto(
     string Modality,
     DateTime ScheduledAt,
     string Status,
-    string? Notes
+    string? Notes,
+    string PaymentStatus = "None",
+    decimal? PaidAmount = null
+);
+
+// Payment DTOs
+public record CreateClassPaymentIntentRequest(
+    [Required] int UserId
+);
+
+public record CreateClassPaymentIntentResponse(
+    string ClientSecret,
+    decimal Amount,
+    string Currency
+);
+
+public record ConfirmClassPaymentRequest(
+    [Required] int UserId,
+    [Required] string StripePaymentIntentId
+);
+
+public record ClassPaymentRefundResponse(
+    int ScheduleId,
+    decimal RefundAmount,
+    string Status
 );

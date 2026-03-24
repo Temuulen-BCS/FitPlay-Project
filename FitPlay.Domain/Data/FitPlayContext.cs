@@ -180,6 +180,14 @@ public class FitPlayContext : DbContext
             .HasPrecision(18, 2);
 
         b.Entity<RoomBooking>()
+            .Property(rb => rb.PaidAmount)
+            .HasPrecision(18, 2);
+
+        b.Entity<RoomBooking>()
+            .Property(rb => rb.StripePaymentIntentId)
+            .HasMaxLength(255);
+
+        b.Entity<RoomBooking>()
             .Property(rb => rb.Notes)
             .HasMaxLength(2000);
 
@@ -323,6 +331,14 @@ public class FitPlayContext : DbContext
             .WithMany()
             .HasForeignKey(s => s.TrainerId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        b.Entity<ClassSchedule>()
+            .Property(s => s.StripePaymentIntentId)
+            .HasMaxLength(255);
+
+        b.Entity<ClassSchedule>()
+            .Property(s => s.PaidAmount)
+            .HasPrecision(18, 2);
 
         // Gamification indexes
         b.Entity<UserLevel>()

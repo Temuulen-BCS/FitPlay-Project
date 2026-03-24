@@ -9,6 +9,7 @@
 @inject ApiClient Api
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>Booked Rooms - FitPlay</PageTitle>
 
@@ -145,21 +146,57 @@
                             @* Pay and Confirm button for Pending bookings *@
                             @if (isUpcoming && booking.Status == "Pending")
                             {
-                                <div class="card-actions">
-                                    <button class="btn-confirm" 
-                                            @onclick="() => ConfirmBooking(booking.Id)"
-                                            disabled="@(_confirmingBookingId == booking.Id)">
-                                        @if (_confirmingBookingId == booking.Id)
-                                        {
-                                            <text>Confirming...</text>
-                                        }
-                                        else
-                                        {
-                                            <span class="icon">✓</span>
-                                            <text>Pay and Confirm</text>
-                                        }
-                                    </button>
-                                </div>
+                                @if (_showPaymentUI && _paymentBookingId == booking.Id && !string.IsNullOrWhiteSpace(_paymentClientSecret))
+                                {
+                                    <div class="card-actions payment-section">
+                                        <div class="payment-container">
+                                            <p class="payment-label">Enter your payment details</p>
+                                            <div id="payment-element-@booking.Id"></div>
+                                            <div class="payment-buttons">
+                                                <button class="btn-confirm" 
+                                                        @onclick="() => ConfirmPayment(booking.Id)"
+                                                        disabled="@(_confirmingBookingId == booking.Id)">
+                                                    @if (_confirmingBookingId == booking.Id)
+                                                    {
+                                                        <text>Processing...</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="icon">✓</span>
+                                                        <text>Confirm Payment</text>
+                                                    }
+                                                </button>
+                                                <button class="btn-cancel-payment" 
+                                                        @onclick="CancelPaymentForm"
+                                                        disabled="@(_confirmingBookingId == booking.Id)">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(_paymentError))
+                                            {
+                                                <div class="payment-error">@_paymentError</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="card-actions">
+                                        <button class="btn-confirm" 
+                                                @onclick="() => InitiatePayment(booking.Id)"
+                                                disabled="@(_confirmingBookingId == booking.Id)">
+                                            @if (_confirmingBookingId == booking.Id)
+                                            {
+                                                <text>Loading payment...</text>
+                                            }
+                                            else
+                                            {
+                                                <span class="icon">✓</span>
+                                                <text>Pay and Confirm</text>
+                                            }
+                                        </button>
+                                    </div>
+                                }
                             }
                             
                             @* Success message after confirmation *@
@@ -649,6 +686,77 @@
         font-weight: 700;
     }
 
+    /* Payment section */
+    .payment-section {
+        padding: 18px !important;
+    }
+
+    .payment-container {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .payment-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .payment-container [id^="payment-element-"] {
+        background: #fff;
+        padding: 16px;
+        border-radius: 12px;
+        min-height: 50px;
+    }
+
+    .payment-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .payment-buttons .btn-confirm {
+        flex: 2;
+    }
+
+    .btn-cancel-payment {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 9px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel-payment:hover:not(:disabled) {
+        background: rgba(255,255,255,0.12);
+        border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-cancel-payment:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .payment-error {
+        padding: 10px 14px;
+        background: rgba(255,77,109,0.1);
+        border: 1px solid rgba(255,77,109,0.3);
+        border-radius: 8px;
+        color: #ff9aa2;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+    }
+
     /* Success message */
     .success-message {
         padding: 10px 18px;
@@ -803,9 +911,54 @@
     private DateTime? _fromDate;
     private DateTime? _toDate;
 
+    // ── Stripe payment state ──
+    private int? _paymentBookingId;
+    private string? _paymentClientSecret;
+    private bool _paymentElementMounted;
+    private bool _isMountingPayment;
+    private bool _showPaymentUI;
+    private string? _paymentError;
+
     protected override async Task OnInitializedAsync()
     {
         await Load();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isMountingPayment || _paymentElementMounted
+            || !_showPaymentUI
+            || string.IsNullOrWhiteSpace(_paymentClientSecret)
+            || _paymentBookingId is null)
+            return;
+
+        _isMountingPayment = true;
+        _paymentElementMounted = true;
+
+        try
+        {
+            var error = await JS.InvokeAsync<string?>(
+                "fitplayStripe.mount",
+                _paymentClientSecret,
+                $"#payment-element-{_paymentBookingId}");
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                _paymentElementMounted = false;
+                _paymentError = error;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _paymentElementMounted = false;
+            _paymentError = $"Failed to load payment form: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            _isMountingPayment = false;
+        }
     }
 
     private async Task Load()
@@ -818,6 +971,7 @@
         _confirmSuccessMessage = null;
         _cancelPreviewBookingId = null;
         _cancelPreview = null;
+        _showPaymentUI = false;
 
         try
         {
@@ -842,31 +996,101 @@
         }
     }
 
-    private async Task ConfirmBooking(int bookingId)
+    // ── Stripe Payment Flow ──
+
+    private async Task InitiatePayment(int bookingId)
     {
         _confirmingBookingId = bookingId;
+        _paymentError = null;
         _error = null;
-        _confirmSuccessMessage = null;
-        _confirmedBookingId = null;
 
         try
         {
-            var result = await Api.ConfirmBooking(bookingId);
-            _confirmedBookingId = bookingId;
-            _confirmSuccessMessage = "Booking confirmed. Session created automatically.";
-            await Load();
-            // Re-set the success message after reload so it shows on the now-Confirmed card
-            _confirmedBookingId = bookingId;
-            _confirmSuccessMessage = "Booking confirmed. Session created automatically.";
+            var response = await Api.CreateBookingPaymentIntent(bookingId);
+            _paymentClientSecret = response?.ClientSecret;
+
+            if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+            {
+                _paymentError = "Failed to initialize payment.";
+                _confirmingBookingId = null;
+                return;
+            }
+
+            _paymentBookingId = bookingId;
+            _paymentElementMounted = false;
+            _confirmingBookingId = null;
+            _showPaymentUI = true;
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
-            _error = $"Failed to confirm booking: {ex.Message}";
+            _paymentError = $"Failed to initialize payment: {ex.Message}";
+            _error = _paymentError;
+            _confirmingBookingId = null;
+        }
+    }
+
+    private async Task ConfirmPayment(int bookingId)
+    {
+        if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+        {
+            _paymentError = "Payment not initialized.";
+            return;
+        }
+
+        _confirmingBookingId = bookingId;
+        _paymentError = null;
+
+        try
+        {
+            var successUrl = Navigation.ToAbsoluteUri("/trainer/rooms/booked").ToString();
+            var stripeError = await JS.InvokeAsync<string?>("fitplayStripe.confirm", successUrl);
+
+            if (!string.IsNullOrWhiteSpace(stripeError))
+            {
+                _paymentError = stripeError;
+                return;
+            }
+
+            // Payment succeeded at Stripe - extract PI id from the client secret
+            // Client secret format: pi_xxx_secret_yyy → PI id is pi_xxx
+            var paymentIntentId = _paymentClientSecret.Split("_secret_")[0];
+
+            // Confirm booking on our backend
+            await Api.ConfirmBookingPayment(bookingId, paymentIntentId);
+
+            // Reset payment state
+            _paymentBookingId = null;
+            _paymentClientSecret = null;
+            _paymentElementMounted = false;
+            _showPaymentUI = false;
+            _paymentError = null;
+
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Payment successful! Booking confirmed.";
+            await Load();
+            // Re-set the success message after reload
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Payment successful! Booking confirmed.";
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Payment failed: {ex.Message}";
         }
         finally
         {
             _confirmingBookingId = null;
         }
+    }
+
+    private void CancelPaymentForm()
+    {
+        _paymentBookingId = null;
+        _paymentClientSecret = null;
+        _paymentElementMounted = false;
+        _showPaymentUI = false;
+        _paymentError = null;
+        _confirmingBookingId = null;
     }
 
     private async Task ShowCancelPreview(int bookingId)

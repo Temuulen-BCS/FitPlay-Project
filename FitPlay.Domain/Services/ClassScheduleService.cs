@@ -2,6 +2,7 @@ using FitPlay.Domain.Data;
 using FitPlay.Domain.DTOs;
 using FitPlay.Domain.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace FitPlay.Domain.Services;
 
@@ -58,15 +59,7 @@ public class ClassScheduleService
             .OrderBy(s => s.ScheduledAt)
             .ToListAsync();
 
-        return items.Select(s => new ClassScheduleWithTrainerDto(
-            s.Id,
-            s.TrainerId,
-            s.Trainer?.Name ?? "TBA",
-            s.Modality,
-            s.ScheduledAt,
-            s.Status.ToString(),
-            s.Notes
-        )).ToList();
+        return items.Select(ToWithTrainerDto).ToList();
     }
 
     public async Task<ClassScheduleDto?> GetByIdAsync(int id)
@@ -76,6 +69,9 @@ public class ClassScheduleService
 
         return schedule == null ? null : ToDto(schedule);
     }
+
+    public async Task<ClassSchedule?> GetEntityByIdAsync(int id)
+        => await _db.ClassSchedules.Include(s => s.Trainer).FirstOrDefaultAsync(s => s.Id == id);
 
     public async Task<ClassScheduleDto> CreateAsync(CreateClassScheduleRequest request)
     {
@@ -138,15 +134,7 @@ public class ClassScheduleService
             .OrderBy(s => s.ScheduledAt)
             .ToListAsync();
 
-        return items.Select(s => new ClassScheduleWithTrainerDto(
-            s.Id,
-            s.TrainerId,
-            s.Trainer?.Name ?? "TBA",
-            s.Modality,
-            s.ScheduledAt,
-            s.Status.ToString(),
-            s.Notes
-        )).ToList();
+        return items.Select(ToWithTrainerDto).ToList();
     }
 
     public async Task<List<ClassScheduleDto>> GetTrainerScheduleAsync(int trainerId, DateTime? from = null, DateTime? to = null)
@@ -172,6 +160,9 @@ public class ClassScheduleService
         return items.Select(ToDto).ToList();
     }
 
+    /// <summary>
+    /// Books a free class (no payment required). Returns null if already booked.
+    /// </summary>
     public async Task<ClassScheduleDto?> BookClassAsync(int scheduleId, int userId)
     {
         var schedule = await _db.ClassSchedules.FindAsync(scheduleId);
@@ -198,7 +189,78 @@ public class ClassScheduleService
         return await GetByIdAsync(id);
     }
 
-    public async Task<ClassScheduleDto?> UnbookAsync(int id)
+    // ── Payment methods ──
+
+    /// <summary>
+    /// Validates a schedule is bookable (exists, available, has a price) and returns the price.
+    /// Throws descriptive exceptions on failure.
+    /// </summary>
+    public async Task<(ClassSchedule schedule, decimal price)> ValidateForPaymentAsync(int scheduleId, int userId)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(scheduleId)
+            ?? throw new InvalidOperationException("Class not found.");
+
+        if (schedule.Status != ClassScheduleStatus.Scheduled)
+            throw new InvalidOperationException("This class is no longer available.");
+
+        if (schedule.ScheduledAt <= DateTime.UtcNow)
+            throw new InvalidOperationException("This class has already started.");
+
+        if (schedule.UserId.HasValue && schedule.UserId.Value != 0)
+            throw new InvalidOperationException("This class is already booked.");
+
+        var price = ExtractPriceFromNotes(schedule.Notes)
+            ?? throw new InvalidOperationException("This class has no price set. Use the free booking endpoint.");
+
+        if (price <= 0)
+            throw new InvalidOperationException("Invalid class price.");
+
+        return (schedule, price);
+    }
+
+    /// <summary>
+    /// Stores a pending PaymentIntent on the schedule so it can be reused/verified later.
+    /// </summary>
+    public async Task SetPaymentIntentAsync(int scheduleId, string paymentIntentId)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(scheduleId)
+            ?? throw new InvalidOperationException("Class not found.");
+
+        schedule.StripePaymentIntentId = paymentIntentId;
+        schedule.PaymentStatus = ClassSchedulePaymentStatus.Pending;
+        await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Confirms a paid booking: assigns user, marks payment as completed.
+    /// </summary>
+    public async Task<ClassScheduleDto?> ConfirmPaidBookingAsync(int scheduleId, int userId, string paymentIntentId, decimal paidAmount)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(scheduleId);
+        if (schedule == null) return null;
+
+        // Idempotency: if already confirmed by this PI, return as-is
+        if (schedule.PaymentStatus == ClassSchedulePaymentStatus.Completed &&
+            schedule.StripePaymentIntentId == paymentIntentId)
+        {
+            return ToDto(schedule);
+        }
+
+        schedule.UserId = userId;
+        schedule.Status = ClassScheduleStatus.Scheduled;
+        schedule.StripePaymentIntentId = paymentIntentId;
+        schedule.PaymentStatus = ClassSchedulePaymentStatus.Completed;
+        schedule.PaidAmount = paidAmount;
+        schedule.PaidAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return ToDto(schedule);
+    }
+
+    /// <summary>
+    /// Unbooks a free class (no payment tracking needed).
+    /// </summary>
+    public async Task<ClassScheduleDto?> UnbookFreeAsync(int id)
     {
         var schedule = await _db.ClassSchedules.FindAsync(id);
         if (schedule == null) return null;
@@ -210,6 +272,44 @@ public class ClassScheduleService
         return await GetByIdAsync(id);
     }
 
+    /// <summary>
+    /// Marks a paid booking as refunded and removes the user assignment.
+    /// Called after Stripe refund has been issued successfully.
+    /// </summary>
+    public async Task<ClassScheduleDto?> MarkRefundedAsync(int id)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(id);
+        if (schedule == null) return null;
+
+        schedule.UserId = null;
+        schedule.Status = ClassScheduleStatus.Scheduled;
+        schedule.PaymentStatus = ClassSchedulePaymentStatus.Refunded;
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
+    // ── Helpers ──
+
+    public static decimal? ExtractPriceFromNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes)) return null;
+
+        var parts = notes.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            const string marker = "PricePerStudent=";
+            if (!part.StartsWith(marker, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var raw = part[marker.Length..].Trim();
+            if (decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) && parsed > 0)
+                return parsed;
+        }
+
+        return null;
+    }
+
     private static ClassScheduleDto ToDto(ClassSchedule schedule)
     {
         return new ClassScheduleDto(
@@ -219,7 +319,24 @@ public class ClassScheduleService
             Modality: schedule.Modality,
             ScheduledAt: schedule.ScheduledAt,
             Status: schedule.Status.ToString(),
-            Notes: schedule.Notes
+            Notes: schedule.Notes,
+            PaymentStatus: schedule.PaymentStatus.ToString(),
+            PaidAmount: schedule.PaidAmount
+        );
+    }
+
+    private static ClassScheduleWithTrainerDto ToWithTrainerDto(ClassSchedule s)
+    {
+        return new ClassScheduleWithTrainerDto(
+            s.Id,
+            s.TrainerId,
+            s.Trainer?.Name ?? "TBA",
+            s.Modality,
+            s.ScheduledAt,
+            s.Status.ToString(),
+            s.Notes,
+            s.PaymentStatus.ToString(),
+            s.PaidAmount
         );
     }
 

@@ -9,6 +9,7 @@
 @inject ApiClient Api
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
 
 <PageTitle>Book a Class - FitPlay</PageTitle>
 
@@ -51,8 +52,8 @@
                                 <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
                                 <span class="price-tag">@GetPriceLabel(classItem.Notes)</span>
                             </div>
-                            <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@isBooking">
-                                @(isBooking ? "Booking..." : "Book Now")
+                            <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@(isBooking || _isInitiatingPayment)">
+                                @(isBooking || _isInitiatingPayment ? "Please wait..." : "Book Now")
                             </button>
                         </div>
                     }
@@ -80,6 +81,10 @@
                                 <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
                                 <span class="price-tag">@GetPriceLabel(classItem.Notes)</span>
                             </div>
+                            @if (classItem.PaymentStatus == "Completed")
+                            {
+                                <span class="payment-badge paid">Paid @(classItem.PaidAmount?.ToString("C") ?? "")</span>
+                            }
                             <button class="btn-cancel" @onclick="() => PromptCancel(classItem)">Cancel Booking</button>
                         </div>
                     }
@@ -232,6 +237,21 @@
         background: rgba(14,240,255,0.08);
         border-radius: 999px;
         padding: 2px 8px;
+    }
+
+    .payment-badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 999px;
+        margin-bottom: 10px;
+    }
+
+    .payment-badge.paid {
+        background: rgba(14,240,255,0.15);
+        color: var(--accent-teal);
+        border: 1px solid rgba(14,240,255,0.4);
     }
 
     .btn-book {
@@ -391,6 +411,148 @@
     .btn-danger:hover {
         opacity: 0.9;
     }
+
+    /* ── Payment Modal ── */
+    .payment-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 6, 10, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 3000;
+        padding: 16px;
+        backdrop-filter: blur(4px);
+    }
+
+    .payment-card {
+        width: min(500px, 100%);
+        background:
+            radial-gradient(120% 140% at 10% 15%, rgba(16, 255, 224, 0.15), transparent 60%),
+            radial-gradient(120% 140% at 90% 20%, rgba(255, 71, 246, 0.13), transparent 55%),
+            rgba(18, 18, 28, 0.96);
+        border: 1px solid rgba(14,240,255,0.25);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow:
+            0 24px 64px rgba(0,0,0,0.45),
+            0 0 40px rgba(14,240,255,0.12);
+    }
+
+    .payment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+
+    .payment-header h3 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .btn-close-modal {
+        background: transparent;
+        border: none;
+        font-size: 20px;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 4px 8px;
+        line-height: 1;
+        border-radius: 6px;
+        transition: color 0.2s, background 0.2s;
+    }
+
+    .btn-close-modal:hover {
+        color: var(--text-primary);
+        background: rgba(255,255,255,0.08);
+    }
+
+    .payment-class-name {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+
+    .payment-amount {
+        font-size: 32px;
+        font-weight: 800;
+        color: var(--accent-teal);
+        margin: 0 0 20px 0;
+        letter-spacing: -0.5px;
+    }
+
+    .payment-divider {
+        border: none;
+        border-top: 1px solid var(--glass-border);
+        margin: 0 0 20px 0;
+    }
+
+    .payment-error {
+        background: rgba(255,47,180,0.12);
+        border: 1px solid rgba(255,47,180,0.4);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        color: #ff6eb0;
+        font-size: 14px;
+    }
+
+    .payment-element-container {
+        margin-bottom: 20px;
+        min-height: 200px;
+    }
+
+    .payment-element-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 200px;
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    .payment-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 4px;
+    }
+
+    .btn-pay {
+        flex: 1;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, rgba(14,240,255,0.2), rgba(255,77,250,0.2));
+        border: 2px solid rgba(14,240,255,0.5);
+        box-shadow: 0 0 24px rgba(14,240,255,0.2);
+        border-radius: 12px;
+        color: white;
+        font-weight: 700;
+        font-size: 15px;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn-pay:hover:not(:disabled) {
+        transform: translateY(-2px);
+        border-color: rgba(14,240,255,0.8);
+        box-shadow: 0 0 36px rgba(14,240,255,0.35);
+    }
+
+    .btn-pay:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .payment-notice {
+        margin: 16px 0 0 0;
+        font-size: 11px;
+        color: var(--text-muted);
+        text-align: center;
+        line-height: 1.5;
+    }
 </style>
 
 @if (_showCancelConfirm && _pendingCancel != null)
@@ -401,7 +563,11 @@
             <p class="confirm-text">
                 Are you sure you want to cancel <strong>@_pendingCancel.Modality</strong>
                 on @_pendingCancel.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")?
-            
+                @if (_pendingCancel.PaymentStatus == "Completed" && _pendingCancel.PaidAmount.HasValue)
+                {
+                    <br /><br />
+                    <span>You will receive an <strong>85% refund</strong> of @((_pendingCancel.PaidAmount.Value * 0.85m).ToString("C")) back to your original payment method.</span>
+                }
             </p>
             <div class="confirm-actions">
                 <button class="btn-secondary" @onclick="CloseCancelConfirm">Keep Booking</button>
@@ -409,6 +575,58 @@
                     @(_isCanceling ? "Canceling..." : "Cancel Booking")
                 </button>
             </div>
+        </div>
+    </div>
+}
+
+@if (_showPaymentModal && _paymentScheduleId.HasValue)
+{
+    <div class="payment-overlay" @onclick="ClosePaymentModal">
+        <div class="payment-card" @onclick:stopPropagation="true">
+            <div class="payment-header">
+                <h3>Complete Your Booking</h3>
+                <button class="btn-close-modal" @onclick="ClosePaymentModal">&#x2715;</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_paymentClassName))
+            {
+                <p class="payment-class-name">@_paymentClassName</p>
+            }
+
+            @if (_paymentAmount.HasValue)
+            {
+                <p class="payment-amount">@_paymentAmount.Value.ToString("C")</p>
+            }
+
+            <hr class="payment-divider" />
+
+            @if (!string.IsNullOrWhiteSpace(_paymentError))
+            {
+                <div class="payment-error">@_paymentError</div>
+            }
+
+            <div class="payment-element-container">
+                @if (!_paymentElementMounted)
+                {
+                    <div class="payment-element-loading">Loading payment form...</div>
+                }
+                <div id="payment-element-@_paymentScheduleId"></div>
+            </div>
+
+            <div class="payment-actions">
+                <button class="btn-secondary" @onclick="ClosePaymentModal" style="flex:0 0 auto; width:110px;">Cancel</button>
+                <button
+                    class="btn-pay"
+                    @onclick="ConfirmPayment"
+                    disabled="@(!_paymentElementMounted || _isProcessingPayment)">
+                    @(_isProcessingPayment ? "Processing..." : $"Pay & Book")
+                </button>
+            </div>
+
+            <p class="payment-notice">
+                Secured by Stripe. By completing payment you agree to our booking policy.<br />
+                Cancellations receive an 85% refund.
+            </p>
         </div>
     </div>
 }
@@ -424,6 +642,18 @@
 
     private int? _currentUserId;
 
+    // ── Stripe payment state ──
+    private int? _paymentScheduleId;
+    private string? _paymentClientSecret;
+    private decimal? _paymentAmount;
+    private string? _paymentClassName;
+    private bool _paymentElementMounted;
+    private bool _isMountingPayment;
+    private bool _showPaymentModal;
+    private string? _paymentError;
+    private bool _isProcessingPayment;
+    private bool _isInitiatingPayment;
+
     protected override async Task OnInitializedAsync()
     {
         _currentUserId = await ResolveCurrentUserIdAsync();
@@ -434,6 +664,43 @@
         }
 
         await LoadClasses();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isMountingPayment || _paymentElementMounted
+            || !_showPaymentModal
+            || string.IsNullOrWhiteSpace(_paymentClientSecret)
+            || _paymentScheduleId is null)
+            return;
+
+        _isMountingPayment = true;
+        _paymentElementMounted = true;
+
+        try
+        {
+            var error = await JS.InvokeAsync<string?>(
+                "fitplayStripe.mount",
+                _paymentClientSecret,
+                $"#payment-element-{_paymentScheduleId}");
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                _paymentElementMounted = false;
+                _paymentError = error;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _paymentElementMounted = false;
+            _paymentError = $"Failed to load payment form: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            _isMountingPayment = false;
+        }
     }
 
     private async Task LoadClasses()
@@ -462,15 +729,30 @@
 
     private async Task bookClass(int scheduleId)
     {
-        if (_currentUserId is null)
+        if (_currentUserId is null) return;
+
+        var classItem = _publicClasses.FirstOrDefault(c => c.Id == scheduleId);
+        if (classItem == null) return;
+
+        var price = TryExtractPricePerStudent(classItem.Notes);
+
+        // Free class — book directly without payment
+        if (!price.HasValue || price.Value == 0)
         {
+            await BookFreeClass(scheduleId);
             return;
         }
 
+        // Paid class — open Stripe payment modal
+        await InitiatePayment(scheduleId, classItem.Modality, price.Value);
+    }
+
+    private async Task BookFreeClass(int scheduleId)
+    {
         isBooking = true;
         try
         {
-            await Api.BookClass(scheduleId, _currentUserId.Value);
+            await Api.BookClass(scheduleId, _currentUserId!.Value);
             await LoadClasses();
         }
         catch (Exception ex)
@@ -482,6 +764,98 @@
             isBooking = false;
         }
     }
+
+    // ── Stripe Payment Flow ──
+
+    private async Task InitiatePayment(int scheduleId, string className, decimal price)
+    {
+        _isInitiatingPayment = true;
+        _paymentError = null;
+
+        try
+        {
+            var response = await Api.CreateClassBookingPaymentIntent(scheduleId, _currentUserId!.Value);
+            _paymentClientSecret = response?.ClientSecret;
+
+            if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+            {
+                _paymentError = "Failed to initialize payment.";
+                return;
+            }
+
+            _paymentScheduleId = scheduleId;
+            _paymentAmount = response!.Amount;
+            _paymentClassName = className;
+            _paymentElementMounted = false;
+            _showPaymentModal = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Failed to initialize payment: {ex.Message}";
+            Console.WriteLine(_paymentError);
+        }
+        finally
+        {
+            _isInitiatingPayment = false;
+        }
+    }
+
+    private async Task ConfirmPayment()
+    {
+        if (string.IsNullOrWhiteSpace(_paymentClientSecret) || _paymentScheduleId is null || _currentUserId is null)
+        {
+            _paymentError = "Payment not initialized.";
+            return;
+        }
+
+        _isProcessingPayment = true;
+        _paymentError = null;
+
+        try
+        {
+            var returnUrl = Navigation.ToAbsoluteUri("/user/book-class").ToString();
+            var stripeError = await JS.InvokeAsync<string?>("fitplayStripe.confirm", returnUrl);
+
+            if (!string.IsNullOrWhiteSpace(stripeError))
+            {
+                _paymentError = stripeError;
+                return;
+            }
+
+            // Extract PI id from client secret (format: pi_xxx_secret_yyy → pi_xxx)
+            var paymentIntentId = _paymentClientSecret.Split("_secret_")[0];
+
+            await Api.ConfirmClassBookingPayment(_paymentScheduleId.Value, _currentUserId.Value, paymentIntentId);
+
+            // Reset payment state and reload
+            ClosePaymentModal();
+            await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Payment failed: {ex.Message}";
+        }
+        finally
+        {
+            _isProcessingPayment = false;
+        }
+    }
+
+    private void ClosePaymentModal()
+    {
+        _showPaymentModal = false;
+        _paymentScheduleId = null;
+        _paymentClientSecret = null;
+        _paymentAmount = null;
+        _paymentClassName = null;
+        _paymentElementMounted = false;
+        _isMountingPayment = false;
+        _paymentError = null;
+        _isProcessingPayment = false;
+    }
+
+    // ── Cancel / Unbook ──
 
     private void PromptCancel(ApiClient.ClassSchedule classItem)
     {
@@ -574,7 +948,7 @@
         var price = TryExtractPricePerStudent(notes);
         return price.HasValue
             ? $"{price.Value.ToString("C")}/student"
-            : "Price not set";
+            : "Free";
     }
 
     private static decimal? TryExtractPricePerStudent(string? notes)

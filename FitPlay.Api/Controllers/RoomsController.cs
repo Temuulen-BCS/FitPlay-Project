@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using FitPlay.Domain.Data;
 using FitPlay.Domain.DTOs;
+using FitPlay.Domain.Models;
 using FitPlay.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Stripe;
 
 namespace FitPlay.Api.Controllers;
 
@@ -224,6 +226,139 @@ public class RoomsController : ControllerBase
 
         return Ok(new { CancelFeeRate = cancelFeeRate, FeeAmount = feeAmount });
     }
+
+    // ── Stripe Payment for Room Bookings ──
+
+    public record CreateBookingPaymentIntentResponse(string ClientSecret);
+    public record ConfirmBookingPaymentRequest(string StripePaymentIntentId);
+
+    [HttpPost("/api/bookings/{id:int}/create-payment-intent")]
+    [Authorize(Roles = "Admin,Trainer")]
+    public async Task<ActionResult<CreateBookingPaymentIntentResponse>> CreateBookingPaymentIntent(int id)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var booking = await _db.RoomBookings
+            .Include(b => b.Room)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking is null)
+            return NotFound();
+
+        if (!User.IsInRole("Admin") && booking.TrainerId != actorId.Trim())
+            return Forbid();
+
+        if (booking.Status != RoomBookingStatus.Pending)
+            return BadRequest(new { message = "Only pending bookings can be paid." });
+
+        // If a payment intent was already created, retrieve it
+        if (!string.IsNullOrWhiteSpace(booking.StripePaymentIntentId))
+        {
+            var existingService = new PaymentIntentService();
+            var existingPi = await existingService.GetAsync(booking.StripePaymentIntentId);
+
+            if (existingPi.Status is "requires_payment_method" or "requires_confirmation" or "requires_action")
+            {
+                return Ok(new CreateBookingPaymentIntentResponse(existingPi.ClientSecret));
+            }
+        }
+
+        var paymentIntentService = new PaymentIntentService();
+        var options = new PaymentIntentCreateOptions
+        {
+            Amount = Convert.ToInt64(decimal.Round(booking.TotalCost * 100m, 0, MidpointRounding.AwayFromZero)),
+            Currency = "eur",
+            AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
+            {
+                Enabled = true
+            },
+            Metadata = new Dictionary<string, string>
+            {
+                ["bookingId"] = booking.Id.ToString(),
+                ["trainerId"] = booking.TrainerId
+            }
+        };
+
+        var paymentIntent = await paymentIntentService.CreateAsync(options);
+
+        // Store the PI id on the booking so we can reuse/verify later
+        booking.StripePaymentIntentId = paymentIntent.Id;
+        booking.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Ok(new CreateBookingPaymentIntentResponse(paymentIntent.ClientSecret));
+    }
+
+    [HttpPost("/api/bookings/{id:int}/confirm-payment")]
+    [Authorize(Roles = "Admin,Trainer")]
+    public async Task<ActionResult<RoomBookingResponseDto>> ConfirmBookingPayment(
+        int id,
+        [FromBody] ConfirmBookingPaymentRequest request)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var booking = await _db.RoomBookings
+            .Include(b => b.Room)
+                .ThenInclude(r => r!.GymLocation)
+                    .ThenInclude(gl => gl!.Gym)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking is null)
+            return NotFound();
+
+        if (!User.IsInRole("Admin") && booking.TrainerId != actorId.Trim())
+            return Forbid();
+
+        // Already confirmed (idempotent)
+        if (booking.Status == RoomBookingStatus.Confirmed)
+            return Ok(ToBookingDto(booking));
+
+        if (booking.Status != RoomBookingStatus.Pending)
+            return BadRequest(new { message = "Only pending bookings can be confirmed." });
+
+        if (string.IsNullOrWhiteSpace(request.StripePaymentIntentId))
+            return BadRequest(new { message = "StripePaymentIntentId is required." });
+
+        // Verify payment with Stripe
+        var paymentIntentService = new PaymentIntentService();
+        var paymentIntent = await paymentIntentService.GetAsync(request.StripePaymentIntentId.Trim());
+
+        if (!string.Equals(paymentIntent.Status, "succeeded", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Payment not confirmed by Stripe." });
+
+        var expectedAmount = Convert.ToInt64(decimal.Round(booking.TotalCost * 100m, 0, MidpointRounding.AwayFromZero));
+        if (paymentIntent.AmountReceived < expectedAmount)
+            return BadRequest(new { message = "Payment amount insufficient." });
+
+        booking.Status = RoomBookingStatus.Confirmed;
+        booking.StripePaymentIntentId = paymentIntent.Id;
+        booking.PaidAmount = booking.TotalCost;
+        booking.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Ok(ToBookingDto(booking));
+    }
+
+    private static RoomBookingResponseDto ToBookingDto(RoomBooking booking) => new(
+        booking.Id,
+        booking.RoomId,
+        booking.TrainerId,
+        booking.Modality,
+        booking.StartTime,
+        booking.EndTime,
+        booking.Status.ToString(),
+        booking.TotalCost,
+        booking.Notes,
+        booking.CreatedAt,
+        booking.UpdatedAt,
+        booking.Room?.Name,
+        booking.Room?.GymLocation?.Gym?.Name,
+        booking.Room?.GymLocation?.Name
+    );
 
     private async Task<ActionResult?> EnsureCanManageGymAsync(int gymId)
     {

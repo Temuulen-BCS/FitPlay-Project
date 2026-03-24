@@ -18,6 +18,8 @@ public class RoomBooking
     public DateTime EndTime { get; set; }
     public RoomBookingStatus Status { get; set; } = RoomBookingStatus.Pending;
     public decimal TotalCost { get; set; }
+    public string? StripePaymentIntentId { get; set; }
+    public decimal? PaidAmount { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

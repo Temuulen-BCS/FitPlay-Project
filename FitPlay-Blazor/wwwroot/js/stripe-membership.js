@@ -13,11 +13,30 @@ window.fitplayStripe = (() => {
         }
     };
 
-    const mount = async (clientSecret) => {
-        init();
-        elements = stripe.elements({ clientSecret });
-        paymentElement = elements.create("payment");
-        paymentElement.mount("#payment-element");
+    const mount = async (clientSecret, elementSelector) => {
+        try {
+            init();
+            const selector = elementSelector || "#payment-element";
+
+            const container = document.querySelector(selector);
+            if (!container) {
+                return "Payment form container not found. Please try again.";
+            }
+
+            // Destroy previous elements if they exist
+            if (paymentElement) {
+                try { paymentElement.destroy(); } catch (_) { }
+                paymentElement = null;
+            }
+
+            elements = stripe.elements({ clientSecret });
+            paymentElement = elements.create("payment");
+            paymentElement.mount(selector);
+            return null; // success
+        } catch (error) {
+            console.error("Stripe mount error:", error);
+            return error.message || "Failed to load payment form.";
+        }
     };
 
     const confirm = async (returnUrl) => {

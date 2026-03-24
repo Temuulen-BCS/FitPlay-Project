@@ -117,7 +117,9 @@ public class ApiClient
         string Modality,
         DateTime ScheduledAt,
         string Status,
-        string? Notes
+        string? Notes,
+        string PaymentStatus = "None",
+        decimal? PaidAmount = null
     );
 
     public record ClassScheduleWithTrainer(
@@ -127,7 +129,9 @@ public class ApiClient
         string Modality,
         DateTime ScheduledAt,
         string Status,
-        string? Notes
+        string? Notes,
+        string PaymentStatus = "None",
+        decimal? PaidAmount = null
     );
 
     public record XpTransaction(
@@ -252,6 +256,12 @@ public class ApiClient
     // Trainer's own gym link records
     public record TrainerGymLinkSelf(int Id, string TrainerId, string GymName, int GymId, string Status, DateTime CreatedAt);
     public record CancellationPreview(decimal CancelFeeRate, decimal FeeAmount);
+    public record CreateBookingPaymentIntentResponse(string ClientSecret);
+    public record ConfirmBookingPaymentRequest(string StripePaymentIntentId);
+
+    // Class schedule payment records
+    public record CreateClassPaymentIntentResponse(string ClientSecret, decimal Amount, string Currency);
+    public record ConfirmClassPaymentRequest(int UserId, string StripePaymentIntentId);
     #endregion
 
     #region Billing API
@@ -421,7 +431,22 @@ public class ApiClient
     public async Task<ClassSchedule?> UnbookClass(int scheduleId)
     {
         var res = await _http.PostAsync($"{BaseUrl}/classeschedules/{scheduleId}/unbook", null);
-        res.EnsureSuccessStatusCode();
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public async Task<CreateClassPaymentIntentResponse?> CreateClassBookingPaymentIntent(int scheduleId, int userId)
+    {
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/create-payment-intent", new { UserId = userId });
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<CreateClassPaymentIntentResponse>();
+    }
+
+    public async Task<ClassSchedule?> ConfirmClassBookingPayment(int scheduleId, int userId, string paymentIntentId)
+    {
+        var body = new ConfirmClassPaymentRequest(userId, paymentIntentId);
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/confirm-payment", body);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
 
@@ -543,6 +568,21 @@ public class ApiClient
     public async Task<RoomBookingRead?> ConfirmBooking(int bookingId)
     {
         var res = await _http.PostAsync($"{BaseUrl}/bookings/{bookingId}/confirm", null);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<RoomBookingRead>();
+    }
+
+    public async Task<CreateBookingPaymentIntentResponse?> CreateBookingPaymentIntent(int bookingId)
+    {
+        var res = await _http.PostAsync($"{BaseUrl}/bookings/{bookingId}/create-payment-intent", null);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<CreateBookingPaymentIntentResponse>();
+    }
+
+    public async Task<RoomBookingRead?> ConfirmBookingPayment(int bookingId, string paymentIntentId)
+    {
+        var body = new ConfirmBookingPaymentRequest(paymentIntentId);
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/bookings/{bookingId}/confirm-payment", body);
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<RoomBookingRead>();
     }
