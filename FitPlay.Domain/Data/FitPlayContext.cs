@@ -25,6 +25,7 @@ public class FitPlayContext : DbContext
     public DbSet<ClassEnrollment> ClassEnrollments => Set<ClassEnrollment>();
     public DbSet<PaymentSplit> PaymentSplits => Set<PaymentSplit>();
     public DbSet<RoomCheckIn> RoomCheckIns => Set<RoomCheckIn>();
+    public DbSet<ClassQueueEntry> ClassQueueEntries => Set<ClassQueueEntry>();
 
     // Exercise & Training
     public DbSet<Exercise> Exercises => Set<Exercise>();
@@ -339,6 +340,31 @@ public class FitPlayContext : DbContext
         b.Entity<ClassSchedule>()
             .Property(s => s.PaidAmount)
             .HasPrecision(18, 2);
+
+        b.Entity<ClassSchedule>()
+            .HasOne(s => s.RoomBooking)
+            .WithMany()
+            .HasForeignKey(s => s.RoomBookingId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // ClassQueueEntry
+        b.Entity<ClassQueueEntry>()
+            .HasIndex(q => new { q.ClassScheduleId, q.UserId })
+            .IsUnique();
+
+        b.Entity<ClassQueueEntry>()
+            .Property(q => q.QueueCost)
+            .HasPrecision(18, 2);
+
+        b.Entity<ClassQueueEntry>()
+            .Property(q => q.StripePaymentIntentId)
+            .HasMaxLength(255);
+
+        b.Entity<ClassQueueEntry>()
+            .HasOne(q => q.ClassSchedule)
+            .WithMany()
+            .HasForeignKey(q => q.ClassScheduleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Gamification indexes
         b.Entity<UserLevel>()

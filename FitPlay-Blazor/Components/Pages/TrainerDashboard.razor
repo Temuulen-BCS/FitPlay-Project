@@ -720,7 +720,7 @@
             <div class="stat-badge">SES</div>
             <span class="stat-value">@_givenClasses</span>
             <span class="stat-label">Given Classes</span>
-            <a href="/trainer/dashboard" class="stat-link">View all &rarr;</a>
+            <a href="/trainer/given-classes" class="stat-link">View all &rarr;</a>
         </div>
     </div>
 
@@ -1158,7 +1158,7 @@
             if (string.IsNullOrWhiteSpace(identityId)) return;
 
             var sessions = await Api.GetTrainerSessionsV3(identityId);
-            _givenClasses = sessions.Sum(s => s.EnrolledStudents);
+            _givenClasses = sessions.Count(s => string.Equals(s.Status, "Completed", StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception ex)
         {

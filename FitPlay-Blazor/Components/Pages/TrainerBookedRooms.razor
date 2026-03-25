@@ -126,6 +126,23 @@
                                     <span class="value cost">@booking.TotalCost.ToString("C")</span>
                                 </div>
                                 
+                                <div class="info-row @(booking.QueuedClientsCount > 0 ? "queued-highlight" : "")">
+                                    <span class="label">
+                                        <span class="icon">👥</span>
+                                        Interested
+                                    </span>
+                                    <span class="value @(booking.QueuedClientsCount > 0 ? "interested-count" : "")">
+                                        @if (booking.QueuedClientsCount > 0)
+                                        {
+                                            <text>@booking.QueuedClientsCount client@(booking.QueuedClientsCount == 1 ? "" : "s") in queue</text>
+                                        }
+                                        else
+                                        {
+                                            <text>No one yet</text>
+                                        }
+                                    </span>
+                                </div>
+                                
                                 @if (!string.IsNullOrWhiteSpace(booking.Notes))
                                 {
                                     <div class="info-row notes">
@@ -611,6 +628,18 @@
         border-top: 1px solid var(--glass-border);
         font-size: 12px;
         opacity: 0.7;
+    }
+
+    .info-row.queued-highlight {
+        background: rgba(255,215,0,0.06);
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,215,0,0.2);
+    }
+
+    .interested-count {
+        color: var(--accent-gold, #ffd700) !important;
+        font-weight: 700 !important;
     }
 
     .card-actions {

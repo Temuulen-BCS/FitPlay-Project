@@ -19,7 +19,8 @@ public record CreateClassScheduleRequest(
     int? TrainerId,
     [Required][MaxLength(20)] string Modality,
     DateTime ScheduledAt,
-    string? Notes
+    string? Notes,
+    int? RoomBookingId = null
 );
 
 public record UpdateClassScheduleRequest(
@@ -42,7 +43,9 @@ public record ClassScheduleWithTrainerDto(
     string Status,
     string? Notes,
     string PaymentStatus = "None",
-    decimal? PaidAmount = null
+    decimal? PaidAmount = null,
+    string? RoomBookingStatus = null,
+    int QueueCount = 0
 );
 
 // Payment DTOs
@@ -65,4 +68,29 @@ public record ClassPaymentRefundResponse(
     int ScheduleId,
     decimal RefundAmount,
     string Status
+);
+
+// Queue DTOs
+public record JoinQueueResponse(
+    int QueueEntryId,
+    decimal QueueCost,
+    bool HasMembership,
+    string? ClientSecret,
+    int MonthlySkipCount = 0
+);
+
+public record QueueCountResponse(
+    int ClassScheduleId,
+    int Count
+);
+
+public record ConfirmQueuePaymentRequest(
+    [Required] string StripePaymentIntentId
+);
+
+public record UserQueueEntryDto(
+    int ClassScheduleId,
+    bool IsNotified,
+    decimal QueueCost,
+    bool IsSkipped = false
 );

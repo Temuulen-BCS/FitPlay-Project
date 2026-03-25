@@ -35,26 +35,39 @@ public class MembershipClaimsTransformation : IClaimsTransformation
         if (string.IsNullOrWhiteSpace(identityId))
             return principal;
 
-        // Look up the domain user and their active subscription
+        // Look up the domain user (regular user or trainer) and their active subscription
         var domainUser = await _db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.IdentityUserId == identityId);
 
-        if (domainUser is null)
-            return principal;
-
-        // Always inject the full name claim so the UI can display it
         var claimsToAdd = new List<Claim>();
 
-        if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
-            claimsToAdd.Add(new Claim("full_name", domainUser.Name));
+        if (domainUser is not null)
+        {
+            // Regular user: inject full_name and check membership
+            if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
+                claimsToAdd.Add(new Claim("full_name", domainUser.Name));
 
-        var hasActiveMembership = await _db.Subscriptions
-            .AsNoTracking()
-            .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
+            var hasActiveMembership = await _db.Subscriptions
+                .AsNoTracking()
+                .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
 
-        if (hasActiveMembership)
-            claimsToAdd.Add(new Claim("membership", "active"));
+            if (hasActiveMembership)
+                claimsToAdd.Add(new Claim("membership", "active"));
+        }
+        else
+        {
+            // Fallback: check Teachers table (trainers don't have a domain User row)
+            var teacher = await _db.Teachers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.IdentityUserId == identityId);
+
+            if (teacher is not null && !string.IsNullOrWhiteSpace(teacher.Name)
+                && !principal.HasClaim("full_name", teacher.Name))
+            {
+                claimsToAdd.Add(new Claim("full_name", teacher.Name));
+            }
+        }
 
         if (claimsToAdd.Count == 0)
             return principal;

@@ -82,6 +82,7 @@ public class ClassScheduleService
             Modality = request.Modality.Trim(),
             ScheduledAt = request.ScheduledAt,
             Notes = request.Notes,
+            RoomBookingId = request.RoomBookingId,
             Status = ClassScheduleStatus.Scheduled
         };
 
@@ -131,10 +132,19 @@ public class ClassScheduleService
 
         var items = await query
             .Include(s => s.Trainer)
+            .Include(s => s.RoomBooking)
             .OrderBy(s => s.ScheduledAt)
             .ToListAsync();
 
-        return items.Select(ToWithTrainerDto).ToList();
+        // Batch-load queue counts for all schedule IDs
+        var scheduleIds = items.Select(s => s.Id).ToList();
+        var queueCounts = await _db.ClassQueueEntries
+            .Where(q => scheduleIds.Contains(q.ClassScheduleId))
+            .GroupBy(q => q.ClassScheduleId)
+            .Select(g => new { ClassScheduleId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ClassScheduleId, x => x.Count);
+
+        return items.Select(s => ToWithTrainerDto(s, queueCounts.GetValueOrDefault(s.Id, 0))).ToList();
     }
 
     public async Task<List<ClassScheduleDto>> GetTrainerScheduleAsync(int trainerId, DateTime? from = null, DateTime? to = null)
@@ -173,6 +183,13 @@ public class ClassScheduleService
 
         schedule.UserId = userId;
         schedule.Status = ClassScheduleStatus.Scheduled;
+
+        // Remove any queue entry for this user + class (converts queue → booking)
+        var queueEntry = await _db.ClassQueueEntries
+            .FirstOrDefaultAsync(q => q.ClassScheduleId == scheduleId && q.UserId == userId);
+        if (queueEntry != null)
+            _db.ClassQueueEntries.Remove(queueEntry);
+
         await _db.SaveChangesAsync();
 
         return ToDto(schedule);
@@ -254,6 +271,13 @@ public class ClassScheduleService
         schedule.PaymentStatus = ClassSchedulePaymentStatus.Completed;
         schedule.PaidAmount = paidAmount;
         schedule.PaidAt = DateTime.UtcNow;
+
+        // Remove any queue entry for this user + class (converts queue → booking)
+        var queueEntry = await _db.ClassQueueEntries
+            .FirstOrDefaultAsync(q => q.ClassScheduleId == scheduleId && q.UserId == userId);
+        if (queueEntry != null)
+            _db.ClassQueueEntries.Remove(queueEntry);
+
         await _db.SaveChangesAsync();
 
         return ToDto(schedule);
@@ -327,7 +351,7 @@ public class ClassScheduleService
         );
     }
 
-    private static ClassScheduleWithTrainerDto ToWithTrainerDto(ClassSchedule s)
+    private static ClassScheduleWithTrainerDto ToWithTrainerDto(ClassSchedule s, int queueCount = 0)
     {
         return new ClassScheduleWithTrainerDto(
             s.Id,
@@ -338,7 +362,9 @@ public class ClassScheduleService
             s.Status.ToString(),
             s.Notes,
             s.PaymentStatus.ToString(),
-            s.PaidAmount
+            s.PaidAmount,
+            RoomBookingStatus: s.RoomBooking?.Status.ToString(),
+            QueueCount: queueCount
         );
     }
 

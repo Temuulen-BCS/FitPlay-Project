@@ -69,6 +69,7 @@ builder.Services.AddScoped<AchievementService>();
 builder.Services.AddScoped<TrainingCompletionService>();
 builder.Services.AddScoped<TrainingService>();
 builder.Services.AddScoped<ClassScheduleService>();
+builder.Services.AddScoped<ClassQueueService>();
 builder.Services.AddScoped<MembershipService>();
 
 // Register gym/sessions services

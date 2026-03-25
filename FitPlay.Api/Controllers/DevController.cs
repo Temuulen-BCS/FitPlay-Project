@@ -31,6 +31,7 @@ public class DevController : ControllerBase
     public record DevScheduleItem(int Id, int? UserId, string? UserName, string Modality, DateTime ScheduledAt, string Status, string? TrainerName);
     public record DevEnrollmentItem(int Id, int ClassSessionId, string UserId, string? UserName, string SessionTitle, DateTime StartTime, DateTime EndTime, string Status);
     public record DevCompleteRequest(int Id, DateTime CompletedDate);
+    public record DevResetEnrollmentRequest(int Id);
     public record DevCompleteResponse(bool Success, string Message, int XpAwarded);
 
     // ── List endpoints ──
@@ -73,6 +74,37 @@ public class DevController : ControllerBase
             .ToListAsync();
 
         // Resolve user names from domain Users table
+        var identityIds = enrollments.Select(e => e.UserId).Distinct().ToList();
+        var userMap = await _db.Users
+            .Where(u => u.IdentityUserId != null && identityIds.Contains(u.IdentityUserId))
+            .ToDictionaryAsync(u => u.IdentityUserId!, u => u.Name);
+
+        var result = enrollments.Select(e => new DevEnrollmentItem(
+            e.Id,
+            e.ClassSessionId,
+            e.UserId,
+            userMap.GetValueOrDefault(e.UserId),
+            e.ClassSession?.Title ?? "Unknown",
+            e.ClassSession?.StartTime ?? DateTime.MinValue,
+            e.ClassSession?.EndTime ?? DateTime.MinValue,
+            e.Status.ToString()
+        )).ToList();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get ALL ClassEnrollment records that are already completed (status = Completed).
+    /// </summary>
+    [HttpGet("completed-enrollments")]
+    public async Task<ActionResult<List<DevEnrollmentItem>>> GetCompletedEnrollments()
+    {
+        var enrollments = await _db.ClassEnrollments
+            .Include(e => e.ClassSession)
+            .Where(e => e.Status == ClassEnrollmentStatus.Completed)
+            .OrderByDescending(e => e.EnrolledAt)
+            .ToListAsync();
+
         var identityIds = enrollments.Select(e => e.UserId).Distinct().ToList();
         var userMap = await _db.Users
             .Where(u => u.IdentityUserId != null && identityIds.Contains(u.IdentityUserId))
@@ -144,10 +176,25 @@ public class DevController : ControllerBase
             return NotFound(new DevCompleteResponse(false, "Enrollment not found.", 0));
 
         if (enrollment.Status == ClassEnrollmentStatus.Completed)
-            return BadRequest(new DevCompleteResponse(false, "Enrollment is already completed.", 0));
+        {
+            if (enrollment.ClassSession != null && enrollment.ClassSession.Status != ClassSessionStatus.Completed)
+            {
+                enrollment.ClassSession.Status = ClassSessionStatus.Completed;
+                await _db.SaveChangesAsync();
+                return Ok(new DevCompleteResponse(true, "Enrollment already completed. Session status synced to Completed.", 0));
+            }
+
+            return Ok(new DevCompleteResponse(true, "Enrollment is already completed.", 0));
+        }
 
         // Update enrollment status
         enrollment.Status = ClassEnrollmentStatus.Completed;
+
+        // Also mark the parent session as completed
+        if (enrollment.ClassSession != null && enrollment.ClassSession.Status != ClassSessionStatus.Completed)
+        {
+            enrollment.ClassSession.Status = ClassSessionStatus.Completed;
+        }
 
         // Create RoomCheckIn record
         const int xp = 25;
@@ -189,5 +236,48 @@ public class DevController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new DevCompleteResponse(true, $"Enrollment completed on {request.CompletedDate:yyyy-MM-dd}. +{xp} XP", xp));
+    }
+
+    /// <summary>
+    /// Reset a ClassEnrollment back to Confirmed and clean up related check-ins.
+    /// </summary>
+    [HttpPost("reset-enrollment")]
+    public async Task<ActionResult<DevCompleteResponse>> ResetEnrollment([FromBody] DevResetEnrollmentRequest request)
+    {
+        var enrollment = await _db.ClassEnrollments
+            .Include(e => e.ClassSession)
+            .FirstOrDefaultAsync(e => e.Id == request.Id);
+
+        if (enrollment == null)
+            return NotFound(new DevCompleteResponse(false, "Enrollment not found.", 0));
+
+        // Remove any existing check-ins for this enrollment
+        var checkIns = await _db.RoomCheckIns
+            .Where(c => c.ClassEnrollmentId == enrollment.Id)
+            .ToListAsync();
+
+        if (checkIns.Count > 0)
+        {
+            _db.RoomCheckIns.RemoveRange(checkIns);
+        }
+
+        var previousStatus = enrollment.Status;
+        enrollment.Status = ClassEnrollmentStatus.Confirmed;
+
+        // If no other completed enrollments remain, roll the session back to Scheduled
+        if (enrollment.ClassSession != null)
+        {
+            var hasOtherCompleted = await _db.ClassEnrollments
+                .AnyAsync(e => e.ClassSessionId == enrollment.ClassSessionId && e.Id != enrollment.Id && e.Status == ClassEnrollmentStatus.Completed);
+
+            if (!hasOtherCompleted)
+            {
+                enrollment.ClassSession.Status = ClassSessionStatus.Scheduled;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new DevCompleteResponse(true, $"Enrollment reset to Confirmed (was {previousStatus}).", 0));
     }
 }

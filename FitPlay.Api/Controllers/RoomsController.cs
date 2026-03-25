@@ -15,11 +15,13 @@ namespace FitPlay.Api.Controllers;
 public class RoomsController : ControllerBase
 {
     private readonly IRoomService _roomService;
+    private readonly ClassQueueService _queueService;
     private readonly FitPlayContext _db;
 
-    public RoomsController(IRoomService roomService, FitPlayContext db)
+    public RoomsController(IRoomService roomService, ClassQueueService queueService, FitPlayContext db)
     {
         _roomService = roomService;
+        _queueService = queueService;
         _db = db;
     }
 
@@ -339,6 +341,9 @@ public class RoomsController : ControllerBase
         booking.PaidAmount = booking.TotalCost;
         booking.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        // Notify queued students that the trainer has paid
+        await _queueService.NotifyQueuedUsersAsync(id);
 
         return Ok(ToBookingDto(booking));
     }

@@ -101,5 +101,13 @@ public class SessionsController : ControllerBase
         var enrollments = await _classSessionService.GetEnrollmentsBySessionAsync(id);
         return Ok(enrollments);
     }
+
+    [HttpGet("/api/sessions/{id:int}/enrollments/details")]
+    [Authorize(Roles = "Admin,GymAdmin,Trainer")]
+    public async Task<ActionResult<List<SessionEnrollmentDetailDto>>> GetSessionEnrollmentDetails(int id)
+    {
+        var enrollments = await _classSessionService.GetEnrollmentDetailsBySessionAsync(id);
+        return Ok(enrollments);
+    }
 }
 

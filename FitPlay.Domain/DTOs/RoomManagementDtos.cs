@@ -53,7 +53,8 @@ public record RoomBookingResponseDto(
     DateTime UpdatedAt,
     string? RoomName = null,
     string? GymName = null,
-    string? LocationName = null
+    string? LocationName = null,
+    int QueuedClientsCount = 0
 );
 
 public record CreateRoomBookingRequest(

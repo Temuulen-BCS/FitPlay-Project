@@ -312,7 +312,7 @@ public class RoomService : IRoomService
         )).ToList()
     );
 
-    private static RoomBookingResponseDto ToDto(RoomBooking booking) => new(
+    private static RoomBookingResponseDto ToDto(RoomBooking booking, int queuedClientsCount = 0) => new(
         booking.Id,
         booking.RoomId,
         booking.TrainerId,
@@ -326,7 +326,8 @@ public class RoomService : IRoomService
         booking.UpdatedAt,
         booking.Room?.Name,
         booking.Room?.GymLocation?.Gym?.Name,
-        booking.Room?.GymLocation?.Name
+        booking.Room?.GymLocation?.Name,
+        QueuedClientsCount: queuedClientsCount
     );
 
     public async Task<List<RoomBookingResponseDto>> GetTrainerBookingsAsync(string trainerId, DateTime? from = null, DateTime? to = null)
@@ -344,7 +345,17 @@ public class RoomService : IRoomService
             query = query.Where(b => b.StartTime <= to.Value);
 
         var bookings = await query.OrderByDescending(b => b.StartTime).ToListAsync();
-        return bookings.Select(ToDto).ToList();
+
+        // Batch-load queue counts for all booking IDs
+        var bookingIds = bookings.Select(b => b.Id).ToList();
+        var queueCounts = await _db.ClassQueueEntries
+            .Where(q => q.ClassSchedule != null && q.ClassSchedule.RoomBookingId != null
+                        && bookingIds.Contains(q.ClassSchedule.RoomBookingId.Value))
+            .GroupBy(q => q.ClassSchedule!.RoomBookingId!.Value)
+            .Select(g => new { BookingId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.BookingId, x => x.Count);
+
+        return bookings.Select(b => ToDto(b, queueCounts.GetValueOrDefault(b.Id, 0))).ToList();
     }
 
     public async Task<RoomBookingResponseDto?> ConfirmBookingAsync(int bookingId, string actorUserId, bool isAdmin)

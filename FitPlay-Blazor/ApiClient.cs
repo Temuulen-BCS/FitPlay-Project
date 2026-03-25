@@ -131,7 +131,9 @@ public class ApiClient
         string Status,
         string? Notes,
         string PaymentStatus = "None",
-        decimal? PaidAmount = null
+        decimal? PaidAmount = null,
+        string? RoomBookingStatus = null,
+        int QueueCount = 0
     );
 
     public record XpTransaction(
@@ -181,7 +183,8 @@ public class ApiClient
         DateTime UpdatedAt,
         string? RoomName = null,
         string? GymName = null,
-        string? LocationName = null
+        string? LocationName = null,
+        int QueuedClientsCount = 0
     );
 
     public record CreateRoomBookingBody(DateTime StartTime, DateTime EndTime, string Modality, string? Notes);
@@ -224,6 +227,17 @@ public class ApiClient
     public record SessionEnrollmentRead(
         int Id,
         string UserId,
+        string Status,
+        decimal PaidAmount,
+        DateTime EnrolledAt
+    );
+
+    public record SessionEnrollmentDetailRead(
+        int Id,
+        string UserId,
+        string? UserName,
+        string? UserEmail,
+        string? UserPhone,
         string Status,
         decimal PaidAmount,
         DateTime EnrolledAt
@@ -275,6 +289,11 @@ public class ApiClient
     public record DevScheduleItem(int Id, int? UserId, string? UserName, string Modality, DateTime ScheduledAt, string Status, string? TrainerName);
     public record DevEnrollmentItem(int Id, int ClassSessionId, string UserId, string? UserName, string SessionTitle, DateTime StartTime, DateTime EndTime, string Status);
     public record DevCompleteResponse(bool Success, string Message, int XpAwarded);
+
+    // Queue records
+    public record JoinQueueResponse(int QueueEntryId, decimal QueueCost, bool HasMembership, string? ClientSecret, int MonthlySkipCount = 0);
+    public record ConfirmQueuePaymentRequest(string StripePaymentIntentId);
+    public record UserQueueEntry(int ClassScheduleId, bool IsNotified, decimal QueueCost, bool IsSkipped = false);
     #endregion
 
     #region Billing API
@@ -471,7 +490,7 @@ public class ApiClient
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
 
-    public async Task<ClassSchedule?> CreateTrainerClassSchedule(int trainerId, string modality, DateTime scheduledAt, string? notes)
+    public async Task<ClassSchedule?> CreateTrainerClassSchedule(int trainerId, string modality, DateTime scheduledAt, string? notes, int? roomBookingId = null)
     {
         var body = new
         {
@@ -479,11 +498,43 @@ public class ApiClient
             TrainerId = trainerId,
             Modality = modality,
             ScheduledAt = scheduledAt,
-            Notes = notes
+            Notes = notes,
+            RoomBookingId = roomBookingId
         };
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+    #endregion
+
+    #region Queue API
+    public async Task<JoinQueueResponse?> JoinClassQueue(int scheduleId, int userId)
+    {
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/join-queue", new { UserId = userId });
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<JoinQueueResponse>();
+    }
+
+    public async Task ConfirmQueuePayment(int scheduleId, string paymentIntentId)
+    {
+        var body = new ConfirmQueuePaymentRequest(paymentIntentId);
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/confirm-queue-payment", body);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+    }
+
+    public async Task<List<UserQueueEntry>> GetUserQueueEntries(int userId)
+        => await _http.GetFromJsonAsync<List<UserQueueEntry>>($"{BaseUrl}/classeschedules/user/{userId}/queued-classes") ?? new();
+
+    public async Task<int> GetMonthlySkipCount(int userId)
+    {
+        var result = await _http.GetFromJsonAsync<int>($"{BaseUrl}/classeschedules/user/{userId}/monthly-skip-count");
+        return result;
+    }
+
+    public async Task SkipQueueEntry(int scheduleId, int userId)
+    {
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/skip-queue", new { UserId = userId });
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
     }
     #endregion
 
@@ -539,6 +590,9 @@ public class ApiClient
 
     public async Task<List<SessionEnrollmentRead>> GetSessionEnrollments(int sessionId)
         => await _http.GetFromJsonAsync<List<SessionEnrollmentRead>>($"{BaseUrl}/sessions/{sessionId}/enrollments") ?? new();
+
+    public async Task<List<SessionEnrollmentDetailRead>> GetSessionEnrollmentDetails(int sessionId)
+        => await _http.GetFromJsonAsync<List<SessionEnrollmentDetailRead>>($"{BaseUrl}/sessions/{sessionId}/enrollments/details") ?? new();
 
     public async Task<ClassEnrollmentRead?> EnrollSession(int sessionId)
     {
@@ -611,6 +665,9 @@ public class ApiClient
         var qs = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
         return await _http.GetFromJsonAsync<List<ClassSessionRead>>($"{BaseUrl}/trainers/{trainerIdentityId}/sessions{qs}") ?? new();
     }
+
+    public async Task<List<ClassSessionRead>> GetTrainerCompletedSchedules(string trainerIdentityId)
+        => await _http.GetFromJsonAsync<List<ClassSessionRead>>($"{BaseUrl}/trainers/{trainerIdentityId}/completed-schedules") ?? new();
 
     public async Task<TrainerEarningsSummary?> GetTrainerEarningsV3(string trainerIdentityId, DateTime? from = null, DateTime? to = null)
     {
@@ -783,6 +840,17 @@ public class ApiClient
     {
         var body = new { Id = enrollmentId, CompletedDate = date };
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/dev/complete-enrollment", body);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<DevCompleteResponse>();
+    }
+
+    public async Task<List<DevEnrollmentItem>> GetDevCompletedEnrollments()
+        => await _http.GetFromJsonAsync<List<DevEnrollmentItem>>($"{BaseUrl}/dev/completed-enrollments") ?? new();
+
+    public async Task<DevCompleteResponse?> DevResetEnrollment(int enrollmentId)
+    {
+        var body = new { Id = enrollmentId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/dev/reset-enrollment", body);
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<DevCompleteResponse>();
     }

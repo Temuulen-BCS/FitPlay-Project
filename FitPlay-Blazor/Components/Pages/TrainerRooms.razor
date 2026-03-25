@@ -1367,7 +1367,8 @@
                 _currentTrainerId.Value,
                 _bookingForm.Modality!.Trim(),
                 scheduledAt,
-                notes
+                notes,
+                createdBookingIds.FirstOrDefault()
             );
 
             var totalHours = _timeBlocks.Where(b => b.IsValid()).Sum(b => (double)CalculateHours(b.StartTime, b.EndTime));

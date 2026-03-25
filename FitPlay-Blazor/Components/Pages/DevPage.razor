@@ -81,6 +81,39 @@
             </button>
         </div>
 
+        <!-- Reset a Completed Booking -->
+        <div class="form-card reset-card">
+            <h2>Reset a Completed Booking</h2>
+            <p class="form-desc">Select a completed enrollment to revert it back to Confirmed. Check-ins will be removed and the session will return to Scheduled (if no other completions remain).</p>
+
+            <div class="form-group">
+                <label>Completed Enrollment</label>
+                <select @bind="_selectedResetKey">
+                    <option value="">-- Select a completed enrollment --</option>
+                    @foreach (var e in _completedEnrollments)
+                    {
+                        <option value="@e.Id">@e.SessionTitle - @e.StartTime.ToString("dd/MM/yyyy HH:mm") (@(e.UserName ?? e.UserId))</option>
+                    }
+                </select>
+            </div>
+
+            @if (!_completedEnrollments.Any())
+            {
+                <div class="empty-state">No completed enrollments to reset.</div>
+            }
+
+            <button class="btn-reset" @onclick="ResetBooking" disabled="@(_isResetting || string.IsNullOrEmpty(_selectedResetKey))">
+                @if (_isResetting)
+                {
+                    <span>Resetting...</span>
+                }
+                else
+                {
+                    <span>Reset to Before</span>
+                }
+            </button>
+        </div>
+
         <!-- Summary -->
         <div class="summary-row">
             <div class="summary-card">
@@ -90,6 +123,10 @@
             <div class="summary-card">
                 <span class="summary-count">@_enrollments.Count</span>
                 <span class="summary-label">Confirmed Enrollments</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-count">@_completedEnrollments.Count</span>
+                <span class="summary-label">Completed Enrollments</span>
             </div>
         </div>
     }
@@ -231,9 +268,36 @@
         cursor: not-allowed;
     }
 
+    .reset-card {
+        border-color: rgba(251, 191, 36, 0.3);
+    }
+
+    .btn-reset {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f59e0b 0%, #dc2626 100%);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-reset:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    .btn-reset:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
     .summary-row {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
         gap: 16px;
     }
 
@@ -263,12 +327,15 @@
 @code {
     private List<ApiClient.DevScheduleItem> _schedules = new();
     private List<ApiClient.DevEnrollmentItem> _enrollments = new();
+    private List<ApiClient.DevEnrollmentItem> _completedEnrollments = new();
     private bool _isLoading = true;
     private bool _isSubmitting;
+    private bool _isResetting;
     private string? _errorMessage;
     private string? _successMessage;
 
     private string _selectedBookingKey = "";
+    private string _selectedResetKey = "";
     private DateTime _selectedDate = DateTime.Today;
 
     protected override async Task OnInitializedAsync()
@@ -284,10 +351,12 @@
         {
             var scheduleTask = Api.GetDevSchedules();
             var enrollmentTask = Api.GetDevEnrollments();
-            await Task.WhenAll(scheduleTask, enrollmentTask);
+            var completedTask = Api.GetDevCompletedEnrollments();
+            await Task.WhenAll(scheduleTask, enrollmentTask, completedTask);
 
             _schedules = scheduleTask.Result;
             _enrollments = enrollmentTask.Result;
+            _completedEnrollments = completedTask.Result;
         }
         catch (Exception ex)
         {
@@ -342,6 +411,40 @@
         finally
         {
             _isSubmitting = false;
+        }
+    }
+
+    private async Task ResetBooking()
+    {
+        if (string.IsNullOrEmpty(_selectedResetKey)) return;
+
+        _isResetting = true;
+        _successMessage = null;
+        _errorMessage = null;
+
+        try
+        {
+            var id = int.Parse(_selectedResetKey);
+            var result = await Api.DevResetEnrollment(id);
+
+            if (result is not null && result.Success)
+            {
+                _successMessage = result.Message;
+                _selectedResetKey = "";
+                await LoadBookings();
+            }
+            else
+            {
+                _errorMessage = result?.Message ?? "Unknown error.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isResetting = false;
         }
     }
 }

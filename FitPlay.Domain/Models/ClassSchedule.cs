@@ -33,6 +33,9 @@ public class ClassSchedule
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    // Optional link to a room booking (informs gym admin of trainer interest)
+    public int? RoomBookingId { get; set; }
+
     // Payment fields
     [MaxLength(255)]
     public string? StripePaymentIntentId { get; set; }
@@ -42,4 +45,5 @@ public class ClassSchedule
 
     public User? User { get; set; }
     public Teacher? Trainer { get; set; }
+    public RoomBooking? RoomBooking { get; set; }
 }

@@ -275,6 +275,38 @@ public class ClassSessionService : IClassSessionService
         )).ToList();
     }
 
+    public async Task<List<SessionEnrollmentDetailDto>> GetEnrollmentDetailsBySessionAsync(int sessionId)
+    {
+        var enrollments = await _db.ClassEnrollments
+            .AsNoTracking()
+            .Where(e => e.ClassSessionId == sessionId)
+            .OrderBy(e => e.EnrolledAt)
+            .ToListAsync();
+
+        // Batch-resolve user details from domain Users table
+        var userIds = enrollments.Select(e => e.UserId).Distinct().ToList();
+        var users = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.IdentityUserId != null && userIds.Contains(u.IdentityUserId))
+            .ToListAsync();
+        var userMap = users.ToDictionary(u => u.IdentityUserId!, u => u);
+
+        return enrollments.Select(e =>
+        {
+            userMap.TryGetValue(e.UserId, out var user);
+            return new SessionEnrollmentDetailDto(
+                e.Id,
+                e.UserId,
+                user?.Name,
+                user?.Email,
+                user?.Phone,
+                e.Status.ToString(),
+                e.PaidAmount,
+                e.EnrolledAt
+            );
+        }).ToList();
+    }
+
     private static ClassSessionResponseDto ToDto(ClassSession session) => new(
         session.Id,
         session.RoomBookingId,
