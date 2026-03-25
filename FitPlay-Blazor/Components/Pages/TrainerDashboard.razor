@@ -21,7 +21,6 @@
         --accent-magenta: #ff2fb4;
         --accent-teal: #0ef0ff;
         --accent-gold: #ffd700;
-        --accent-green: #22c55e;
         --text-primary: #f8f9fb;
         --text-muted: #9aa0b5;
         --glass-border: rgba(255,255,255,0.08);
@@ -96,32 +95,10 @@
         color: var(--accent-teal);
     }
 
-    .stat-card.green .stat-badge {
-        background: rgba(34, 197, 94, 0.15);
-        color: var(--accent-green);
-    }
-
-    .stat-card.green:hover {
-        border-color: var(--accent-green);
-        box-shadow: 0 0 24px rgba(34, 197, 94, 0.18);
-    }
-
     .stat-value {
         font-size: 2rem;
         font-weight: 700;
         line-height: 1;
-    }
-
-    .stat-card.magenta .stat-value {
-        color: var(--accent-magenta);
-    }
-
-    .stat-card.teal .stat-value {
-        color: var(--accent-teal);
-    }
-
-    .stat-card.green .stat-value {
-        color: var(--accent-green);
     }
 
     .stat-label {
@@ -152,10 +129,6 @@
 
     .stat-card.teal .stat-link {
         color: var(--accent-teal);
-    }
-
-    .stat-card.green .stat-link {
-        color: var(--accent-green);
     }
 
     .stat-link:hover {
@@ -712,17 +685,16 @@
         <div class="stat-card teal">
             <div class="stat-badge">USR</div>
             <span class="stat-value">@_activeStudents</span>
-            <span class="stat-label">Active Users</span>
-            <a href="/trainer/users" class="stat-link">Manage &rarr;</a>
+            <span class="stat-label">Active Students</span>
+            <a href="/trainer/users/1" class="stat-link">Manage &rarr;</a>
         </div>
 
-        <div class="stat-card green">
-            <div class="stat-badge">SES</div>
-            <span class="stat-value">@_givenClasses</span>
-            <span class="stat-label">Given Classes</span>
-            <a href="/trainer/dashboard" class="stat-link">View all &rarr;</a>
+        <div class="stat-card teal schedule" @onclick="OpenScheduleModal" role="button" tabindex="0">
+            <div class="stat-badge">SCH</div>
+            <span class="stat-value">Schedule</span>
+            <span class="stat-label">Create Class</span>
+            <span class="stat-trend">Open &rarr;</span>
         </div>
-
     </div>
 
     <!-- Bottom Row -->
@@ -732,6 +704,7 @@
                 <h2 class="section-title">Upcoming Sessions</h2>
                 <div class="list-actions">
                     <a href="/trainer/schedules" class="stat-link header-action">View all</a>
+                    <button type="button" class="stat-link header-action" @onclick="OpenScheduleModal">Schedule &rarr;</button>
                 </div>
             </div>
             @if (!string.IsNullOrEmpty(_scheduleListError))
@@ -780,7 +753,7 @@
                     <p class="list-title">Manage Users</p>
                     <p class="list-meta">Award XP and review progress.</p>
                 </div>
-                <a href="/trainer/users" class="list-action">Open</a>
+                <a href="/trainer/users/1" class="list-action">Open</a>
             </div>
             <div class="list-item">
                 <div class="list-icon">XP</div>
@@ -788,7 +761,7 @@
                     <p class="list-title">Award Bonus XP</p>
                     <p class="list-meta">Reward standout performance.</p>
                 </div>
-                <a href="/trainer/users" class="list-action">Open</a>
+                <a href="/trainer/users/1" class="list-action">Open</a>
             </div>
             <div class="list-item">
                 <div class="list-icon">TRN</div>
@@ -855,7 +828,69 @@
     <p>&copy; 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
 </footer>
 
+@if (_showScheduleModal)
+{
+    <div class="create-modal-backdrop" @onclick="CloseScheduleModal">
+        <div class="create-modal" @onclick:stopPropagation="true">
+            <div class="create-modal-header">
+                <h3>Schedule Class</h3>
+                <button class="create-modal-close" @onclick="CloseScheduleModal">x</button>
+            </div>
+            <div class="create-modal-body">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Modality</label>
+                        <select class="neon-dropdown" @bind="_scheduleForm.Modality">
+                            <option value="">Select a modality</option>
+                            <option value="Boxing">Boxing</option>
+                            <option value="Muay Thai">Muay Thai</option>
+                            <option value="Martial Arts">Martial Arts</option>
+                            <option value="CrossFit">CrossFit</option>
+                            <option value="Functional Train">Functional Train</option>
+                            <option value="Weight Training">Weight Training</option>
+                            <option value="Circuit Training">Circuit Training</option>
+                            <option value="HIIT">HIIT</option>
+                            <option value="Pilates">Pilates</option>
+                            <option value="Yoga">Yoga</option>
+                            <option value="Stretching/Mobility">Stretching/Mobility</option>
+                            <option value="Zumba/Dance Fit">Zumba/Dance Fit</option>
+                            <option value="Spinning/Cycling">Spinning/Cycling</option>
+                            <option value="Step Class">Step Class</option>
+                            <option value="Running Club">Running Club</option>
+                            <option value="Cycling">Cycling</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date & Time</label>
+                        <input type="datetime-local" value="@_scheduleForm.ScheduledAtLocalText" @onchange="OnScheduleDateTimeChanged" />
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <input type="text" @bind="_scheduleForm.Notes" placeholder="Optional notes" />
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(_scheduleError))
+                {
+                    <div class="inline-error">@_scheduleError</div>
+                }
+            </div>
+            <div class="create-modal-actions">
+                <button class="btn-secondary" @onclick="CloseScheduleModal" disabled="@_scheduling">Cancel</button>
+                <button class="btn-primary" @onclick="CreateSchedule" disabled="@_scheduling">
+                    @if (_scheduling)
+                    {
+                        <span>Scheduling...</span>
+                    }
+                    else
+                    {
 
+                        <span>Create Schedule</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 @if (_showTrainingModal)
 {
@@ -972,7 +1007,11 @@
 
     private int _pendingValidations;
     private int _activeStudents;
-    private int _givenClasses;
+
+    private bool _showScheduleModal;
+    private bool _scheduling;
+    private string? _scheduleError;
+    private ScheduleForm _scheduleForm = new();
 
     private bool _showTrainingModal;
     private bool _creatingTraining;
@@ -993,7 +1032,6 @@
         await LoadScheduleData();
         await LoadUpcomingSessions();
         await LoadMyTrainings();
-        await LoadGivenClassesCount();
     }
 
     // ── data loading ───────────────────────────────────────────────────────
@@ -1004,7 +1042,8 @@
             if (_currentTrainerId is null)
             {
                 _trainingError = "Trainer profile not found. Please sign in with a trainer account.";
-                _scheduleListError = "Trainer profile not found. Please sign in with a trainer account.";
+                _scheduleError = "Trainer profile not found. Please sign in with a trainer account.";
+                _scheduleListError = _scheduleError;
                 _upcomingSessions = new();
                 return;
             }
@@ -1077,28 +1116,6 @@
         }
     }
 
-    private async Task LoadGivenClassesCount()
-    {
-        if (_currentTrainerId is null) return;
-
-        try
-        {
-            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var user = authState.User;
-            var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (string.IsNullOrWhiteSpace(identityId)) return;
-
-            var sessions = await Api.GetTrainerSessionsV3(identityId);
-            _givenClasses = sessions.Sum(s => s.EnrolledStudents);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading given classes count: {ex.Message}");
-            _givenClasses = 0;
-        }
-    }
-
     private void BuildExerciseSelections()
     {
         _exerciseSelections = _exerciseCatalog.Select(ex => new TrainingExerciseSelection
@@ -1114,6 +1131,9 @@
     }
 
     // ── modal helpers ──────────────────────────────────────────────────────
+    private void OpenScheduleModal() { _scheduleError = null; _showScheduleModal = true; }
+    private void CloseScheduleModal() { _showScheduleModal = false; }
+
     private void OpenTrainingModal()
     {
         _trainingError = null;
@@ -1129,6 +1149,32 @@
     private void CloseTrainingModal() { _showTrainingModal = false; }
 
     // ── actions ────────────────────────────────────────────────────────────
+    private async Task CreateSchedule()
+    {
+        if (_currentTrainerId is null)
+        {
+            _scheduleError = "Trainer profile not found.";
+            return;
+        }
+
+        _scheduleError = ValidateScheduleForm();
+        if (!string.IsNullOrEmpty(_scheduleError)) return;
+
+        _scheduling = true;
+        try
+        {
+            var scheduledAt = _scheduleForm.GetScheduledAtUtc();
+            if (!scheduledAt.HasValue) { _scheduleError = "Select date and time."; return; }
+
+            await Api.CreateTrainerClassSchedule(_currentTrainerId.Value, _scheduleForm.Modality.Trim(), scheduledAt.Value, _scheduleForm.Notes?.Trim());
+            _showScheduleModal = false;
+            ResetScheduleForm();
+            await LoadUpcomingSessions();
+        }
+        catch (Exception ex) { _scheduleError = $"Error creating schedule: {ex.Message}"; }
+        finally { _scheduling = false; }
+    }
+
     private async Task CreateTraining()
     {
         if (_currentTrainerId is null) { _trainingError = "Trainer profile not found."; return; }
@@ -1179,6 +1225,17 @@
     }
 
     // ── validation ─────────────────────────────────────────────────────────
+    private string? ValidateScheduleForm()
+    {
+        if (string.IsNullOrWhiteSpace(_scheduleForm.Modality)) return "Select a modality.";
+        if (_scheduleForm.Modality.Trim().Length > 20) return "Modality must be 20 characters or less.";
+        if (!_scheduleForm.GetScheduledAtLocal().HasValue) return "Select date and time.";
+        var utc = _scheduleForm.GetScheduledAtUtc();
+        if (!utc.HasValue) return "Select date and time.";
+        if (utc.Value <= DateTime.UtcNow) return "Scheduled time must be in the future.";
+        return null;
+    }
+
     private string? ValidateTrainingForm()
     {
         if (_currentTrainerId is null) return "Trainer profile not found.";
@@ -1210,6 +1267,9 @@
     }
 
     // ── misc helpers ───────────────────────────────────────────────────────
+    private void OnScheduleDateTimeChanged(ChangeEventArgs e)
+        => _scheduleForm.ScheduledAtLocalText = e.Value?.ToString() ?? string.Empty;
+
     private void ViewTraining(int trainingId)
         => Navigation.NavigateTo($"/training/{trainingId}");
 
@@ -1249,9 +1309,12 @@
         if (trainer is null)
         {
             _trainingError = "No trainer profile found for this account.";
+            _scheduleError = "No trainer profile found for this account.";
         }
         return trainer?.Id;
     }
+
+    private void ResetScheduleForm() { _scheduleForm = new ScheduleForm(); _scheduleError = null; }
 
     private void ResetTrainingForm()
     {
@@ -1266,6 +1329,32 @@
     }
 
     // ── inner types ────────────────────────────────────────────────────────
+    private class ScheduleForm
+    {
+        public string Modality { get; set; } = string.Empty;
+        public string ScheduledAtLocalText { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
+
+        public DateTime? GetScheduledAtLocal()
+        {
+            if (string.IsNullOrWhiteSpace(ScheduledAtLocalText)) return null;
+            return DateTime.TryParseExact(
+                ScheduledAtLocalText,
+                new[] { "yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss" },
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var dt) ? dt : null;
+        }
+
+        public DateTime? GetScheduledAtUtc()
+        {
+            var local = GetScheduledAtLocal();
+            return local.HasValue
+                ? DateTime.SpecifyKind(local.Value, DateTimeKind.Local).ToUniversalTime()
+                : null;
+        }
+    }
+
     private class TrainingForm
     {
         public string Name { get; set; } = string.Empty;

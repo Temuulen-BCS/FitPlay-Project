@@ -109,14 +109,14 @@
                         var displayName = context.User.FindFirst("full_name")?.Value
                                           ?? userEmail;
                     }
-                    <div class="ga-profile-foot">
+                    <a href="Account/Manage" class="ga-profile-foot ga-profile-foot--link" data-enhanced-nav="false">
                         <span class="ga-avatar">@GetInitials(displayName)</span>
                         <div class="ga-profile-details">
                             <span class="ga-username">@(_gymName ?? displayName)</span>
                             <span class="ga-email">@userEmail</span>
                             <span class="ga-role-chip">Gym Admin</span>
                         </div>
-                    </div>
+                    </a>
                     <form action="Account/Logout" method="post" class="ga-logout-form">
                         <AntiforgeryToken />
                         <input type="hidden" name="ReturnUrl" value="/" />

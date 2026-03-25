@@ -39,7 +39,7 @@ window.gymDash = (function () {
         // Colour each status bar distinctly
         const colorMap = {
             'Scheduled': '#3B6FE8',
-            'Active':    '#22C55E',
+            'Ongoing':   '#22C55E',
             'Completed': '#F59E0B',
             'Cancelled': '#94A3B8'
         };
