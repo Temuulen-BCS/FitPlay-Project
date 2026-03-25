@@ -1,72 +1,79 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @layout AccountLayout
 
 @using Microsoft.AspNetCore.Identity
 @using FitPlay_Blazor.Data
 
 @inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityUserAccessor UserAccessor
 
 <div class="manage-shell">
-    <div class="manage-header">
-        <h1 class="manage-title">Manage your account</h1>
-        <p class="manage-subtitle">Change your account settings</p>
+    <div class="manage-sidebar">
+        <div class="manage-header">
+            <h1 class="manage-title">Manage your account</h1>
+            <p class="manage-subtitle">Change your account settings</p>
+        </div>
+
+        <nav class="manage-tabs">
+            <NavLink class="manage-tab" href="Account/Manage" Match="NavLinkMatch.All">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                </svg>
+                Profile
+            </NavLink>
+            <NavLink class="manage-tab" href="Account/Manage/Email">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="m2 7 10 7 10-7"/>
+                </svg>
+                Email
+            </NavLink>
+            <NavLink class="manage-tab" href="Account/Manage/ChangePassword">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Password
+            </NavLink>
+            @if (_hasExternalLogins)
+            {
+                <NavLink class="manage-tab" href="Account/Manage/ExternalLogins">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                        <polyline points="10 17 15 12 10 7"/>
+                        <line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                    External Logins
+                </NavLink>
+            }
+            <NavLink class="manage-tab" href="Account/Manage/TwoFactorAuthentication">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Two-Factor Auth
+            </NavLink>
+            <NavLink class="manage-tab" href="Account/Manage/PersonalData">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Personal Data
+            </NavLink>
+        </nav>
     </div>
 
-    <nav class="manage-tabs">
-        <NavLink class="manage-tab" href="Account/Manage" Match="NavLinkMatch.All">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="4"/>
-                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-            </svg>
-            Profile
-        </NavLink>
-        <NavLink class="manage-tab" href="Account/Manage/Email">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2"/>
-                <path d="m2 7 10 7 10-7"/>
-            </svg>
-            Email
-        </NavLink>
-        <NavLink class="manage-tab" href="Account/Manage/ChangePassword">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-            Password
-        </NavLink>
-        @if (_hasExternalLogins)
-        {
-            <NavLink class="manage-tab" href="Account/Manage/ExternalLogins">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-                    <polyline points="10 17 15 12 10 7"/>
-                    <line x1="15" y1="12" x2="3" y2="12"/>
-                </svg>
-                External Logins
-            </NavLink>
-        }
-        <NavLink class="manage-tab" href="Account/Manage/TwoFactorAuthentication">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            Two-Factor Auth
-        </NavLink>
-        <NavLink class="manage-tab" href="Account/Manage/PersonalData">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-            </svg>
-            Personal Data
-        </NavLink>
-    </nav>
-
-    <div class="manage-card">
+    <div class="manage-content">
         @Body
     </div>
 </div>
 
 @code {
     private bool _hasExternalLogins;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {

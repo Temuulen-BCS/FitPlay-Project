@@ -197,7 +197,9 @@ public class ClassScheduleService
     /// </summary>
     public async Task<(ClassSchedule schedule, decimal price)> ValidateForPaymentAsync(int scheduleId, int userId)
     {
-        var schedule = await _db.ClassSchedules.FindAsync(scheduleId)
+        var schedule = await _db.ClassSchedules
+            .Include(s => s.Trainer)
+            .FirstOrDefaultAsync(s => s.Id == scheduleId)
             ?? throw new InvalidOperationException("Class not found.");
 
         if (schedule.Status != ClassScheduleStatus.Scheduled)

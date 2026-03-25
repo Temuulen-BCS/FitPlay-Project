@@ -192,6 +192,10 @@ public class ClassSchedulesController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (StripeException ex)
+        {
+            return BadRequest(new { message = $"Payment error: {ex.Message}" });
+        }
     }
 
     /// <summary>
@@ -249,6 +253,10 @@ public class ClassSchedulesController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (StripeException ex)
+        {
+            return BadRequest(new { message = $"Payment error: {ex.Message}" });
         }
     }
 }

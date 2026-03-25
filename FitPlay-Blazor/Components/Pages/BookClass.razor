@@ -688,8 +688,9 @@
             {
                 _paymentElementMounted = false;
                 _paymentError = error;
-                StateHasChanged();
             }
+
+            StateHasChanged();
         }
         catch (Exception ex)
         {

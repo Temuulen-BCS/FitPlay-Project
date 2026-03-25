@@ -556,13 +556,15 @@
 }
 
 /* ============================================================
-   Manage Page — shell, tabs, card
+   Manage Page — shell, tabs, card  (BASE — shared by all roles)
    ============================================================ */
 
 .manage-shell {
-    padding: 2.5rem 2.5rem 3rem;
+    padding: 3rem 2.5rem 3rem;
     min-height: 100vh;
     color: #f8f9fb;
+    max-width: 860px;
+    margin: 0 auto;
 }
 
 .manage-title {
@@ -579,7 +581,7 @@
     margin: 0 0 1.5rem;
 }
 
-/* ── Horizontal tab bar ── */
+/* ── Horizontal tab bar (base / GymAdmin) ── */
 .manage-tabs {
     display: flex;
     gap: 2px;
@@ -603,7 +605,7 @@
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
     white-space: nowrap;
-    transition: color 0.18s, border-color 0.18s;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
     font-family: 'Space Grotesk', sans-serif;
 }
 
@@ -620,17 +622,6 @@
 
 .manage-tab:hover svg { opacity: 0.85; }
 
-/* Green active — User / Trainer */
-.manage-green .manage-tab.active {
-    color: #00e87a;
-    border-bottom-color: #00e87a;
-}
-
-.manage-green .manage-tab.active svg {
-    opacity: 1;
-    color: #00e87a;
-}
-
 /* Cyan active — GymAdmin */
 .manage-cyan .manage-tab.active {
     color: #0ef0ff;
@@ -642,7 +633,7 @@
     color: #0ef0ff;
 }
 
-/* ── Form card ── */
+/* ── Form card (base / GymAdmin) ── */
 .manage-card {
     background: rgba(255, 255, 255, 0.035);
     border: 1px solid rgba(255, 255, 255, 0.07);
@@ -684,39 +675,19 @@
 }
 
 /* ============================================================
-   Manage Page — role-aware Save / submit buttons
+   GymAdmin — new wrapper divs are transparent (display:contents)
+   so they do NOT break the existing horizontal-tab layout.
    ============================================================ */
 
-/* User / Trainer — green, matching .profile-avatar */
-.manage-green .btn-primary {
-    background: linear-gradient(135deg, #00e87a, #00a854) !important;
-    background-color: transparent !important;
-    border-color: transparent !important;
-    color: #021a0d !important;
-    font-weight: 700;
-    border-radius: 10px;
-    box-shadow: 0 4px 18px rgba(0, 232, 122, 0.45);
-    transition: transform 0.2s, box-shadow 0.3s;
+.manage-cyan .manage-sidebar,
+.manage-cyan .manage-content {
+    display: contents;
 }
 
-.manage-green .btn-primary:hover,
-.manage-green .btn-primary:focus,
-.manage-green .btn-primary:focus-visible {
-    background: linear-gradient(135deg, #00ff88, #00c45f) !important;
-    background-color: transparent !important;
-    border-color: transparent !important;
-    box-shadow: 0 6px 28px rgba(0, 232, 122, 0.7) !important;
-    transform: scale(1.015);
-    color: #021a0d !important;
-}
+/* ============================================================
+   Manage Page — role-aware buttons: GymAdmin (cyan)
+   ============================================================ */
 
-.manage-green .btn-primary:active {
-    background: linear-gradient(135deg, #00c45f, #009944) !important;
-    background-color: transparent !important;
-    transform: scale(0.99);
-}
-
-/* GymAdmin — cyan, matching .ga-avatar */
 .manage-cyan .btn-primary {
     background: linear-gradient(135deg, #0ef0ff, #0ab8c7) !important;
     background-color: transparent !important;
@@ -743,4 +714,434 @@
     background: linear-gradient(135deg, #0ab8c7, #089aa8) !important;
     background-color: transparent !important;
     transform: scale(0.99);
+}
+
+/* ============================================================
+   Manage Page — User / Trainer redesign (.manage-green ONLY)
+   Two-column flex sidebar layout, DM Sans, flat dark UI
+   ============================================================ */
+
+/* ── Shell: flex two-column ── */
+.manage-green .manage-shell {
+    display: flex;
+    gap: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 80px 2rem 40px;
+    min-height: auto;
+    font-family: 'DM Sans', sans-serif;
+}
+
+/* ── Left sidebar ── */
+.manage-green .manage-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    margin-top: 40px;
+}
+
+.manage-green .manage-header {
+    margin-bottom: 20px;
+}
+
+.manage-green .manage-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f0f0f5;
+    margin: 0 0 4px;
+}
+
+.manage-green .manage-subtitle {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    color: rgba(154, 160, 181, 0.65);
+    margin: 0;
+}
+
+/* ── Sidebar nav ── */
+.manage-green .manage-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+    overflow: visible;
+}
+
+.manage-green .manage-tab {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    margin-bottom: 2px;
+    font-size: 0.84rem;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    color: rgba(160, 165, 185, 0.8);
+    text-decoration: none;
+    border-bottom: none;
+    border-radius: 8px;
+    white-space: nowrap;
+    transition: color 0.15s, background 0.15s;
+}
+
+.manage-green .manage-tab:hover {
+    color: #d0d4e0;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.manage-green .manage-tab svg {
+    opacity: 0.5;
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+}
+
+.manage-green .manage-tab:hover svg {
+    opacity: 0.75;
+}
+
+/* Active nav item — green-tinted bg + green text */
+.manage-green .manage-tab.active {
+    color: #39ff7e;
+    background: rgba(57, 255, 126, 0.08);
+    border-bottom-color: transparent;
+    box-shadow: none;
+}
+
+.manage-green .manage-tab.active svg {
+    opacity: 1;
+    color: #39ff7e;
+}
+
+/* ── Right content area ── */
+.manage-green .manage-content {
+    flex: 1;
+    min-width: 0;
+    max-width: 600px;
+    margin-top: 40px;
+    margin-left: 40px;
+}
+
+/* ── Form card ── */
+.manage-green .manage-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: none;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.manage-green .manage-card h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #f0f0f5;
+    margin: 0 0 1.1rem;
+}
+
+/* ── Inputs: dark bg, low-opacity border, green glow on focus ── */
+.manage-green .manage-card .form-control,
+.manage-green .manage-content .form-control {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    color: #f0f0f5 !important;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    padding: 10px 14px;
+    height: auto;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.manage-green .manage-card .form-control:focus,
+.manage-green .manage-content .form-control:focus {
+    background: rgba(255, 255, 255, 0.055) !important;
+    border-color: rgba(57, 255, 126, 0.45) !important;
+    box-shadow: 0 0 0 2px rgba(57, 255, 126, 0.15) !important;
+    outline: none !important;
+}
+
+.manage-green .manage-card .form-control:disabled,
+.manage-green .manage-content .form-control:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.manage-green .manage-card .form-control::placeholder,
+.manage-green .manage-content .form-control::placeholder {
+    color: rgba(154, 160, 181, 0.4);
+}
+
+/* ── Profile header (avatar + info) ── */
+.manage-green .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.manage-green .profile-header-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(57, 255, 126, 0.12);
+    color: #39ff7e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.manage-green .profile-header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.manage-green .profile-header-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #f0f0f5;
+}
+
+.manage-green .profile-header-email {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    color: rgba(154, 160, 181, 0.65);
+}
+
+.manage-green .profile-header-change {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.76rem;
+    color: #39ff7e;
+    text-decoration: none;
+    margin-top: 2px;
+}
+
+.manage-green .profile-header-change:hover {
+    text-decoration: underline;
+}
+
+/* ── Name grid (first + last side by side) ── */
+.manage-green .manage-name-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ── Field labels ── */
+.manage-green .manage-label {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: rgba(160, 165, 185, 0.7);
+    margin-bottom: 6px;
+}
+
+.manage-green .manage-field {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Save button: solid green, no gradient ── */
+.manage-green .manage-save-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 10px 28px;
+    background: #39ff7e;
+    color: #0b0b11;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.manage-green .manage-save-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(57, 255, 126, 0.25);
+}
+
+.manage-green .manage-save-btn:active {
+    transform: translateY(0);
+}
+
+/* Override old .btn-primary used by sub-pages (Email, Password, etc.) */
+.manage-green .btn-primary {
+    background: #39ff7e !important;
+    background-color: #39ff7e !important;
+    border-color: transparent !important;
+    color: #0b0b11 !important;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    border-radius: 10px;
+    box-shadow: none;
+    transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.manage-green .btn-primary:hover,
+.manage-green .btn-primary:focus,
+.manage-green .btn-primary:focus-visible {
+    background: #39ff7e !important;
+    background-color: #39ff7e !important;
+    border-color: transparent !important;
+    box-shadow: 0 4px 14px rgba(57, 255, 126, 0.25) !important;
+    transform: translateY(-1px);
+    color: #0b0b11 !important;
+}
+
+.manage-green .btn-primary:active {
+    background: #2ee06d !important;
+    background-color: #2ee06d !important;
+    transform: translateY(0);
+}
+
+/* ── Danger zone card ── */
+.manage-green .manage-danger-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 60, 60, 0.03);
+    border: 1px solid rgba(255, 60, 60, 0.2);
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+}
+
+.manage-green .manage-danger-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.manage-green .manage-danger-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 100, 100, 0.9);
+}
+
+.manage-green .manage-danger-desc {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: rgba(255, 100, 100, 0.5);
+    max-width: 380px;
+}
+
+.manage-green .manage-danger-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 18px;
+    background: rgba(255, 60, 60, 0.1);
+    border: 1px solid rgba(255, 60, 60, 0.25);
+    border-radius: 8px;
+    color: rgba(255, 100, 100, 0.85);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.manage-green .manage-danger-btn:hover {
+    background: rgba(255, 60, 60, 0.18);
+    border-color: rgba(255, 60, 60, 0.4);
+    color: rgba(255, 100, 100, 1);
+    text-decoration: none;
+}
+
+/* ── Manage sub-page extras (status, alerts, actions) ── */
+.manage-green .manage-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.manage-green .btn-danger {
+    background: rgba(255, 60, 60, 0.12) !important;
+    border: 1px solid rgba(255, 60, 60, 0.25) !important;
+    color: rgba(255, 100, 100, 0.85) !important;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    border-radius: 10px;
+    box-shadow: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.manage-green .btn-danger:hover {
+    background: rgba(255, 60, 60, 0.2) !important;
+    border-color: rgba(255, 60, 60, 0.4) !important;
+}
+
+.manage-green .form-floating label {
+    font-family: 'DM Sans', sans-serif;
+    color: rgba(160, 165, 185, 0.7) !important;
+    font-size: 0.82rem;
+}
+
+.manage-green .text-danger {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+}
+
+.manage-green .alert {
+    font-family: 'DM Sans', sans-serif;
+    border-radius: 10px;
+    font-size: 0.85rem;
+}
+
+/* ── Mobile: collapse to single column ── */
+@media (max-width: 768px) {
+    .manage-green .manage-shell {
+        flex-direction: column;
+        gap: 0;
+        padding: 80px 16px 24px;
+    }
+
+    .manage-green .manage-sidebar {
+        width: 100%;
+        margin-bottom: 24px;
+    }
+
+    .manage-green .manage-tabs {
+        flex-direction: row;
+        overflow-x: auto;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+
+    .manage-green .manage-tab {
+        border-radius: 0;
+        margin-bottom: -1px;
+        border-bottom: 2px solid transparent;
+        padding: 8px 14px;
+    }
+
+    .manage-green .manage-tab.active {
+        background: transparent;
+        border-bottom-color: #39ff7e;
+    }
+
+    .manage-green .manage-danger-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+    }
 }
