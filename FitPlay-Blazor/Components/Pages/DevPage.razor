@@ -1,0 +1,347 @@
+@page "/dev"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+
+<PageTitle>Dev Tools - FitPlay</PageTitle>
+
+<div class="dev-page">
+    <div class="page-header">
+        <h1>Dev Tools</h1>
+        <p class="subtitle">Fake class completions for testing</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading booked classes...</div>
+    }
+    else
+    {
+        @if (_errorMessage is not null)
+        {
+            <div class="error-box">@_errorMessage</div>
+        }
+
+        @if (_successMessage is not null)
+        {
+            <div class="success-box">@_successMessage</div>
+        }
+
+        <!-- Change the Day form -->
+        <div class="form-card">
+            <h2>Change the Day</h2>
+            <p class="form-desc">Select a booked class and the date it was realized. This will mark it as completed on that day and award XP.</p>
+
+            <div class="form-group">
+                <label>Booked Class</label>
+                <select @bind="_selectedBookingKey">
+                    <option value="">-- Select a booked class --</option>
+
+                    @if (_schedules.Any())
+                    {
+                        <optgroup label="Class Schedules">
+                            @foreach (var s in _schedules)
+                            {
+                                <option value="schedule:@s.Id">@s.Modality - @s.ScheduledAt.ToString("dd/MM/yyyy HH:mm") @(s.UserName ?? $"User #{s.UserId}") @(s.TrainerName != null ? $"(Trainer: {s.TrainerName})" : "")</option>
+                            }
+                        </optgroup>
+                    }
+
+                    @if (_enrollments.Any())
+                    {
+                        <optgroup label="Session Enrollments">
+                            @foreach (var e in _enrollments)
+                            {
+                                <option value="enrollment:@e.Id">@e.SessionTitle - @e.StartTime.ToString("dd/MM/yyyy HH:mm") @(e.UserName ?? e.UserId)</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+            </div>
+
+            @if (!_schedules.Any() && !_enrollments.Any())
+            {
+                <div class="empty-state">No booked classes found to complete.</div>
+            }
+
+            <div class="form-group">
+                <label>Completed On (Date)</label>
+                <input type="date" @bind="_selectedDate" />
+            </div>
+
+            <button class="btn-complete" @onclick="MarkAsDone" disabled="@(_isSubmitting || string.IsNullOrEmpty(_selectedBookingKey))">
+                @if (_isSubmitting)
+                {
+                    <span>Processing...</span>
+                }
+                else
+                {
+                    <span>Mark as Done</span>
+                }
+            </button>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-row">
+            <div class="summary-card">
+                <span class="summary-count">@_schedules.Count</span>
+                <span class="summary-label">Scheduled Classes</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-count">@_enrollments.Count</span>
+                <span class="summary-label">Confirmed Enrollments</span>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .dev-page {
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: var(--text-primary);
+    }
+
+    .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+    }
+
+    .loading {
+        text-align: center;
+        padding: 60px;
+        color: var(--text-muted);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+    }
+
+    .error-box {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+
+    .success-box {
+        background: rgba(34, 197, 94, 0.15);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        color: #86efac;
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+
+    .form-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 28px;
+        margin-bottom: 24px;
+    }
+
+    .form-card h2 {
+        margin: 0 0 8px 0;
+        font-size: 20px;
+        color: var(--text-primary);
+    }
+
+    .form-desc {
+        margin: 0 0 24px 0;
+        color: var(--text-muted);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text-primary);
+    }
+
+    .form-group select,
+    .form-group input[type="date"] {
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--glass-border);
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-primary);
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .form-group select:focus,
+    .form-group input[type="date"]:focus {
+        border-color: #667eea;
+    }
+
+    .form-group select option,
+    .form-group select optgroup {
+        background: #1a1a2e;
+        color: #e0e0e0;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+
+    .btn-complete {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-complete:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    .btn-complete:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .summary-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .summary-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .summary-count {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-label {
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+</style>
+
+@code {
+    private List<ApiClient.DevScheduleItem> _schedules = new();
+    private List<ApiClient.DevEnrollmentItem> _enrollments = new();
+    private bool _isLoading = true;
+    private bool _isSubmitting;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private string _selectedBookingKey = "";
+    private DateTime _selectedDate = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBookings();
+    }
+
+    private async Task LoadBookings()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            var scheduleTask = Api.GetDevSchedules();
+            var enrollmentTask = Api.GetDevEnrollments();
+            await Task.WhenAll(scheduleTask, enrollmentTask);
+
+            _schedules = scheduleTask.Result;
+            _enrollments = enrollmentTask.Result;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load bookings: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task MarkAsDone()
+    {
+        if (string.IsNullOrEmpty(_selectedBookingKey)) return;
+
+        _isSubmitting = true;
+        _successMessage = null;
+        _errorMessage = null;
+
+        try
+        {
+            var parts = _selectedBookingKey.Split(':');
+            var type = parts[0];
+            var id = int.Parse(parts[1]);
+
+            ApiClient.DevCompleteResponse? result;
+
+            if (type == "schedule")
+            {
+                result = await Api.DevCompleteSchedule(id, _selectedDate);
+            }
+            else
+            {
+                result = await Api.DevCompleteEnrollment(id, _selectedDate);
+            }
+
+            if (result is not null && result.Success)
+            {
+                _successMessage = result.Message;
+                _selectedBookingKey = "";
+                await LoadBookings();
+            }
+            else
+            {
+                _errorMessage = result?.Message ?? "Unknown error.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}

@@ -270,6 +270,11 @@ public class ApiClient
     // Class schedule payment records
     public record CreateClassPaymentIntentResponse(string ClientSecret, decimal Amount, string Currency);
     public record ConfirmClassPaymentRequest(int UserId, string StripePaymentIntentId);
+
+    // Dev records
+    public record DevScheduleItem(int Id, int? UserId, string? UserName, string Modality, DateTime ScheduledAt, string Status, string? TrainerName);
+    public record DevEnrollmentItem(int Id, int ClassSessionId, string UserId, string? UserName, string SessionTitle, DateTime StartTime, DateTime EndTime, string Status);
+    public record DevCompleteResponse(bool Success, string Message, int XpAwarded);
     #endregion
 
     #region Billing API
@@ -756,6 +761,30 @@ public class ApiClient
     {
         var res = await _http.DeleteAsync($"{BaseUrl}/sessions/{sessionId}");
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+    }
+    #endregion
+
+    #region Dev API
+    public async Task<List<DevScheduleItem>> GetDevSchedules()
+        => await _http.GetFromJsonAsync<List<DevScheduleItem>>($"{BaseUrl}/dev/schedules") ?? new();
+
+    public async Task<List<DevEnrollmentItem>> GetDevEnrollments()
+        => await _http.GetFromJsonAsync<List<DevEnrollmentItem>>($"{BaseUrl}/dev/enrollments") ?? new();
+
+    public async Task<DevCompleteResponse?> DevCompleteSchedule(int scheduleId, DateTime date)
+    {
+        var body = new { Id = scheduleId, CompletedDate = date };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/dev/complete-schedule", body);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<DevCompleteResponse>();
+    }
+
+    public async Task<DevCompleteResponse?> DevCompleteEnrollment(int enrollmentId, DateTime date)
+    {
+        var body = new { Id = enrollmentId, CompletedDate = date };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/dev/complete-enrollment", body);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<DevCompleteResponse>();
     }
     #endregion
 }

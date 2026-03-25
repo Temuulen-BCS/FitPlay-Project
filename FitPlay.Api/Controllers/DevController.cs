@@ -1,0 +1,193 @@
+using FitPlay.Domain.Data;
+using FitPlay.Domain.Models;
+using FitPlay.Domain.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace FitPlay.Api.Controllers;
+
+/// <summary>
+/// Dev-only controller for faking class completions.
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+[AllowAnonymous]
+public class DevController : ControllerBase
+{
+    private readonly FitPlayContext _db;
+    private readonly ProgressService _progressService;
+    private readonly AchievementService _achievementService;
+
+    public DevController(FitPlayContext db, ProgressService progressService, AchievementService achievementService)
+    {
+        _db = db;
+        _progressService = progressService;
+        _achievementService = achievementService;
+    }
+
+    // ── DTOs ──
+
+    public record DevScheduleItem(int Id, int? UserId, string? UserName, string Modality, DateTime ScheduledAt, string Status, string? TrainerName);
+    public record DevEnrollmentItem(int Id, int ClassSessionId, string UserId, string? UserName, string SessionTitle, DateTime StartTime, DateTime EndTime, string Status);
+    public record DevCompleteRequest(int Id, DateTime CompletedDate);
+    public record DevCompleteResponse(bool Success, string Message, int XpAwarded);
+
+    // ── List endpoints ──
+
+    /// <summary>
+    /// Get ALL ClassSchedule bookings that can be completed (status = Scheduled, has a user).
+    /// </summary>
+    [HttpGet("schedules")]
+    public async Task<ActionResult<List<DevScheduleItem>>> GetAllSchedules()
+    {
+        var schedules = await _db.ClassSchedules
+            .Include(s => s.Trainer)
+            .Include(s => s.User)
+            .Where(s => s.UserId != null && s.Status == ClassScheduleStatus.Scheduled)
+            .OrderByDescending(s => s.ScheduledAt)
+            .Select(s => new DevScheduleItem(
+                s.Id,
+                s.UserId,
+                s.User != null ? s.User.Name : null,
+                s.Modality,
+                s.ScheduledAt,
+                s.Status.ToString(),
+                s.Trainer != null ? s.Trainer.Name : null
+            ))
+            .ToListAsync();
+
+        return Ok(schedules);
+    }
+
+    /// <summary>
+    /// Get ALL ClassEnrollment records that can be completed (status = Confirmed).
+    /// </summary>
+    [HttpGet("enrollments")]
+    public async Task<ActionResult<List<DevEnrollmentItem>>> GetAllEnrollments()
+    {
+        var enrollments = await _db.ClassEnrollments
+            .Include(e => e.ClassSession)
+            .Where(e => e.Status == ClassEnrollmentStatus.Confirmed)
+            .OrderByDescending(e => e.EnrolledAt)
+            .ToListAsync();
+
+        // Resolve user names from domain Users table
+        var identityIds = enrollments.Select(e => e.UserId).Distinct().ToList();
+        var userMap = await _db.Users
+            .Where(u => u.IdentityUserId != null && identityIds.Contains(u.IdentityUserId))
+            .ToDictionaryAsync(u => u.IdentityUserId!, u => u.Name);
+
+        var result = enrollments.Select(e => new DevEnrollmentItem(
+            e.Id,
+            e.ClassSessionId,
+            e.UserId,
+            userMap.GetValueOrDefault(e.UserId),
+            e.ClassSession?.Title ?? "Unknown",
+            e.ClassSession?.StartTime ?? DateTime.MinValue,
+            e.ClassSession?.EndTime ?? DateTime.MinValue,
+            e.Status.ToString()
+        )).ToList();
+
+        return Ok(result);
+    }
+
+    // ── Complete endpoints ──
+
+    /// <summary>
+    /// Mark a ClassSchedule as completed on a given date + award 25 XP.
+    /// </summary>
+    [HttpPost("complete-schedule")]
+    public async Task<ActionResult<DevCompleteResponse>> CompleteSchedule([FromBody] DevCompleteRequest request)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(request.Id);
+        if (schedule == null)
+            return NotFound(new DevCompleteResponse(false, "Schedule not found.", 0));
+
+        if (schedule.Status == ClassScheduleStatus.Completed)
+            return BadRequest(new DevCompleteResponse(false, "Schedule is already completed.", 0));
+
+        if (schedule.UserId == null)
+            return BadRequest(new DevCompleteResponse(false, "Schedule has no user booked.", 0));
+
+        // Update schedule
+        schedule.Status = ClassScheduleStatus.Completed;
+        schedule.ScheduledAt = request.CompletedDate;
+
+        // Award XP
+        const int xp = 25;
+        var (_, newLevel, leveledUp) = await _progressService.AddXpAsync(
+            schedule.UserId.Value,
+            xp,
+            XpTransactionType.Adjustment,
+            sourceId: schedule.Id,
+            reason: $"Dev: class completed ({schedule.Modality})"
+        );
+
+        await _achievementService.CheckAndAwardAchievementsAsync(schedule.UserId.Value, newLevel, leveledUp);
+        await _db.SaveChangesAsync();
+
+        return Ok(new DevCompleteResponse(true, $"Schedule marked as completed on {request.CompletedDate:yyyy-MM-dd}. +{xp} XP", xp));
+    }
+
+    /// <summary>
+    /// Mark a ClassEnrollment as completed on a given date, create RoomCheckIn, award 25 XP.
+    /// </summary>
+    [HttpPost("complete-enrollment")]
+    public async Task<ActionResult<DevCompleteResponse>> CompleteEnrollment([FromBody] DevCompleteRequest request)
+    {
+        var enrollment = await _db.ClassEnrollments
+            .Include(e => e.ClassSession)
+            .FirstOrDefaultAsync(e => e.Id == request.Id);
+
+        if (enrollment == null)
+            return NotFound(new DevCompleteResponse(false, "Enrollment not found.", 0));
+
+        if (enrollment.Status == ClassEnrollmentStatus.Completed)
+            return BadRequest(new DevCompleteResponse(false, "Enrollment is already completed.", 0));
+
+        // Update enrollment status
+        enrollment.Status = ClassEnrollmentStatus.Completed;
+
+        // Create RoomCheckIn record
+        const int xp = 25;
+        var checkIn = new RoomCheckIn
+        {
+            ClassEnrollmentId = enrollment.Id,
+            UserId = enrollment.UserId,
+            CheckInTime = request.CompletedDate,
+            XpAwarded = xp
+        };
+
+        // Check for existing check-in to avoid duplicate
+        var existingCheckIn = await _db.RoomCheckIns
+            .AnyAsync(c => c.ClassEnrollmentId == enrollment.Id && c.UserId == enrollment.UserId);
+
+        if (!existingCheckIn)
+        {
+            _db.RoomCheckIns.Add(checkIn);
+        }
+
+        // Find domain user by identity ID to award XP
+        var domainUser = await _db.Users.FirstOrDefaultAsync(u => u.IdentityUserId == enrollment.UserId);
+        if (domainUser == null)
+        {
+            // Still complete the enrollment even if we can't award XP
+            await _db.SaveChangesAsync();
+            return Ok(new DevCompleteResponse(true, $"Enrollment completed but user not found for XP award.", 0));
+        }
+
+        var (_, newLevel, leveledUp) = await _progressService.AddXpAsync(
+            domainUser.Id,
+            xp,
+            XpTransactionType.Adjustment,
+            sourceId: enrollment.Id,
+            reason: $"Dev: class check-in ({enrollment.ClassSession?.Title ?? "session"})"
+        );
+
+        await _achievementService.CheckAndAwardAchievementsAsync(domainUser.Id, newLevel, leveledUp);
+        await _db.SaveChangesAsync();
+
+        return Ok(new DevCompleteResponse(true, $"Enrollment completed on {request.CompletedDate:yyyy-MM-dd}. +{xp} XP", xp));
+    }
+}
