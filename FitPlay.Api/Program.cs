@@ -52,8 +52,8 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Database: auto-detect PostgreSQL vs SQL Server from connection string
-var connStr = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+var connStr = Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("No database connection string found.");
 
 // Railway provides DATABASE_URL as postgres://user:pass@host:port/db
