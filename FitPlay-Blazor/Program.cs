@@ -6,6 +6,7 @@ using FitPlay.Blazor.Services;
 using FitPlay.Domain.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,12 +22,20 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddMemoryCache();
 
+// Persist Data Protection keys so auth cookies survive container redeployments.
+// Railway ephemeral filesystems lose keys on each deploy; /app/keys is a stable
+// path within the container lifetime. For cross-deploy persistence, mount a
+// Railway volume at /app/keys.
+var keysDir = Environment.GetEnvironmentVariable("DATA_PROTECTION_KEYS_PATH") ?? "/app/keys";
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
+    .SetApplicationName("FitPlay-Blazor");
+
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<ApiTokenHandler>();
-builder.Services.AddScoped<TokenStore>();
 builder.Services.AddHttpContextAccessor();
 
 // Register HttpClient and ApiClient for API calls
@@ -37,13 +46,6 @@ var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
     client.BaseAddress = new Uri(apiBaseUrl);
-}).AddHttpMessageHandler(sp =>
-{
-    var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
-    var tokenHandler = sp.GetRequiredService<ApiTokenHandler>();
-    var tokenStore = sp.GetRequiredService<TokenStore>();
-    var logger = sp.GetRequiredService<ILogger<AuthTokenMessageHandler>>();
-    return new AuthTokenMessageHandler(httpContextAccessor, tokenHandler, tokenStore, logger);
 });
 
 builder.Services.AddHttpClient<BuilderHtmlService>();
@@ -144,12 +146,6 @@ app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Capture the authenticated cookie principal into a scoped TokenStore.
-// This must run after authentication (so HttpContext.User is populated)
-// and before Blazor components, so the principal is available throughout
-// the SignalR circuit lifetime for generating fresh JWTs on each API call.
-app.UseMiddleware<TokenCaptureMiddleware>();
 
 app.UseAntiforgery();
 

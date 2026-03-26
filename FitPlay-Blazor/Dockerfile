@@ -20,6 +20,7 @@ COPY --from=build /app/publish .
 
 # Railway injects PORT env var; app reads it in Program.cs
 ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "FitPlay-Blazor.dll"]
