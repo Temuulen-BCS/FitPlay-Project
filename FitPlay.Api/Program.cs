@@ -51,17 +51,43 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Database: auto-detect PostgreSQL vs SQL Server from connection string
+var connStr = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? throw new InvalidOperationException("No database connection string found.");
+
+var isPostgres = connStr.Contains("postgres", StringComparison.OrdinalIgnoreCase)
+              || connStr.Contains("5432");
+
 builder.Services.AddDbContext<FitPlayContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure()
-    ));
+{
+    if (isPostgres)
+        options.UseNpgsql(connStr, b => b.MigrationsAssembly("FitPlay.Api"));
+    else
+        options.UseSqlServer(connStr, b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure());
+});
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.EnableRetryOnFailure()
-    ));
+{
+    if (isPostgres)
+        options.UseNpgsql(connStr);
+    else
+        options.UseSqlServer(connStr, b => b.EnableRetryOnFailure());
+});
+
+// CORS – allow the Blazor front-end origin (set via env var in production)
+var allowedOrigins = builder.Configuration["AllowedOrigins"]
+    ?? Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
+    ?? "https://localhost:7050";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+        policy.WithOrigins(allowedOrigins.Split(','))
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials());
+});
 
 // Register gamification services
 builder.Services.AddScoped<ProgressService>();
@@ -116,18 +142,22 @@ var app = builder.Build();
 
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Always expose Swagger in production on Railway (useful for testing)
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Exempt the Stripe webhooks from HTTPS redirection so the Stripe CLI can POST
 // to http://localhost without getting a 307 redirect.
-app.UseWhen(
-    ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook")
-        && !ctx.Request.Path.StartsWithSegments("/api/booking-webhook"),
-    branch => branch.UseHttpsRedirection());
+// In production (Railway), HTTPS is handled by the reverse proxy.
+if (app.Environment.IsDevelopment())
+{
+    app.UseWhen(
+        ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook")
+            && !ctx.Request.Path.StartsWithSegments("/api/booking-webhook"),
+        branch => branch.UseHttpsRedirection());
+}
+
+app.UseCors("AllowFrontend");
 
 app.UseAuthentication();   
 app.UseAuthorization();    

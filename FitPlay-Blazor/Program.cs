@@ -25,9 +25,13 @@ builder.Services.AddScoped<ApiTokenHandler>();
 builder.Services.AddHttpContextAccessor();
 
 // Register HttpClient and ApiClient for API calls
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
+    ?? Environment.GetEnvironmentVariable("API_BASE_URL")
+    ?? "https://localhost:7248";
+
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
-    client.BaseAddress = new Uri("https://localhost:7248");
+    client.BaseAddress = new Uri(apiBaseUrl);
 }).AddHttpMessageHandler(sp =>
 {
     var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
@@ -50,14 +54,30 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim("membership", "active"));
 });
 
-// Database migrations are managed by FitPlay.Api project
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+// Database: auto-detect PostgreSQL vs SQL Server from connection string
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+var isPostgres = connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase)
+              || connectionString.Contains("5432");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+{
+    if (isPostgres)
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 // FitPlayContext for domain queries (membership checks, etc.)
 builder.Services.AddDbContext<FitPlayContext>(options =>
-    options.UseSqlServer(connectionString));
+{
+    if (isPostgres)
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 // Inject membership claim into the Blazor Identity principal at request time
 builder.Services.AddScoped<IClaimsTransformation, MembershipClaimsTransformation>();
