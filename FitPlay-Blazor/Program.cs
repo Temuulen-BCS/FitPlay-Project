@@ -59,7 +59,24 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? Environment.GetEnvironmentVariable("DATABASE_URL")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-var isPostgres = connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase)
+// Railway provides DATABASE_URL as postgres://user:pass@host:port/db
+// Npgsql expects key-value format: Host=...;Database=...;Username=...;Password=...
+static string ConvertPostgresUrl(string url)
+{
+    if (!url.StartsWith("postgres://") && !url.StartsWith("postgresql://"))
+        return url;
+
+    var uri = new Uri(url);
+    var userInfo = uri.UserInfo.Split(':');
+    return $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};"
+         + $"Username={userInfo[0]};Password={userInfo[1]};"
+         + "SSL Mode=Require;Trust Server Certificate=true";
+}
+
+connectionString = ConvertPostgresUrl(connectionString);
+
+var isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
+              && !connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase)
               || connectionString.Contains("5432");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
