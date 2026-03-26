@@ -122,7 +122,8 @@ var app = builder.Build();
 {
     var jwtIssuer = app.Configuration["Jwt:Issuer"] ?? "(not set)";
     var jwtAudience = app.Configuration["Jwt:Audience"] ?? "(not set)";
-    var jwtKeyRaw = app.Configuration["Jwt:Key"] ?? "";
+    var jwtKeyRaw = Environment.GetEnvironmentVariable("Jwt__Key")
+        ?? app.Configuration["Jwt:Key"] ?? "";
     var jwtKeyHash = jwtKeyRaw.Length > 0
         ? Convert.ToHexString(
             System.Security.Cryptography.SHA256.HashData(
