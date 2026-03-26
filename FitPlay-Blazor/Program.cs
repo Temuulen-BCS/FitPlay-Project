@@ -54,30 +54,28 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim("membership", "active"));
 });
 
-// Database: auto-detect PostgreSQL vs SQL Server from connection string
-var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-
-// Railway provides DATABASE_URL as postgres://user:pass@host:port/db
-// Npgsql expects key-value format: Host=...;Database=...;Username=...;Password=...
-static string ConvertPostgresUrl(string url)
+// Database: build connection string from Railway PG* env vars, or fall back to appsettings
+static string BuildConnectionString(IConfiguration config)
 {
-    if (!url.StartsWith("postgres://") && !url.StartsWith("postgresql://"))
-        return url;
+    var pgHost     = Environment.GetEnvironmentVariable("PGHOST");
+    var pgPort     = Environment.GetEnvironmentVariable("PGPORT") ?? "5432";
+    var pgDatabase = Environment.GetEnvironmentVariable("PGDATABASE");
+    var pgUser     = Environment.GetEnvironmentVariable("PGUSER");
+    var pgPassword = Environment.GetEnvironmentVariable("PGPASSWORD");
 
-    var uri = new Uri(url);
-    var userInfo = uri.UserInfo.Split(':');
-    return $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};"
-         + $"Username={userInfo[0]};Password={userInfo[1]};"
-         + "SSL Mode=Require;Trust Server Certificate=true";
+    // Railway PostgreSQL: use individual PG* variables directly
+    if (pgHost != null && pgDatabase != null && pgUser != null && pgPassword != null)
+        return $"Host={pgHost};Port={pgPort};Database={pgDatabase};"
+             + $"Username={pgUser};Password={pgPassword};"
+             + "SSL Mode=Require;Trust Server Certificate=true";
+
+    // Local development: use appsettings.json
+    return config.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 }
 
-connectionString = ConvertPostgresUrl(connectionString);
-
-var isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
-              && !connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase)
-              || connectionString.Contains("5432");
+var connectionString = BuildConnectionString(builder.Configuration);
+var isPostgres = Environment.GetEnvironmentVariable("PGHOST") != null;
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
