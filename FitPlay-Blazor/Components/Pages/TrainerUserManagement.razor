@@ -1,8 +1,10 @@
 @page "/trainer/users/{UserId:int}"
 @rendermode InteractiveServer
-@using FitPlay.Blazor.Services
 @using FitPlay_Blazor.Components.Gamification
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ApiClient Api
+@layout TrainerLayout
 
 <PageTitle>User Management - FitPlay</PageTitle>
 
@@ -127,12 +129,12 @@
     .page-header h1 {
         margin: 0 0 8px 0;
         font-size: 28px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .subtitle {
         margin: 0;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .content-grid {
@@ -149,30 +151,31 @@
     }
 
     .action-card {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
         padding: 24px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     }
 
     .action-card.danger {
-        border: 2px solid #fed7d7;
+        border-color: rgba(255, 120, 120, 0.45);
     }
 
     .action-card h3 {
         margin: 0 0 8px 0;
         font-size: 18px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .action-card.danger h3 {
-        color: #c53030;
+        color: #ff9aa2;
     }
 
     .action-description {
         margin: 0 0 20px 0;
         font-size: 14px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .form-group {
@@ -183,16 +186,18 @@
         display: block;
         font-size: 14px;
         font-weight: 500;
-        color: #4a5568;
+        color: var(--text-muted);
         margin-bottom: 8px;
     }
 
     .form-group input, .form-group textarea {
         width: 100%;
         padding: 12px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--glass-border);
         border-radius: 8px;
         font-size: 14px;
+        background: rgba(255,255,255,0.03);
+        color: var(--text-primary);
     }
 
     .form-group textarea {
@@ -212,12 +217,12 @@
     }
 
     .btn-award {
-        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-magenta) 100%);
         color: white;
     }
 
     .btn-reset {
-        background: #c53030;
+        background: linear-gradient(135deg, #ff4d6d 0%, #ff2fb4 100%);
         color: white;
     }
 
@@ -231,16 +236,17 @@
     }
 
     .history-section {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
         padding: 24px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     }
 
     .history-section h3 {
         margin: 0 0 20px 0;
         font-size: 18px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .history-table {
@@ -251,35 +257,35 @@
     .history-table th, .history-table td {
         padding: 12px;
         text-align: left;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid var(--glass-border);
     }
 
     .history-table th {
         font-size: 12px;
         text-transform: uppercase;
-        color: #718096;
+        color: var(--text-muted);
         font-weight: 600;
     }
 
     .history-table td {
         font-size: 14px;
-        color: #4a5568;
+        color: var(--text-primary);
     }
 
     .history-table .positive {
-        color: #48bb78;
+        color: var(--accent-teal);
         font-weight: bold;
     }
 
     .history-table .negative {
-        color: #f56565;
+        color: #ff9aa2;
         font-weight: bold;
     }
 
     .loading, .not-found, .no-history {
         text-align: center;
         padding: 40px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .message {
@@ -293,13 +299,13 @@
     }
 
     .message.success {
-        background: #c6f6d5;
-        color: #276749;
+        background: rgba(14,240,255,0.12);
+        color: var(--accent-teal);
     }
 
     .message.error {
-        background: #fed7d7;
-        color: #c53030;
+        background: rgba(255,77,109,0.2);
+        color: #ff9aa2;
     }
 
     @@media (max-width: 900px) {
@@ -327,11 +333,11 @@
     private int _resetXpValue = 0;
     private string _resetReason = "";
 
-    // TODO: Get from auth
-    private int _currentTrainerId = 1;
+    private int? _currentTrainerId;
 
     protected override async Task OnInitializedAsync()
     {
+        _currentTrainerId = await ResolveCurrentTrainerIdAsync();
         await LoadUserData();
     }
 
@@ -355,6 +361,12 @@
 
     private async Task AwardBonusXp()
     {
+        if (_currentTrainerId is null)
+        {
+            _message = "Trainer profile not found. Please sign in with a trainer account.";
+            _isError = true;
+            return;
+        }
         if (_bonusXp <= 0 || string.IsNullOrWhiteSpace(_bonusReason)) return;
 
         _processing = true;
@@ -362,7 +374,7 @@
 
         try
         {
-            await Api.AwardBonusXp(UserId, _bonusXp, _bonusReason, _currentTrainerId);
+            await Api.AwardBonusXp(UserId, _bonusXp, _bonusReason, _currentTrainerId.Value);
             _message = $"Successfully awarded +{_bonusXp} XP!";
             _isError = false;
             _bonusXp = 100;
@@ -383,6 +395,12 @@
 
     private async Task ResetXp()
     {
+        if (_currentTrainerId is null)
+        {
+            _message = "Trainer profile not found. Please sign in with a trainer account.";
+            _isError = true;
+            return;
+        }
         if (string.IsNullOrWhiteSpace(_resetReason)) return;
 
         _processing = true;
@@ -390,7 +408,7 @@
 
         try
         {
-            await Api.ResetXp(UserId, _resetReason, _resetXpValue, _currentTrainerId);
+            await Api.ResetXp(UserId, _resetReason, _resetXpValue, _currentTrainerId.Value);
             _message = $"XP reset to {_resetXpValue}";
             _isError = false;
             _resetXpValue = 0;
@@ -417,5 +435,24 @@
             _message = null;
             await InvokeAsync(StateHasChanged);
         });
+    }
+
+    private async Task<int?> ResolveCurrentTrainerIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            return null;
+        }
+
+        var trainer = await Api.GetTrainerByIdentity(identityId);
+        return trainer?.Id;
     }
 }

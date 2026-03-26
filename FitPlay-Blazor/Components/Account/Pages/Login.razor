@@ -1,68 +1,121 @@
-﻿@page "/Account/Login"
+@page "/Account/Login"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using FitPlay_Blazor.Data
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay_Blazor.Components.Layout
 
 @inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
 @inject ILogger<Login> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Log in</PageTitle>
+<PageTitle>Login - FitPlay</PageTitle>
 
-<h1>Log in</h1>
-<div class="row">
-    <div class="col-md-4">
-        <section>
+<!-- TOP NAV BAR -->
+<header class="top-nav">
+    <div class="nav-inner">
+        <a href="/" class="logo">FIT<span>PLAY</span></a>
+        <nav class="nav-links-top">
+            <a href="/">Home</a>
+            <a href="/#classes">Classes</a>
+            <a href="/#trainers">Trainers</a>
+        </nav>
+        <a href="Account/Register" class="btn-secondary-nav" data-enhanced-nav="false">Register</a>
+    </div>
+</header>
+
+<!-- LOGIN HERO -->
+<section class="auth-hero">
+    <div class="auth-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+    <div class="auth-container">
+        <!-- LEFT: Welcome content -->
+        <div class="auth-welcome">
+            <h1>Welcome <span class="highlight">Back</span></h1>
+            <p class="auth-subtitle">Log in to your account and continue your fitness journey.</p>
+
+            <div class="perks-list">
+                <div class="perk">
+                    <span class="perk-icon">XP</span>
+                    <span>Track your XP & level progress</span>
+                </div>
+                <div class="perk">
+                    <span class="perk-icon">24/7</span>
+                    <span>Access to all classes, anytime</span>
+                </div>
+                <div class="perk">
+                    <span class="perk-icon">DJ</span>
+                    <span>Train with live DJ sessions</span>
+                </div>
+            </div>
+
+            <p class="auth-login-prompt">
+                Don't have an account? <a href="Account/Register" data-enhanced-nav="false">Register here</a>
+            </p>
+        </div>
+
+        <!-- RIGHT: Login form -->
+        <div class="auth-card">
+            <h2>Sign In</h2>
+            <p class="card-subtitle">Enter your credentials to access your account</p>
+
             <StatusMessage Message="@errorMessage" />
+
             <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
                 <DataAnnotationsValidator />
-                <h2>Use a local account to log in.</h2>
-                <hr />
-                <ValidationSummary class="text-danger" role="alert" />
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                    <label for="email" class="form-label">Email</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger" />
+                <ValidationSummary class="validation-errors" role="alert" />
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <InputText @bind-Value="Input.Email" class="form-input" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                    <ValidationMessage For="() => Input.Email" class="field-error" />
                 </div>
-                <div class="form-floating mb-3">
-                    <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
-                    <label for="password" class="form-label">Password</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger" />
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <InputText type="password" @bind-Value="Input.Password" class="form-input" autocomplete="current-password" aria-required="true" placeholder="Your password" />
+                    <ValidationMessage For="() => Input.Password" class="field-error" />
                 </div>
-                <div class="checkbox mb-3">
-                    <label class="form-label">
-                        <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
+
+                <div class="form-group remember-row">
+                    <label class="remember-label">
+                        <InputCheckbox @bind-Value="Input.RememberMe" class="remember-check" />
                         Remember me
                     </label>
+                    <a href="Account/ForgotPassword" class="forgot-link">Forgot password?</a>
                 </div>
-                <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
-                </div>
-                <div>
-                    <p>
-                        <a href="Account/ForgotPassword">Forgot your password?</a>
-                    </p>
-                    <p>
-                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
-                    </p>
-                    <p>
-                        <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
-                    </p>
-                </div>
+
+                <button type="submit" class="btn-primary btn-full">Sign In</button>
             </EditForm>
-        </section>
+
+            <div class="divider">
+                <span>or continue with</span>
+            </div>
+
+            <div class="external-logins">
+                <ExternalLoginPicker />
+            </div>
+
+            <p class="resend-link">
+                <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
+            </p>
+        </div>
     </div>
-    <div class="col-md-6 col-md-offset-2">
-        <section>
-            <h3>Use another service to log in.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div>
-</div>
+</section>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+</footer>
 
 @code {
     private string? errorMessage;
@@ -80,20 +133,20 @@
     {
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
-            // Clear the existing external cookie to ensure a clean login process
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         }
     }
 
     public async Task LoginUser()
     {
-        // This doesn't count login failures towards account lockout
-        // To enable password failures to trigger account lockout, set lockoutOnFailure: true
         var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectManager.RedirectTo(ReturnUrl);
+
+            var user = await UserManager.FindByEmailAsync(Input.Email);
+            var isTrainer = user != null && await UserManager.IsInRoleAsync(user, "Trainer");
+            RedirectManager.RedirectTo(isTrainer ? "/trainer/dashboard" : "/dashboard");
         }
         else if (result.RequiresTwoFactor)
         {

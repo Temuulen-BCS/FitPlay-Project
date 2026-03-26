@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;       
 using Microsoft.OpenApi.Models;             
 using System.Text;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,17 +50,21 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<FitPlayContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly("FitPlay.Api")
+        b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure()
     ));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.EnableRetryOnFailure()
+    ));
 
 // Register gamification services
 builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<AchievementService>();
 builder.Services.AddScoped<TrainingCompletionService>();
 builder.Services.AddScoped<TrainingService>();
+builder.Services.AddScoped<ClassScheduleService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
@@ -89,8 +94,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+builder.Host.UseSerilog((ctx, lc) => lc
+    .ReadFrom.Configuration(ctx.Configuration)
+    .Enrich.FromLogContext());
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {
@@ -120,7 +134,16 @@ app.MapGet("/weatherforecast", () =>
         });
 });
 
-// app.MapUsersEndpoints();
 app.MapControllers();
+
+// Seed roles on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+
+    await db1.Database.MigrateAsync();
+    await db2.Database.MigrateAsync();
+}
 
 app.Run();

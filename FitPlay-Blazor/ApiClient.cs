@@ -7,7 +7,7 @@ public class ApiClient
     private readonly HttpClient _http;
     public ApiClient(HttpClient http) => _http = http;
 
-    private const string BaseUrl = "https://localhost:5000/api";
+    private const string BaseUrl = "https://localhost:7248/api";
 
     #region Records
     public record Exercise(int Id, int TeacherId, string Title, string Category, int Difficulty, int BasePoints, int SuggestedDurationMin, bool IsActive);
@@ -104,6 +104,17 @@ public class ApiClient
         string Description,
         bool Earned,
         DateTime? EarnedAt
+    );
+
+
+    public record ClassSchedule(
+        int Id,
+        int? UserId,
+        int? TrainerId,
+        string Modality,
+        DateTime ScheduledAt,
+        string Status,
+        string? Notes
     );
 
     public record XpTransaction(
@@ -251,6 +262,185 @@ public class ApiClient
     public async Task<List<AchievementStatus>> GetAllAchievementsStatus(int userId)
     {
         return await _http.GetFromJsonAsync<List<AchievementStatus>>($"{BaseUrl}/achievements/user/{userId}/all") ?? new();
+    }
+    #endregion
+
+    #region Users API
+    public async Task<List<DomainUserRead>> GetUsers()
+    {
+        return await _http.GetFromJsonAsync<List<DomainUserRead>>($"{BaseUrl}/users") ?? new();
+    }
+
+    public async Task<DomainUserRead?> GetUserByIdentity(string identityUserId)
+    {
+        return await _http.GetFromJsonAsync<DomainUserRead>($"{BaseUrl}/users/by-identity/{identityUserId}");
+    }
+    #endregion
+
+    #region Teachers API
+    public record TrainerRead(int Id, string Name, string Email, string Phone, string? IdentityUserId);
+
+    public async Task<TrainerRead?> GetTrainerByIdentity(string identityUserId)
+    {
+        return await _http.GetFromJsonAsync<TrainerRead>($"{BaseUrl}/teachers/by-identity/{identityUserId}");
+    }
+    #endregion
+
+    #region Schedules API
+    public async Task<List<ClassSchedule>> GetUserSchedule(int userId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ClassSchedule>>($"{BaseUrl}/classeschedules/user/{userId}{queryString}") ?? new();
+    }
+
+    public async Task<List<ClassSchedule>> GetTrainerSchedule(int trainerId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ClassSchedule>>($"{BaseUrl}/classeschedules/trainer/{trainerId}{queryString}") ?? new();
+    }
+
+    public async Task<ClassSchedule?> CreateClassSchedule(int? userId, string modality, DateTime scheduledAt, string? notes)
+    {
+        var body = new { UserId = userId, TrainerId = (int?)null, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public async Task<ClassSchedule?> CreateTrainerClassSchedule(int trainerId, string modality, DateTime scheduledAt, string? notes)
+    {
+        var body = new { UserId = (int?)null, TrainerId = trainerId, Modality = modality, ScheduledAt = scheduledAt, Notes = notes };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public record ClassScheduleWithTrainer(
+        int Id,
+        int? TrainerId,
+        string TrainerName,
+        string Modality,
+        DateTime ScheduledAt,
+        string Status,
+        string? Notes
+    );
+
+    public async Task<List<ClassScheduleWithTrainer>> GetPublicClassSchedules(DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ClassScheduleWithTrainer>>($"{BaseUrl}/classeschedules/public{queryString}") ?? new();
+    }
+
+    public async Task<ClassSchedule?> BookClass(int scheduleId, int userId)
+    {
+        var body = new { UserId = userId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}/book", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public async Task<ClassSchedule?> UnbookClass(int scheduleId)
+    {
+        var res = await _http.PostAsync($"{BaseUrl}/classeschedules/{scheduleId}/unbook", null);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+
+    public async Task<ClassSchedule?> UpdateClassSchedule(int scheduleId, string modality, DateTime scheduledAt, string status, string? notes)
+    {
+        var body = new { Modality = modality, ScheduledAt = scheduledAt, Status = status, Notes = notes };
+        var res = await _http.PutAsJsonAsync($"{BaseUrl}/classeschedules/{scheduleId}", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<ClassSchedule>();
+    }
+    #endregion
+
+    #region Exercise Logs API
+    public record ExerciseLogWithExercise(
+        int Id,
+        int ClientId,
+        int ExerciseId,
+        string ExerciseTitle,
+        string ExerciseCategory,
+        DateTime PerformedAt,
+        int DurationMin,
+        int PointsAwarded,
+        string? Notes
+    );
+
+    public record ExerciseLogSummary(
+        int TotalWorkouts,
+        int TotalMinutes,
+        int TotalPoints
+    );
+
+    public async Task<List<ExerciseLogWithExercise>> GetUserExerciseLogs(int userId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = new List<string>();
+        if (from.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+        return await _http.GetFromJsonAsync<List<ExerciseLogWithExercise>>($"{BaseUrl}/exerciselogs/user/{userId}{queryString}") ?? new();
+    }
+
+    public async Task<ExerciseLogSummary?> GetUserExerciseSummary(int userId)
+    {
+        return await _http.GetFromJsonAsync<ExerciseLogSummary>($"{BaseUrl}/exerciselogs/user/{userId}/summary");
+    }
+    #endregion
+
+    #region Registration - Domain Records
+    public record DomainUserRead(int Id, string Name, string Email, string Phone, string? IdentityUserId);
+
+    /// <summary>Creates a User domain record linked to the given Identity user ID.</summary>
+    public async Task<DomainUserRead?> RegisterDomainUser(string name, string email, string phone, string identityUserId)
+    {
+        var body = new { Name = name, Email = email, Phone = phone, IdentityUserId = identityUserId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/users", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<DomainUserRead>();
+    }
+
+    /// <summary>Creates a Teacher domain record linked to the given Identity user ID.</summary>
+    public async Task<DomainUserRead?> RegisterDomainTrainer(string name, string email, string phone, string identityUserId)
+    {
+        var body = new { Name = name, Email = email, Phone = phone, IdentityUserId = identityUserId };
+        var res = await _http.PostAsJsonAsync($"{BaseUrl}/teachers", body);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<DomainUserRead>();
     }
     #endregion
 }

@@ -10,6 +10,7 @@
 @using FitPlay_Blazor.Data
 @using Microsoft.AspNetCore.Authorization
 @using FitPlay_Blazor.Components.Layout
+@using FitPlay.Blazor.Services
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IUserStore<ApplicationUser> UserStore
@@ -18,32 +19,9 @@
 @inject ILogger<Register> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
+@inject ApiClient Api
 
 <PageTitle>Register - FitPlay</PageTitle>
-
-<!-- PAGE STYLES -->
-<style>
-    @@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-    :root {
-        --bg-dark: #0b0b11;
-        --bg-card: rgba(255,255,255,0.04);
-        --accent-magenta: #ff2fb4;
-        --accent-teal: #0ef0ff;
-        --text-primary: #f8f9fb;
-        --text-muted: #9aa0b5;
-        --glass-border: rgba(255,255,255,0.08);
-        --glass-bg: rgba(255,255,255,0.06);
-    }
-
-    body {
-        margin: 0;
-        background: var(--bg-dark);
-        color: var(--text-primary);
-        font-family: 'Space Grotesk', sans-serif;
-        overflow-x: hidden;
-    }
-</style>
 
 <!-- TOP NAV BAR -->
 <header class="top-nav">
@@ -54,7 +32,7 @@
             <a href="/#classes">Classes</a>
             <a href="/#trainers">Trainers</a>
         </nav>
-        <a href="Account/Login" class="btn-secondary-nav">Login</a>
+        <a href="Account/Login" class="btn-secondary-nav" data-enhanced-nav="false">Login</a>
     </div>
 </header>
 
@@ -64,17 +42,17 @@
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
     </div>
-    
+
     <div class="auth-container">
         <!-- LEFT: Welcome content -->
         <div class="auth-welcome">
             <h1>Join the <span class="highlight">Movement</span></h1>
             <p class="auth-subtitle">Create your account and start your fitness journey with us.</p>
-            
+
             <div class="perks-list">
                 <div class="perk">
                     <span class="perk-icon">XP</span>
-                    <span>Earn XP & level up with every workout</span>
+                    <span>Earn XP &amp; level up with every workout</span>
                 </div>
                 <div class="perk">
                     <span class="perk-icon">24/7</span>
@@ -85,48 +63,79 @@
                     <span>Train with live DJ sessions</span>
                 </div>
             </div>
-            
+
             <p class="auth-login-prompt">
-                Already have an account? <a href="Account/Login">Login here</a>
+                Already have an account? <a href="Account/Login" data-enhanced-nav="false">Login here</a>
             </p>
         </div>
-        
+
         <!-- RIGHT: Registration form -->
         <div class="auth-card">
             <h2>Create Account</h2>
-            <p class="card-subtitle">Fill in your details to get started</p>
-            
-            <StatusMessage Message="@Message" />
-            
-            <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register">
+            <p class="card-subtitle">Choose your role to get started</p>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="validation-errors" role="alert">@errorMessage</div>
+            }
+
+            <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+
+                <!-- Account type tabs (radio inputs styled as tabs) -->
+                <InputRadioGroup @bind-Value="Input.AccountType">
+                <div class="account-type-tabs">
+                    <label class="tab-btn">
+                        <InputRadio Value='"User"' />
+                        I am a User
+                    </label>
+                    <label class="tab-btn">
+                        <InputRadio Value='"Trainer"' />
+                        I am a Trainer
+                    </label>
+                </div>
+                </InputRadioGroup>
                 <DataAnnotationsValidator />
                 <ValidationSummary class="validation-errors" role="alert" />
-                
+
                 <div class="form-group">
-                    <label for="email">Email</label>
+                    <label>Full Name</label>
+                    <InputText @bind-Value="Input.Name" class="form-input" autocomplete="name" aria-required="true" placeholder="Your full name" />
+                    <ValidationMessage For="() => Input.Name" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
                     <InputText @bind-Value="Input.Email" class="form-input" autocomplete="username" aria-required="true" placeholder="name@example.com" />
                     <ValidationMessage For="() => Input.Email" class="field-error" />
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="password">Password</label>
+                    <label>Phone</label>
+                    <InputText @bind-Value="Input.Phone" class="form-input" autocomplete="tel" aria-required="true" placeholder="+1 234 567 8900" />
+                    <ValidationMessage For="() => Input.Phone" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
                     <InputText type="password" @bind-Value="Input.Password" class="form-input" autocomplete="new-password" aria-required="true" placeholder="Create a password" />
                     <ValidationMessage For="() => Input.Password" class="field-error" />
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="confirm-password">Confirm Password</label>
+                    <label>Confirm Password</label>
                     <InputText type="password" @bind-Value="Input.ConfirmPassword" class="form-input" autocomplete="new-password" aria-required="true" placeholder="Confirm your password" />
                     <ValidationMessage For="() => Input.ConfirmPassword" class="field-error" />
                 </div>
-                
-                <button type="submit" class="btn-primary btn-full">Create Account</button>
+
+                <button type="submit" class="btn-primary btn-full">
+                    Create @Input.AccountType Account
+                </button>
             </EditForm>
-            
+
             <div class="divider">
                 <span>or continue with</span>
             </div>
-            
+
             <div class="external-logins">
                 <ExternalLoginPicker />
             </div>
@@ -140,341 +149,54 @@
 </footer>
 
 <style>
-    /* === TOP NAV === */
-    .top-nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 1000;
-        background: rgba(11, 11, 17, 0.85);
-        backdrop-filter: blur(12px);
-        border-bottom: 1px solid var(--glass-border);
-    }
-    .nav-inner {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 1rem 2rem;
+    .account-type-tabs {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .logo {
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: var(--text-primary);
-        text-decoration: none;
-        letter-spacing: 2px;
-    }
-    .logo span {
-        color: var(--accent-magenta);
-    }
-    .nav-links-top {
-        display: flex;
-        gap: 2rem;
-    }
-    .nav-links-top a {
-        color: var(--text-muted);
-        text-decoration: none;
-        font-weight: 500;
-        transition: color 0.3s;
-    }
-    .nav-links-top a:hover {
-        color: var(--accent-teal);
-    }
-    .btn-secondary-nav {
-        background: transparent;
-        color: var(--accent-teal);
-        border: 2px solid var(--accent-teal);
-        padding: 0.5rem 1.25rem;
-        border-radius: 30px;
-        font-weight: 600;
-        text-decoration: none;
-        transition: background 0.3s, color 0.3s;
-    }
-    .btn-secondary-nav:hover {
-        background: var(--accent-teal);
-        color: var(--bg-dark);
-    }
-
-    /* === AUTH HERO === */
-    .auth-hero {
-        position: relative;
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 6rem 2rem 4rem;
-        overflow: hidden;
-    }
-    .auth-bg {
-        position: absolute;
-        inset: 0;
-        z-index: 0;
-        background: radial-gradient(ellipse at 30% 20%, rgba(255,47,180,0.15) 0%, transparent 50%),
-                    radial-gradient(ellipse at 70% 80%, rgba(14,240,255,0.1) 0%, transparent 50%),
-                    var(--bg-dark);
-    }
-    .orb {
-        position: absolute;
-        border-radius: 50%;
-        filter: blur(80px);
-        opacity: 0.6;
-        animation: float 8s ease-in-out infinite;
-    }
-    .orb-1 {
-        width: 350px;
-        height: 350px;
-        background: var(--accent-magenta);
-        top: 10%;
-        left: 10%;
-    }
-    .orb-2 {
-        width: 250px;
-        height: 250px;
-        background: var(--accent-teal);
-        bottom: 15%;
-        right: 5%;
-        animation-delay: 2s;
-    }
-    @@keyframes float {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50% { transform: translateY(-30px) scale(1.05); }
-    }
-
-    /* === AUTH CONTAINER === */
-    .auth-container {
-        position: relative;
-        z-index: 1;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 4rem;
-        max-width: 1000px;
-        width: 100%;
-        align-items: center;
-    }
-
-    /* === LEFT WELCOME === */
-    .auth-welcome {
-        padding-right: 2rem;
-    }
-    .auth-welcome h1 {
-        font-size: 3rem;
-        font-weight: 700;
-        line-height: 1.1;
-        margin: 0 0 1rem;
-    }
-    .highlight {
-        color: var(--accent-magenta);
-        text-shadow: 0 0 40px rgba(255,47,180,0.5);
-    }
-    .auth-subtitle {
-        font-size: 1.1rem;
-        color: var(--text-muted);
-        margin-bottom: 2rem;
-    }
-    .perks-list {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-    .perk {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        color: var(--text-primary);
-    }
-    .perk-icon {
-        width: 40px;
-        height: 40px;
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        background: rgba(255,255,255,0.05);
         border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.85rem;
-        font-weight: 700;
-        color: var(--accent-teal);
-    }
-    .auth-login-prompt {
-        color: var(--text-muted);
-        font-size: 0.95rem;
-    }
-    .auth-login-prompt a {
-        color: var(--accent-teal);
-        text-decoration: none;
-        font-weight: 600;
-    }
-    .auth-login-prompt a:hover {
-        text-decoration: underline;
+        padding: 4px;
     }
 
-    /* === AUTH CARD === */
-    .auth-card {
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        border-radius: 24px;
-        padding: 2.5rem;
-        backdrop-filter: blur(12px);
-    }
-    .auth-card h2 {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin: 0 0 0.5rem;
-    }
-    .card-subtitle {
-        color: var(--text-muted);
-        margin: 0 0 1.5rem;
-        font-size: 0.95rem;
-    }
-
-    /* === FORM === */
-    .form-group {
-        margin-bottom: 1.25rem;
-    }
-    .form-group label {
-        display: block;
+    .tab-btn {
+        flex: 1;
+        padding: 0.6rem 1rem;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: rgba(255,255,255,0.6);
         font-size: 0.9rem;
         font-weight: 500;
-        margin-bottom: 0.5rem;
-        color: var(--text-primary);
-    }
-    .form-input {
-        width: 100%;
-        padding: 0.875rem 1rem;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid var(--glass-border);
-        border-radius: 12px;
-        color: var(--text-primary);
-        font-size: 1rem;
-        font-family: inherit;
-        transition: border-color 0.3s, box-shadow 0.3s;
-        box-sizing: border-box;
-    }
-    .form-input::placeholder {
-        color: var(--text-muted);
-    }
-    .form-input:focus {
-        outline: none;
-        border-color: var(--accent-teal);
-        box-shadow: 0 0 0 3px rgba(14,240,255,0.15);
-    }
-    .validation-errors {
-        background: rgba(255,47,180,0.1);
-        border: 1px solid rgba(255,47,180,0.3);
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        margin-bottom: 1rem;
-        color: var(--accent-magenta);
-        font-size: 0.85rem;
-    }
-    .field-error {
-        color: var(--accent-magenta);
-        font-size: 0.8rem;
-        margin-top: 0.25rem;
-        display: block;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        user-select: none;
     }
 
-    /* === BUTTONS === */
-    .btn-primary {
-        background: linear-gradient(135deg, var(--accent-magenta), #d6249f);
+    /* hide the actual radio input */
+    .tab-btn input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+    }
+
+    .tab-btn:has(input[type="radio"]:checked) {
+        background: linear-gradient(135deg, #a855f7, #ec4899);
         color: #fff;
-        border: none;
-        padding: 0.875rem 1.75rem;
-        border-radius: 30px;
         font-weight: 600;
-        font-size: 1rem;
-        font-family: inherit;
-        text-decoration: none;
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.3s;
-        box-shadow: 0 4px 20px rgba(255, 47, 180, 0.4);
-    }
-    .btn-primary:hover {
-        transform: scale(1.02);
-        box-shadow: 0 6px 30px rgba(255, 47, 180, 0.6);
-    }
-    .btn-full {
-        width: 100%;
-        display: block;
-        text-align: center;
+        box-shadow: 0 2px 12px rgba(168,85,247,0.4);
     }
 
-    /* === DIVIDER === */
-    .divider {
-        display: flex;
-        align-items: center;
-        margin: 1.5rem 0;
-        color: var(--text-muted);
-        font-size: 0.85rem;
-    }
-    .divider::before,
-    .divider::after {
-        content: '';
-        flex: 1;
-        height: 1px;
-        background: var(--glass-border);
-    }
-    .divider span {
-        padding: 0 1rem;
-    }
-
-    /* === EXTERNAL LOGINS === */
-    .external-logins {
-        text-align: center;
-    }
-    .external-logins ::deep button,
-    .external-logins ::deep a {
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        color: var(--text-primary);
-        padding: 0.75rem 1.5rem;
-        border-radius: 12px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: border-color 0.3s;
-    }
-    .external-logins ::deep button:hover,
-    .external-logins ::deep a:hover {
-        border-color: var(--accent-teal);
-    }
-
-    /* === FOOTER === */
-    .site-footer {
-        text-align: center;
-        padding: 2rem;
-        background: var(--bg-dark);
-        border-top: 1px solid var(--glass-border);
-        color: var(--text-muted);
-        font-size: 0.85rem;
-    }
-
-    /* === RESPONSIVE === */
-    @@media (max-width: 768px) {
-        .auth-container {
-            grid-template-columns: 1fr;
-            gap: 2rem;
-        }
-        .auth-welcome {
-            padding-right: 0;
-            text-align: center;
-        }
-        .auth-welcome h1 {
-            font-size: 2.2rem;
-        }
-        .perks-list {
-            align-items: center;
-        }
-        .nav-links-top {
-            display: none;
-        }
+    .tab-btn:hover:not(.active) {
+        background: rgba(255,255,255,0.1);
+        color: #fff;
     }
 </style>
 
 @code {
-    private IEnumerable<IdentityError>? identityErrors;
+    private string? errorMessage;
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
@@ -482,12 +204,12 @@
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
-    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
-
     public async Task RegisterUser(EditContext editContext)
     {
-        var user = CreateUser();
+        errorMessage = null;
 
+        // 1. Create the Identity user
+        var user = CreateUser();
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
         var emailStore = GetEmailStore();
         await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
@@ -495,13 +217,47 @@
 
         if (!result.Succeeded)
         {
-            identityErrors = result.Errors;
+            errorMessage = $"Error: {string.Join(", ", result.Errors.Select(e => e.Description))}";
             return;
         }
 
         Logger.LogInformation("User created a new account with password.");
-
         var userId = await UserManager.GetUserIdAsync(user);
+
+        // 2. Assign the role
+        var role = Input.AccountType == "Trainer" ? "Trainer" : "User";
+        var roleResult = await UserManager.AddToRoleAsync(user, role);
+        if (!roleResult.Succeeded)
+        {
+            // Rollback: delete the Identity user
+            await UserManager.DeleteAsync(user);
+            errorMessage = $"Error assigning role: {string.Join(", ", roleResult.Errors.Select(e => e.Description))}";
+            return;
+        }
+
+        // 3. Create the domain record via API
+        try
+        {
+            if (Input.AccountType == "Trainer")
+            {
+                await Api.RegisterDomainTrainer(Input.Name, Input.Email, Input.Phone, userId);
+                Logger.LogInformation("Teacher domain record created for Identity user {UserId}.", userId);
+            }
+            else
+            {
+                await Api.RegisterDomainUser(Input.Name, Input.Email, Input.Phone, userId);
+                Logger.LogInformation("User domain record created for Identity user {UserId}.", userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Rollback: delete the Identity user (role is also removed by cascade)
+            await UserManager.DeleteAsync(user);
+            errorMessage = $"Registration failed while creating your profile. Please try again. ({ex.Message})";
+            return;
+        }
+
+        // 4. Send confirmation email
         var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = NavigationManager.GetUriWithQueryParameters(
@@ -517,8 +273,11 @@
                 new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
         }
 
+        // 5. Sign in and redirect based on role
         await SignInManager.SignInAsync(user, isPersistent: false);
-        RedirectManager.RedirectTo(ReturnUrl ?? "/dashboard");
+
+        var destination = Input.AccountType == "Trainer" ? "/trainer/dashboard" : "/dashboard";
+        RedirectManager.RedirectTo(ReturnUrl ?? destination);
     }
 
     private ApplicationUser CreateUser()
@@ -545,10 +304,22 @@
 
     private sealed class InputModel
     {
+        public string AccountType { get; set; } = "User";
+
+        [Required]
+        [MaxLength(100)]
+        [Display(Name = "Full Name")]
+        public string Name { get; set; } = "";
+
         [Required]
         [EmailAddress]
         [Display(Name = "Email")]
         public string Email { get; set; } = "";
+
+        [Required]
+        [Phone]
+        [Display(Name = "Phone")]
+        public string Phone { get; set; } = "";
 
         [Required]
         [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]

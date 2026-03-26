@@ -40,21 +40,22 @@
 
 <style>
     .training-card {
-        background: white;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
         border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
         transition: transform 0.2s, box-shadow 0.2s;
         position: relative;
     }
 
     .training-card:hover {
         transform: translateY(-4px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
     }
 
     .training-card.completed {
-        border: 2px solid #48bb78;
+        border-color: var(--accent-teal);
     }
 
     .card-header {
@@ -73,15 +74,15 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #e2e8f0;
+        background: rgba(255,255,255,0.14);
     }
 
     .difficulty-dot.filled {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--accent-magenta) 0%, var(--accent-teal) 100%);
     }
 
     .xp-reward {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--accent-magenta) 0%, var(--accent-teal) 100%);
         color: white;
         padding: 4px 10px;
         border-radius: 12px;
@@ -92,13 +93,13 @@
     .training-name {
         margin: 0 0 8px 0;
         font-size: 18px;
-        color: #1a202c;
+        color: var(--text-primary);
     }
 
     .training-description {
         margin: 0 0 12px 0;
         font-size: 14px;
-        color: #718096;
+        color: var(--text-muted);
         line-height: 1.5;
         display: -webkit-box;
         -webkit-line-clamp: 2;
@@ -114,14 +115,15 @@
 
     .meta-item {
         font-size: 12px;
-        color: #a0aec0;
+        color: var(--text-muted);
     }
 
     .completed-badge {
         position: absolute;
         top: 16px;
         right: 16px;
-        background: #48bb78;
+        background: rgba(14,240,255,0.2);
+        border: 1px solid rgba(14,240,255,0.4);
         color: white;
         padding: 4px 8px;
         border-radius: 4px;
@@ -146,16 +148,17 @@
     }
 
     .btn-view {
-        background: #edf2f7;
-        color: #4a5568;
+        background: rgba(255,255,255,0.06);
+        color: var(--text-primary);
+        border: 1px solid var(--glass-border);
     }
 
     .btn-view:hover {
-        background: #e2e8f0;
+        background: rgba(255,255,255,0.1);
     }
 
     .btn-start {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--accent-magenta) 0%, var(--accent-teal) 100%);
         color: white;
     }
 

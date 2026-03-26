@@ -1,0 +1,48 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+
+@inject NavigationManager NavigationManager
+
+<header class="top-nav">
+    <div class="nav-inner">
+        <a href="/" class="logo">FIT<span>PLAY</span></a>
+        <nav class="nav-links-top">
+            <NavLink href="/user/dashboard" Match="NavLinkMatch.All">Dashboard</NavLink>
+            <NavLink href="/user/trainings">Trainings</NavLink>
+            <NavLink href="/user/log-workout">Log Workout</NavLink>
+            <NavLink href="/user/book-class">Book Class</NavLink>
+            <NavLink href="/user/progress">My Progress</NavLink>
+            <NavLink href="/user/achievements">Achievements</NavLink>
+        </nav>
+        <form action="Account/Logout" method="post" class="nav-logout">
+            <AntiforgeryToken />
+            <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+            <button type="submit" class="btn-primary-top">Logout</button>
+        </form>
+    </div>
+</header>
+
+<main class="user-content">
+    @Body
+</main>
+
+@code {
+    private string? currentUrl;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}
