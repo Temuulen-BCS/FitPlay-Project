@@ -120,18 +120,44 @@ var app = builder.Build();
 
 // ── Startup diagnostics: log JWT config so we can verify Railway env vars ──
 {
-    var jwtIssuer = app.Configuration["Jwt:Issuer"] ?? "(not set)";
-    var jwtAudience = app.Configuration["Jwt:Audience"] ?? "(not set)";
-    var jwtKeyRaw = Environment.GetEnvironmentVariable("Jwt__Key")
-        ?? app.Configuration["Jwt:Key"] ?? "";
-    var jwtKeyHash = jwtKeyRaw.Length > 0
+    // Check each source independently to find exactly where the key comes from
+    var envKey = Environment.GetEnvironmentVariable("Jwt__Key");
+    var cfgKey = app.Configuration["Jwt:Key"];
+    var finalKey = (envKey ?? cfgKey ?? "").Trim();
+
+    app.Logger.LogWarning(
+        "JWT-DIAG: EnvVar Jwt__Key is {EnvStatus} (len={EnvLen}), IConfig Jwt:Key len={CfgLen}, FinalKey len={FinalLen}",
+        envKey is null ? "NULL" : "SET",
+        envKey?.Length ?? 0,
+        cfgKey?.Length ?? 0,
+        finalKey.Length);
+
+    // List ALL env vars containing "jwt" (case-insensitive) to find misnamed vars
+    var jwtEnvVars = Environment.GetEnvironmentVariables()
+        .Cast<System.Collections.DictionaryEntry>()
+        .Where(e => e.Key.ToString()!.Contains("jwt", StringComparison.OrdinalIgnoreCase)
+                  || e.Key.ToString()!.Contains("Jwt", StringComparison.OrdinalIgnoreCase))
+        .Select(e => $"{e.Key}=(len:{e.Value?.ToString()?.Length ?? 0})")
+        .ToList();
+    app.Logger.LogWarning(
+        "JWT-DIAG: Found {Count} JWT-related env vars: [{Vars}]",
+        jwtEnvVars.Count,
+        jwtEnvVars.Count > 0 ? string.Join(", ", jwtEnvVars) : "NONE");
+
+    var jwtKeyHash = finalKey.Length > 0
         ? Convert.ToHexString(
             System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(jwtKeyRaw)))[..16]
+                System.Text.Encoding.UTF8.GetBytes(finalKey)))[..16]
         : "(no key)";
-    app.Logger.LogInformation(
+
+    var jwtIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer")
+        ?? app.Configuration["Jwt:Issuer"] ?? "(not set)";
+    var jwtAudience = Environment.GetEnvironmentVariable("Jwt__Audience")
+        ?? app.Configuration["Jwt:Audience"] ?? "(not set)";
+
+    app.Logger.LogWarning(
         "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}, KeyHash={KeyHash}",
-        jwtIssuer, jwtAudience, jwtKeyRaw.Length, jwtKeyHash);
+        jwtIssuer, jwtAudience, finalKey.Length, jwtKeyHash);
     app.Logger.LogInformation(
         "ApiBaseUrl → {ApiBaseUrl}",
         app.Configuration["ApiBaseUrl"]
