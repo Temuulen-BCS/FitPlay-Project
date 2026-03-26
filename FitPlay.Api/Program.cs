@@ -130,15 +130,15 @@ builder.Services.AddIdentityCore<ApplicationUser>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager();
 
-var jwtKey = builder.Configuration["Jwt:Key"]
+var jwtKey = (builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException(
-        "Missing config 'Jwt:Key'. Set env var Jwt__Key (Railway) or Jwt:Key in appsettings.json.");
-var jwtIssuer = builder.Configuration["Jwt:Issuer"]
+        "Missing config 'Jwt:Key'. Set env var Jwt__Key (Railway) or Jwt:Key in appsettings.json.")).Trim();
+var jwtIssuer = (builder.Configuration["Jwt:Issuer"]
     ?? throw new InvalidOperationException(
-        "Missing config 'Jwt:Issuer'. Set env var Jwt__Issuer (Railway) or Jwt:Issuer in appsettings.json.");
-var jwtAudience = builder.Configuration["Jwt:Audience"]
+        "Missing config 'Jwt:Issuer'. Set env var Jwt__Issuer (Railway) or Jwt:Issuer in appsettings.json.")).Trim();
+var jwtAudience = (builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException(
-        "Missing config 'Jwt:Audience'. Set env var Jwt__Audience (Railway) or Jwt:Audience in appsettings.json.");
+        "Missing config 'Jwt:Audience'. Set env var Jwt__Audience (Railway) or Jwt:Audience in appsettings.json.")).Trim();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -154,6 +154,27 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey)
             )
+        };
+
+        // Surface the exact JWT validation error in a response header so the
+        // Blazor frontend can display it (since we can't check Railway logs).
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                context.Response.Headers.Append("Token-Validation-Error",
+                    context.Exception.Message);
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                if (context.AuthenticateFailure != null)
+                {
+                    context.Response.Headers.Append("Token-Validation-Error",
+                        context.AuthenticateFailure.Message);
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 

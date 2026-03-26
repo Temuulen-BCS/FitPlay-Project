@@ -23,9 +23,9 @@ public class ApiTokenHandler
             throw new InvalidOperationException("Missing identity user id.");
         }
 
-        var key = _configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured.");
-        var issuer = _configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer not configured.");
-        var audience = _configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt:Audience not configured.");
+        var key = (_configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured.")).Trim();
+        var issuer = (_configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer not configured.")).Trim();
+        var audience = (_configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt:Audience not configured.")).Trim();
 
         var claims = new List<Claim>
         {

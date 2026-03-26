@@ -475,11 +475,19 @@ public class ApiClient
         if (statusCode == 401 || statusCode == 403)
         {
             var hadToken = response.RequestMessage?.Headers?.Authorization != null;
+
+            // The API's JwtBearerEvents writes the exact validation error here
+            var validationError = response.Headers.TryGetValues("Token-Validation-Error", out var vals)
+                ? string.Join("; ", vals)
+                : null;
+
+            var detail = statusCode == 401
+                ? "The token may be invalid, expired, or the JWT signing key may differ between services."
+                : "The user may lack the required role or policy claim.";
+
             return $"API returned {statusCode} {reason}. "
                  + $"Bearer token was {(hadToken ? "attached" : "NOT attached")} to request. "
-                 + (statusCode == 401
-                     ? "The token may be invalid, expired, or the JWT signing key may differ between services."
-                     : "The user may lack the required role or policy claim.");
+                 + (validationError != null ? $"Validation error: {validationError}" : detail);
         }
 
         return $"Request failed with {statusCode} {reason}.";
