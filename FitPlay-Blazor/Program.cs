@@ -142,9 +142,13 @@ else
 }
 app.UseStaticFiles();
 
-// Capture the JWT from the authenticated cookie principal into a scoped TokenStore.
-// This must run after authentication (Identity middleware) and before Blazor components,
-// so the token is available throughout the SignalR circuit lifetime.
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Capture the authenticated cookie principal into a scoped TokenStore.
+// This must run after authentication (so HttpContext.User is populated)
+// and before Blazor components, so the principal is available throughout
+// the SignalR circuit lifetime for generating fresh JWTs on each API call.
 app.UseMiddleware<TokenCaptureMiddleware>();
 
 app.UseAntiforgery();

@@ -40,10 +40,18 @@ public class AuthTokenMessageHandler : DelegatingHandler
             }
         }
 
-        // 2) Fall back to the TokenStore (populated by middleware, survives the SignalR circuit)
-        if (string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(_tokenStore.Token))
+        // 2) Fall back to the stored principal (captured by middleware, survives the SignalR circuit).
+        //    Generate a fresh JWT each time so the token never expires mid-session.
+        if (string.IsNullOrEmpty(token) && _tokenStore.Principal?.Identity?.IsAuthenticated == true)
         {
-            token = _tokenStore.Token;
+            try
+            {
+                token = _tokenHandler.CreateToken(_tokenStore.Principal);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create JWT from stored principal.");
+            }
         }
 
         if (!string.IsNullOrEmpty(token))
@@ -52,7 +60,7 @@ public class AuthTokenMessageHandler : DelegatingHandler
         }
         else
         {
-            _logger.LogWarning("API request to {Url} sent without auth token — user is not authenticated or token could not be resolved.", request.RequestUri);
+            _logger.LogWarning("API request to {Url} sent without auth token — user is not authenticated.", request.RequestUri);
         }
 
         return await base.SendAsync(request, cancellationToken);

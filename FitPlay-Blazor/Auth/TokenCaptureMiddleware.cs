@@ -1,10 +1,10 @@
 namespace FitPlay_Blazor.Auth;
 
 /// <summary>
-/// Middleware that runs on every request (during the initial SSR phase).
-/// If the user is authenticated, it generates a JWT via ApiTokenHandler
-/// and stores it in the scoped TokenStore so that subsequent API calls
-/// over the SignalR circuit can attach the token.
+/// Middleware that runs on every HTTP request (after UseAuthentication).
+/// If the user is authenticated, it stores the ClaimsPrincipal in the
+/// scoped TokenStore so that subsequent API calls over the SignalR circuit
+/// can generate fresh JWTs from it.
 /// </summary>
 public class TokenCaptureMiddleware
 {
@@ -15,20 +15,11 @@ public class TokenCaptureMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, TokenStore tokenStore, ApiTokenHandler tokenHandler)
+    public async Task InvokeAsync(HttpContext context, TokenStore tokenStore)
     {
         if (context.User?.Identity?.IsAuthenticated == true)
         {
-            try
-            {
-                tokenStore.Token = tokenHandler.CreateToken(context.User);
-            }
-            catch
-            {
-                // Token creation may fail if claims are missing (e.g. NameIdentifier).
-                // Proceed without a token — API calls will get 401 and the user will
-                // see the "please log in" message.
-            }
+            tokenStore.Principal = context.User;
         }
 
         await _next(context);
