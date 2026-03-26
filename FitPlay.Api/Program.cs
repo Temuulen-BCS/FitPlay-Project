@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;       
 using Microsoft.OpenApi.Models;             
 using System.Text;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -165,6 +166,11 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+// ── Startup diagnostics: log JWT config so we can verify Railway env vars ──
+app.Logger.LogInformation(
+    "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}",
+    jwtIssuer, jwtAudience, jwtKey.Length);
+
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
 // Always expose Swagger in production on Railway (useful for testing)
@@ -183,6 +189,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+
+// Railway terminates TLS at its reverse proxy.  Without forwarded headers,
+// ASP.NET Core sees http:// which can break JWT audience/issuer validation
+// when the expected values use https://.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 app.UseAuthentication();   
 app.UseAuthorization();    

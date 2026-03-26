@@ -15,10 +15,12 @@ namespace FitPlay_Blazor.Auth;
 public class MembershipClaimsTransformation : IClaimsTransformation
 {
     private readonly FitPlayContext _db;
+    private readonly ILogger<MembershipClaimsTransformation> _logger;
 
-    public MembershipClaimsTransformation(FitPlayContext db)
+    public MembershipClaimsTransformation(FitPlayContext db, ILogger<MembershipClaimsTransformation> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
@@ -35,48 +37,61 @@ public class MembershipClaimsTransformation : IClaimsTransformation
         if (string.IsNullOrWhiteSpace(identityId))
             return principal;
 
-        // Look up the domain user (regular user or trainer) and their active subscription
-        var domainUser = await _db.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.IdentityUserId == identityId);
-
-        var claimsToAdd = new List<Claim>();
-
-        if (domainUser is not null)
+        try
         {
-            // Regular user: inject full_name and check membership
-            if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
-                claimsToAdd.Add(new Claim("full_name", domainUser.Name));
-
-            var hasActiveMembership = await _db.Subscriptions
+            // Look up the domain user (regular user or trainer) and their active subscription
+            var domainUser = await _db.Users
                 .AsNoTracking()
-                .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
+                .FirstOrDefaultAsync(u => u.IdentityUserId == identityId);
 
-            if (hasActiveMembership)
-                claimsToAdd.Add(new Claim("membership", "active"));
-        }
-        else
-        {
-            // Fallback: check Teachers table (trainers don't have a domain User row)
-            var teacher = await _db.Teachers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.IdentityUserId == identityId);
+            var claimsToAdd = new List<Claim>();
 
-            if (teacher is not null && !string.IsNullOrWhiteSpace(teacher.Name)
-                && !principal.HasClaim("full_name", teacher.Name))
+            if (domainUser is not null)
             {
-                claimsToAdd.Add(new Claim("full_name", teacher.Name));
+                // Regular user: inject full_name and check membership
+                if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
+                    claimsToAdd.Add(new Claim("full_name", domainUser.Name));
+
+                var hasActiveMembership = await _db.Subscriptions
+                    .AsNoTracking()
+                    .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
+
+                if (hasActiveMembership)
+                    claimsToAdd.Add(new Claim("membership", "active"));
             }
+            else
+            {
+                // Fallback: check Teachers table (trainers don't have a domain User row)
+                var teacher = await _db.Teachers
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.IdentityUserId == identityId);
+
+                if (teacher is not null && !string.IsNullOrWhiteSpace(teacher.Name)
+                    && !principal.HasClaim("full_name", teacher.Name))
+                {
+                    claimsToAdd.Add(new Claim("full_name", teacher.Name));
+                }
+            }
+
+            if (claimsToAdd.Count == 0)
+                return principal;
+
+            // Clone the identity and add all new claims
+            var clonedIdentity = principal.Identity is ClaimsIdentity ci ? ci.Clone() : new ClaimsIdentity(principal.Identity);
+            foreach (var claim in claimsToAdd)
+                clonedIdentity.AddClaim(claim);
+
+            return new ClaimsPrincipal(clonedIdentity);
         }
-
-        if (claimsToAdd.Count == 0)
+        catch (Exception ex)
+        {
+            // If the DB query fails (e.g. PostgreSQL timeout on Railway), do NOT let the
+            // exception propagate through the auth middleware — that would make the user
+            // appear unauthenticated and break every downstream API call.
+            _logger.LogError(ex,
+                "MembershipClaimsTransformation failed for user {IdentityId}. Returning unmodified principal.",
+                identityId);
             return principal;
-
-        // Clone the identity and add all new claims
-        var clonedIdentity = principal.Identity is ClaimsIdentity ci ? ci.Clone() : new ClaimsIdentity(principal.Identity);
-        foreach (var claim in claimsToAdd)
-            clonedIdentity.AddClaim(claim);
-
-        return new ClaimsPrincipal(clonedIdentity);
+        }
     }
 }

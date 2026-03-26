@@ -7,6 +7,7 @@ using FitPlay.Domain.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -117,6 +118,21 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 
 var app = builder.Build();
 
+// ── Startup diagnostics: log JWT config so we can verify Railway env vars ──
+{
+    var jwtIssuer = app.Configuration["Jwt:Issuer"] ?? "(not set)";
+    var jwtAudience = app.Configuration["Jwt:Audience"] ?? "(not set)";
+    var jwtKeyLen = app.Configuration["Jwt:Key"]?.Length ?? 0;
+    app.Logger.LogInformation(
+        "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}",
+        jwtIssuer, jwtAudience, jwtKeyLen);
+    app.Logger.LogInformation(
+        "ApiBaseUrl → {ApiBaseUrl}",
+        app.Configuration["ApiBaseUrl"]
+            ?? Environment.GetEnvironmentVariable("API_BASE_URL")
+            ?? "(not set)");
+}
+
 // Seed Identity roles
 using (var scope = app.Services.CreateScope())
 {
@@ -143,6 +159,14 @@ else
     // Railway terminates TLS at the reverse proxy; skip HTTPS redirect & HSTS in production
 }
 app.UseStaticFiles();
+
+// Railway (and most cloud hosts) terminate TLS at a reverse proxy and forward
+// HTTP to the container.  Without this, ASP.NET Core sees every request as
+// http:// which breaks cookie Secure flags and scheme-dependent auth logic.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

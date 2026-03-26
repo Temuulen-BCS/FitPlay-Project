@@ -31,20 +31,23 @@ public class ApiClient
     #region Auth-aware HTTP wrappers
 
     /// <summary>
-    /// Resolves the current user's ClaimsPrincipal and sets a fresh JWT
-    /// Bearer token on the HttpClient before each API call.
+    /// Resolves the current user's ClaimsPrincipal and creates a fresh JWT
+    /// Bearer token for the API call.
     /// Works during both SSR (HttpContext) and SignalR circuit
     /// (AuthenticationStateProvider).
+    /// Returns the token string, or null if no authenticated user is available.
     /// </summary>
-    private async Task EnsureAuthAsync()
+    private async Task<string?> ResolveTokenAsync()
     {
         ClaimsPrincipal? principal = null;
+        string authPath = "none";
 
         // 1) During SSR / initial HTTP request, HttpContext is available
         var httpContextUser = _httpContextAccessor.HttpContext?.User;
         if (httpContextUser?.Identity?.IsAuthenticated == true)
         {
             principal = httpContextUser;
+            authPath = "HttpContext";
         }
 
         // 2) During SignalR circuit, fall back to AuthenticationStateProvider
@@ -56,6 +59,7 @@ public class ApiClient
                 if (authState.User?.Identity?.IsAuthenticated == true)
                 {
                     principal = authState.User;
+                    authPath = "AuthStateProvider";
                 }
             }
             catch (Exception ex)
@@ -69,61 +73,84 @@ public class ApiClient
             try
             {
                 var token = _tokenHandler.CreateToken(principal);
-                _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                _logger.LogDebug("JWT created via {AuthPath} with {ClaimCount} claims.",
+                    authPath, principal.Claims.Count());
+                return token;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to create JWT from principal.");
-                _http.DefaultRequestHeaders.Authorization = null;
+                _logger.LogWarning(ex, "Failed to create JWT from principal ({AuthPath}).", authPath);
+                return null;
             }
         }
-        else
-        {
-            _logger.LogDebug("No authenticated principal available for API call.");
-            _http.DefaultRequestHeaders.Authorization = null;
-        }
+
+        _logger.LogDebug("No authenticated principal available for API call.");
+        return null;
+    }
+
+    /// <summary>
+    /// Builds an HttpRequestMessage with the per-request Authorization header.
+    /// This avoids mutating the shared DefaultRequestHeaders on HttpClient,
+    /// which is NOT thread-safe in Blazor Server (multiple circuits share one HttpClient instance).
+    /// </summary>
+    private async Task<HttpRequestMessage> BuildRequestAsync(HttpMethod method, string url, HttpContent? content = null)
+    {
+        var msg = new HttpRequestMessage(method, url);
+        if (content != null)
+            msg.Content = content;
+
+        var token = await ResolveTokenAsync();
+        if (token != null)
+            msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        return msg;
     }
 
     private async Task<T?> GetJsonAsync<T>(string url)
     {
-        await EnsureAuthAsync();
-        return await _http.GetFromJsonAsync<T>(url);
+        var msg = await BuildRequestAsync(HttpMethod.Get, url);
+        var res = await _http.SendAsync(msg);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<T>();
     }
 
     private async Task<HttpResponseMessage> GetAsync(string url)
     {
-        await EnsureAuthAsync();
-        return await _http.GetAsync(url);
+        var msg = await BuildRequestAsync(HttpMethod.Get, url);
+        return await _http.SendAsync(msg);
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(string url, T body)
     {
-        await EnsureAuthAsync();
-        return await _http.PostAsJsonAsync(url, body);
+        var content = JsonContent.Create(body);
+        var msg = await BuildRequestAsync(HttpMethod.Post, url, content);
+        return await _http.SendAsync(msg);
     }
 
     private async Task<HttpResponseMessage> PostAsync(string url, HttpContent? content)
     {
-        await EnsureAuthAsync();
-        return await _http.PostAsync(url, content);
+        var msg = await BuildRequestAsync(HttpMethod.Post, url, content);
+        return await _http.SendAsync(msg);
     }
 
     private async Task<HttpResponseMessage> PutJsonAsync<T>(string url, T body)
     {
-        await EnsureAuthAsync();
-        return await _http.PutAsJsonAsync(url, body);
+        var content = JsonContent.Create(body);
+        var msg = await BuildRequestAsync(HttpMethod.Put, url, content);
+        return await _http.SendAsync(msg);
     }
 
     private async Task<HttpResponseMessage> DeleteAsync(string url)
     {
-        await EnsureAuthAsync();
-        return await _http.DeleteAsync(url);
+        var msg = await BuildRequestAsync(HttpMethod.Delete, url);
+        return await _http.SendAsync(msg);
     }
 
     private async Task<HttpResponseMessage> PatchJsonAsync<T>(string url, T body)
     {
-        await EnsureAuthAsync();
-        return await _http.PatchAsJsonAsync(url, body);
+        var content = JsonContent.Create(body);
+        var msg = await BuildRequestAsync(HttpMethod.Patch, url, content);
+        return await _http.SendAsync(msg);
     }
 
     #endregion
@@ -441,7 +468,21 @@ public class ApiClient
         }
         catch { }
 
-        return $"Request failed with {(int)response.StatusCode} {response.ReasonPhrase}.";
+        var statusCode = (int)response.StatusCode;
+        var reason = response.ReasonPhrase;
+
+        // Include diagnostic info for auth failures
+        if (statusCode == 401 || statusCode == 403)
+        {
+            var hadToken = response.RequestMessage?.Headers?.Authorization != null;
+            return $"API returned {statusCode} {reason}. "
+                 + $"Bearer token was {(hadToken ? "attached" : "NOT attached")} to request. "
+                 + (statusCode == 401
+                     ? "The token may be invalid, expired, or the JWT signing key may differ between services."
+                     : "The user may lack the required role or policy claim.");
+        }
+
+        return $"Request failed with {statusCode} {reason}.";
     }
     #endregion
 
