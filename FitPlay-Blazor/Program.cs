@@ -26,6 +26,7 @@ builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<ApiTokenHandler>();
+builder.Services.AddScoped<TokenStore>();
 builder.Services.AddHttpContextAccessor();
 
 // Register HttpClient and ApiClient for API calls
@@ -40,7 +41,9 @@ builder.Services.AddHttpClient<ApiClient>(client =>
 {
     var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
     var tokenHandler = sp.GetRequiredService<ApiTokenHandler>();
-    return new AuthTokenMessageHandler(httpContextAccessor, tokenHandler);
+    var tokenStore = sp.GetRequiredService<TokenStore>();
+    var logger = sp.GetRequiredService<ILogger<AuthTokenMessageHandler>>();
+    return new AuthTokenMessageHandler(httpContextAccessor, tokenHandler, tokenStore, logger);
 });
 
 builder.Services.AddHttpClient<BuilderHtmlService>();
@@ -138,6 +141,12 @@ else
     // Railway terminates TLS at the reverse proxy; skip HTTPS redirect & HSTS in production
 }
 app.UseStaticFiles();
+
+// Capture the JWT from the authenticated cookie principal into a scoped TokenStore.
+// This must run after authentication (Identity middleware) and before Blazor components,
+// so the token is available throughout the SignalR circuit lifetime.
+app.UseMiddleware<TokenCaptureMiddleware>();
+
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
