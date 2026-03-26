@@ -158,20 +158,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         // Surface the exact JWT validation error in a response header so the
         // Blazor frontend can display it (since we can't check Railway logs).
+        // Header values must not contain newlines — Kestrel rejects them.
         options.Events = new JwtBearerEvents
         {
             OnAuthenticationFailed = context =>
             {
-                context.Response.Headers.Append("Token-Validation-Error",
-                    context.Exception.Message);
+                var msg = context.Exception.Message
+                    .Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
+                if (msg.Length > 500) msg = msg[..500];
+                context.Response.Headers.Append("Token-Validation-Error", msg);
                 return Task.CompletedTask;
             },
             OnChallenge = context =>
             {
                 if (context.AuthenticateFailure != null)
                 {
-                    context.Response.Headers.Append("Token-Validation-Error",
-                        context.AuthenticateFailure.Message);
+                    var msg = context.AuthenticateFailure.Message
+                        .Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
+                    if (msg.Length > 500) msg = msg[..500];
+                    context.Response.Headers.Append("Token-Validation-Error", msg);
                 }
                 return Task.CompletedTask;
             }
@@ -188,9 +193,12 @@ builder.Services.AddAuthorization(options =>
 var app = builder.Build();
 
 // ── Startup diagnostics: log JWT config so we can verify Railway env vars ──
+var jwtKeyHash = Convert.ToHexString(
+    System.Security.Cryptography.SHA256.HashData(
+        Encoding.UTF8.GetBytes(jwtKey)))[..16];
 app.Logger.LogInformation(
-    "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}",
-    jwtIssuer, jwtAudience, jwtKey.Length);
+    "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}, KeyHash={KeyHash}",
+    jwtIssuer, jwtAudience, jwtKey.Length, jwtKeyHash);
 
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 

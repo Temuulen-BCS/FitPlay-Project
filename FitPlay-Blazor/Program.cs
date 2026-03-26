@@ -122,10 +122,15 @@ var app = builder.Build();
 {
     var jwtIssuer = app.Configuration["Jwt:Issuer"] ?? "(not set)";
     var jwtAudience = app.Configuration["Jwt:Audience"] ?? "(not set)";
-    var jwtKeyLen = app.Configuration["Jwt:Key"]?.Length ?? 0;
+    var jwtKeyRaw = app.Configuration["Jwt:Key"] ?? "";
+    var jwtKeyHash = jwtKeyRaw.Length > 0
+        ? Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(jwtKeyRaw)))[..16]
+        : "(no key)";
     app.Logger.LogInformation(
-        "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}",
-        jwtIssuer, jwtAudience, jwtKeyLen);
+        "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}, KeyHash={KeyHash}",
+        jwtIssuer, jwtAudience, jwtKeyRaw.Length, jwtKeyHash);
     app.Logger.LogInformation(
         "ApiBaseUrl → {ApiBaseUrl}",
         app.Configuration["ApiBaseUrl"]
