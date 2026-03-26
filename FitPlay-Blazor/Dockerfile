@@ -18,8 +18,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Railway injects PORT; ASP.NET listens on 8080 by default
-ENV ASPNETCORE_URLS=http://+:${PORT:-8080}
+# Railway injects PORT env var; app reads it in Program.cs
+ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "FitPlay-Blazor.dll"]
