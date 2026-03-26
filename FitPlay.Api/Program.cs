@@ -153,7 +153,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey)
-            )
+            ) { KeyId = "fitplay-hmac" }
         };
 
         // Surface the exact JWT validation error in a response header so the

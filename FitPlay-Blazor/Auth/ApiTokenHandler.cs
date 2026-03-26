@@ -56,7 +56,7 @@ public class ApiTokenHandler
             claims.Add(new Claim(ClaimTypes.Role, role));
         }
 
-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)) { KeyId = "fitplay-hmac" };
         var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
         var jwt = new JwtSecurityToken(
