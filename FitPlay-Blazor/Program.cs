@@ -130,14 +130,13 @@ foreach (var role in new[] { "Trainer", "User", "GymAdmin" })
 if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
+    app.UseHttpsRedirection();
 }
 else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
+    // Railway terminates TLS at the reverse proxy; skip HTTPS redirect & HSTS in production
 }
-
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
