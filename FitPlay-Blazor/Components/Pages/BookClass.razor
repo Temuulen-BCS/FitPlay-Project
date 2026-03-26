@@ -80,11 +80,22 @@
 
         <div class="payment-overlay" @onclick="CancelSkipConfirm">
             <div class="skip-confirm-modal" @onclick:stopPropagation="true">
-                <div class="skip-confirm-icon">@(alreadyOver ? "🚫" : isLastFree ? "⚠️" : "ℹ️")</div>
+                <div class="payment-header">
+                    <div class="skip-confirm-header-left">
+                        <span class="skip-confirm-icon">@(alreadyOver ? "🚫" : isLastFree ? "⚠️" : "ℹ️")</span>
+                        <h3 class="skip-confirm-title">
+                            @if (alreadyOver)      { <text>Skip limit reached</text> }
+                            else if (isLastFree)   { <text>Last free skip this month</text> }
+                            else                   { <text>Not interested?</text> }
+                        </h3>
+                    </div>
+                    <button class="btn-close-modal" @onclick="CancelSkipConfirm">&#x2715;</button>
+                </div>
+
+                <hr class="payment-divider" />
 
                 @if (alreadyOver)
                 {
-                    <h3 class="skip-confirm-title">Skip limit reached</h3>
                     <p class="skip-confirm-body">
                         You have used all <strong>5 free skips</strong> for this month.<br />
                         Skipping again will still remove this notification, but joining future queues will require a <strong>5% deposit</strong>.
@@ -92,7 +103,6 @@
                 }
                 else if (isLastFree)
                 {
-                    <h3 class="skip-confirm-title">Last free skip this month</h3>
                     <p class="skip-confirm-body">
                         This is your <strong>last free skip</strong> for @DateTime.UtcNow.ToString("MMMM").<br />
                         After this, joining any new queue will require a <strong>5% deposit</strong>.<br /><br />
@@ -101,7 +111,6 @@
                 }
                 else
                 {
-                    <h3 class="skip-confirm-title">Not interested?</h3>
                     <p class="skip-confirm-body">
                         You can skip up to <strong>5 times per month</strong> for free.<br />
                         You have <strong>@skipsLeft skip@(skipsLeft == 1 ? "" : "s")</strong> remaining for @DateTime.UtcNow.ToString("MMMM").<br /><br />
@@ -110,11 +119,11 @@
                 }
 
                 <div class="skip-confirm-actions">
-                    <button class="btn-skip-confirm" @onclick="DismissQueueNotification">
-                        Yes, skip it
-                    </button>
                     <button class="btn-skip-cancel" @onclick="CancelSkipConfirm">
                         Keep it
+                    </button>
+                    <button class="btn-skip-confirm" @onclick="DismissQueueNotification">
+                        Yes, skip it
                     </button>
                 </div>
             </div>
@@ -629,31 +638,42 @@
     .skip-confirm-modal {
         width: min(420px, 100%);
         background:
-            radial-gradient(120% 140% at 10% 15%, rgba(255,107,107,0.08), transparent 60%),
-            rgba(18, 18, 28, 0.97);
-        border: 1px solid rgba(255,107,107,0.25);
+            radial-gradient(120% 140% at 10% 15%, rgba(16, 255, 224, 0.15), transparent 60%),
+            radial-gradient(120% 140% at 90% 20%, rgba(255, 71, 246, 0.13), transparent 55%),
+            rgba(18, 18, 28, 0.96);
+        border: 1px solid rgba(14,240,255,0.25);
         border-radius: 20px;
-        padding: 32px 28px 24px;
+        padding: 28px;
+        box-shadow:
+            0 24px 64px rgba(0,0,0,0.45),
+            0 0 40px rgba(14,240,255,0.12);
         text-align: center;
     }
 
+    .skip-confirm-header-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
     .skip-confirm-icon {
-        font-size: 40px;
-        margin-bottom: 12px;
+        font-size: 22px;
+        line-height: 1;
     }
 
     .skip-confirm-title {
-        font-size: 18px;
+        margin: 0;
+        font-size: 20px;
         font-weight: 700;
         color: var(--text-primary);
-        margin: 0 0 12px;
     }
 
     .skip-confirm-body {
         font-size: 14px;
         color: var(--text-muted);
         line-height: 1.6;
-        margin: 0 0 24px;
+        margin: 0 0 20px;
+        text-align: left;
     }
 
     .skip-confirm-body strong {
@@ -662,35 +682,39 @@
 
     .skip-confirm-actions {
         display: flex;
-        gap: 10px;
-        justify-content: center;
+        gap: 12px;
+        margin-top: 4px;
     }
 
     .btn-skip-confirm {
-        padding: 10px 22px;
-        background: rgba(255,107,107,0.15);
-        border: 1px solid rgba(255,107,107,0.45);
-        color: #ff6b6b;
-        border-radius: 10px;
+        flex: 1;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, rgba(14,240,255,0.2), rgba(255,77,250,0.2));
+        border: 2px solid rgba(14,240,255,0.5);
+        box-shadow: 0 0 24px rgba(14,240,255,0.2);
+        border-radius: 12px;
+        color: white;
         font-weight: 700;
-        font-size: 13px;
+        font-size: 15px;
         cursor: pointer;
-        transition: background 0.2s, border-color 0.2s;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
 
     .btn-skip-confirm:hover {
-        background: rgba(255,107,107,0.25);
-        border-color: rgba(255,107,107,0.7);
+        transform: translateY(-2px);
+        border-color: rgba(14,240,255,0.8);
+        box-shadow: 0 0 36px rgba(14,240,255,0.35);
     }
 
     .btn-skip-cancel {
-        padding: 10px 22px;
+        flex: 1;
+        padding: 14px 20px;
         background: rgba(255,255,255,0.06);
         border: 1px solid rgba(255,255,255,0.15);
         color: var(--text-primary);
-        border-radius: 10px;
+        border-radius: 12px;
         font-weight: 600;
-        font-size: 13px;
+        font-size: 15px;
         cursor: pointer;
         transition: background 0.2s, border-color 0.2s;
     }

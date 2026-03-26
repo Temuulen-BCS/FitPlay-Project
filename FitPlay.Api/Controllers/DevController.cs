@@ -30,7 +30,7 @@ public class DevController : ControllerBase
 
     public record DevScheduleItem(int Id, int? UserId, string? UserName, string Modality, DateTime ScheduledAt, string Status, string? TrainerName);
     public record DevEnrollmentItem(int Id, int ClassSessionId, string UserId, string? UserName, string SessionTitle, DateTime StartTime, DateTime EndTime, string Status);
-    public record DevCompleteRequest(int Id, DateTime CompletedDate);
+    public record DevCompleteRequest(int Id);
     public record DevResetEnrollmentRequest(int Id);
     public record DevCompleteResponse(bool Success, string Message, int XpAwarded);
 
@@ -127,7 +127,7 @@ public class DevController : ControllerBase
     // ── Complete endpoints ──
 
     /// <summary>
-    /// Mark a ClassSchedule as completed on a given date + award 25 XP.
+    /// Mark a ClassSchedule as completed, preserving its original date and time + award 25 XP.
     /// </summary>
     [HttpPost("complete-schedule")]
     public async Task<ActionResult<DevCompleteResponse>> CompleteSchedule([FromBody] DevCompleteRequest request)
@@ -142,9 +142,8 @@ public class DevController : ControllerBase
         if (schedule.UserId == null)
             return BadRequest(new DevCompleteResponse(false, "Schedule has no user booked.", 0));
 
-        // Update schedule
+        // Mark as completed — keep ScheduledAt exactly as the trainer set it
         schedule.Status = ClassScheduleStatus.Completed;
-        schedule.ScheduledAt = request.CompletedDate;
 
         // Award XP
         const int xp = 25;
@@ -159,11 +158,11 @@ public class DevController : ControllerBase
         await _achievementService.CheckAndAwardAchievementsAsync(schedule.UserId.Value, newLevel, leveledUp);
         await _db.SaveChangesAsync();
 
-        return Ok(new DevCompleteResponse(true, $"Schedule marked as completed on {request.CompletedDate:yyyy-MM-dd}. +{xp} XP", xp));
+        return Ok(new DevCompleteResponse(true, $"Schedule marked as completed on {schedule.ScheduledAt:yyyy-MM-dd HH:mm}. +{xp} XP", xp));
     }
 
     /// <summary>
-    /// Mark a ClassEnrollment as completed on a given date, create RoomCheckIn, award 25 XP.
+    /// Mark a ClassEnrollment as completed, using the session's own start time + award 25 XP.
     /// </summary>
     [HttpPost("complete-enrollment")]
     public async Task<ActionResult<DevCompleteResponse>> CompleteEnrollment([FromBody] DevCompleteRequest request)
@@ -196,13 +195,14 @@ public class DevController : ControllerBase
             enrollment.ClassSession.Status = ClassSessionStatus.Completed;
         }
 
-        // Create RoomCheckIn record
+        // Create RoomCheckIn using the session's own start time
         const int xp = 25;
+        var checkInTime = enrollment.ClassSession?.StartTime ?? DateTime.UtcNow;
         var checkIn = new RoomCheckIn
         {
             ClassEnrollmentId = enrollment.Id,
             UserId = enrollment.UserId,
-            CheckInTime = request.CompletedDate,
+            CheckInTime = checkInTime,
             XpAwarded = xp
         };
 
@@ -219,9 +219,8 @@ public class DevController : ControllerBase
         var domainUser = await _db.Users.FirstOrDefaultAsync(u => u.IdentityUserId == enrollment.UserId);
         if (domainUser == null)
         {
-            // Still complete the enrollment even if we can't award XP
             await _db.SaveChangesAsync();
-            return Ok(new DevCompleteResponse(true, $"Enrollment completed but user not found for XP award.", 0));
+            return Ok(new DevCompleteResponse(true, "Enrollment completed but user not found for XP award.", 0));
         }
 
         var (_, newLevel, leveledUp) = await _progressService.AddXpAsync(
@@ -235,7 +234,7 @@ public class DevController : ControllerBase
         await _achievementService.CheckAndAwardAchievementsAsync(domainUser.Id, newLevel, leveledUp);
         await _db.SaveChangesAsync();
 
-        return Ok(new DevCompleteResponse(true, $"Enrollment completed on {request.CompletedDate:yyyy-MM-dd}. +{xp} XP", xp));
+        return Ok(new DevCompleteResponse(true, $"Enrollment completed on {checkInTime:yyyy-MM-dd HH:mm}. +{xp} XP", xp));
     }
 
     /// <summary>

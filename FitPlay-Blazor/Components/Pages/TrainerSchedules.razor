@@ -48,12 +48,12 @@
                     </div>
                     <div class="slot-editor">
                         <label for="slots-@session.Id">Slots</label>
-                        <select id="slots-@session.Id" class="slot-select" value="@GetSelectedSlot(session.Id)" @onchange="e => OnSlotChanged(session.Id, e)">
-                            @foreach (var option in _slotOptions)
-                            {
-                                <option value="@option">@option</option>
-                            }
-                        </select>
+                        <CustomSelect Id="@($"slots-{session.Id}")"
+                                      Class="slot-select"
+                                      Value="@GetSelectedSlot(session.Id).ToString()"
+                                      ValueChanged="value => OnSlotSelectedChanged(session.Id, value)"
+                                      Options="@GetSlotSelectOptions()"
+                                      Placeholder="Select slots" />
                         <button type="button" class="slot-save" @onclick="() => SaveSlots(session)" disabled="@IsSlotSaving(session.Id)">
                             @(IsSlotSaving(session.Id) ? "Saving..." : "Save")
                         </button>
@@ -164,14 +164,9 @@
         font-weight: 600;
     }
 
-    .slot-select {
+    .slot-select .cs-trigger {
         padding: 6px 8px;
-        border: 1px solid var(--glass-border);
-        border-radius: 8px;
-        background: rgba(255,255,255,0.06);
-        color: var(--text-primary);
-        font-weight: 600;
-        font-size: 0.82rem;
+        font-size: 0.9rem;
     }
 
     .slot-save {
@@ -285,12 +280,16 @@
     private int GetSelectedSlot(int sessionId)
         => _slotSelections.TryGetValue(sessionId, out var value) ? value : 10;
 
-    private void OnSlotChanged(int sessionId, ChangeEventArgs e)
+    private IEnumerable<CustomSelect.SelectOption> GetSlotSelectOptions()
+        => _slotOptions.Select(opt => new CustomSelect.SelectOption(opt.ToString(), opt.ToString()));
+
+    private Task OnSlotSelectedChanged(int sessionId, string value)
     {
-        if (int.TryParse(e.Value?.ToString(), out var value))
+        if (int.TryParse(value, out var parsed))
         {
-            _slotSelections[sessionId] = value;
+            _slotSelections[sessionId] = parsed;
         }
+        return Task.CompletedTask;
     }
 
     private bool IsSlotSaving(int sessionId)

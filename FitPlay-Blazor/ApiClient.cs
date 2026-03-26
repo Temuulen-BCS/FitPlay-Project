@@ -828,17 +828,17 @@ public class ApiClient
     public async Task<List<DevEnrollmentItem>> GetDevEnrollments()
         => await _http.GetFromJsonAsync<List<DevEnrollmentItem>>($"{BaseUrl}/dev/enrollments") ?? new();
 
-    public async Task<DevCompleteResponse?> DevCompleteSchedule(int scheduleId, DateTime date)
+    public async Task<DevCompleteResponse?> DevCompleteSchedule(int scheduleId)
     {
-        var body = new { Id = scheduleId, CompletedDate = date };
+        var body = new { Id = scheduleId };
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/dev/complete-schedule", body);
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<DevCompleteResponse>();
     }
 
-    public async Task<DevCompleteResponse?> DevCompleteEnrollment(int enrollmentId, DateTime date)
+    public async Task<DevCompleteResponse?> DevCompleteEnrollment(int enrollmentId)
     {
-        var body = new { Id = enrollmentId, CompletedDate = date };
+        var body = new { Id = enrollmentId };
         var res = await _http.PostAsJsonAsync($"{BaseUrl}/dev/complete-enrollment", body);
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<DevCompleteResponse>();

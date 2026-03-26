@@ -55,6 +55,7 @@ public class TrainersController : ControllerBase
         var schedules = await _db.ClassSchedules
             .Where(s => s.TrainerId == teacher.Id && s.Status == ClassScheduleStatus.Completed)
             .Include(s => s.User)
+            .Include(s => s.RoomBooking)
             .OrderByDescending(s => s.ScheduledAt)
             .ToListAsync();
 
@@ -67,7 +68,9 @@ public class TrainersController : ControllerBase
             MaxStudents: 1,
             PricePerStudent: s.PaidAmount ?? 0m,
             StartTime: s.ScheduledAt,
-            EndTime: s.ScheduledAt,
+            EndTime: s.RoomBooking != null && s.RoomBooking.EndTime > s.ScheduledAt
+                ? s.RoomBooking.EndTime
+                : s.ScheduledAt.AddHours(1),
             Status: s.Status.ToString(),
             EnrolledStudents: s.UserId.HasValue ? 1 : 0
         )).ToList();

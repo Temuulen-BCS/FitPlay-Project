@@ -551,6 +551,11 @@
     flex-shrink: 0;
 }
 
+.btn-logout-green svg {
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
 @media (max-width: 600px) {
     .profile-name { display: none; }
 }

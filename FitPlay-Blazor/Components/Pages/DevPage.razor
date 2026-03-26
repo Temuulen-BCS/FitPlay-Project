@@ -27,47 +27,23 @@
             <div class="success-box">@_successMessage</div>
         }
 
-        <!-- Change the Day form -->
+        <!-- Mark as Done form -->
         <div class="form-card">
-            <h2>Change the Day</h2>
-            <p class="form-desc">Select a booked class and the date it was realized. This will mark it as completed on that day and award XP.</p>
+            <h2>Mark as Done</h2>
+            <p class="form-desc">Select a booked class to mark it as completed. The original scheduled date and time will be preserved, and XP will be awarded.</p>
 
             <div class="form-group">
                 <label>Booked Class</label>
-                <select @bind="_selectedBookingKey">
-                    <option value="">-- Select a booked class --</option>
-
-                    @if (_schedules.Any())
-                    {
-                        <optgroup label="Class Schedules">
-                            @foreach (var s in _schedules)
-                            {
-                                <option value="schedule:@s.Id">@s.Modality - @s.ScheduledAt.ToString("dd/MM/yyyy HH:mm") @(s.UserName ?? $"User #{s.UserId}") @(s.TrainerName != null ? $"(Trainer: {s.TrainerName})" : "")</option>
-                            }
-                        </optgroup>
-                    }
-
-                    @if (_enrollments.Any())
-                    {
-                        <optgroup label="Session Enrollments">
-                            @foreach (var e in _enrollments)
-                            {
-                                <option value="enrollment:@e.Id">@e.SessionTitle - @e.StartTime.ToString("dd/MM/yyyy HH:mm") @(e.UserName ?? e.UserId)</option>
-                            }
-                        </optgroup>
-                    }
-                </select>
+                <CustomSelect Class="dev-select"
+                              @bind-Value="_selectedBookingKey"
+                              Groups="@GetBookingGroups()"
+                              Placeholder="-- Select a booked class --" />
             </div>
 
             @if (!_schedules.Any() && !_enrollments.Any())
             {
                 <div class="empty-state">No booked classes found to complete.</div>
             }
-
-            <div class="form-group">
-                <label>Completed On (Date)</label>
-                <input type="date" @bind="_selectedDate" />
-            </div>
 
             <button class="btn-complete" @onclick="MarkAsDone" disabled="@(_isSubmitting || string.IsNullOrEmpty(_selectedBookingKey))">
                 @if (_isSubmitting)
@@ -88,13 +64,10 @@
 
             <div class="form-group">
                 <label>Completed Enrollment</label>
-                <select @bind="_selectedResetKey">
-                    <option value="">-- Select a completed enrollment --</option>
-                    @foreach (var e in _completedEnrollments)
-                    {
-                        <option value="@e.Id">@e.SessionTitle - @e.StartTime.ToString("dd/MM/yyyy HH:mm") (@(e.UserName ?? e.UserId))</option>
-                    }
-                </select>
+                <CustomSelect Class="dev-select"
+                              @bind-Value="_selectedResetKey"
+                              Options="@GetCompletedEnrollmentOptions()"
+                              Placeholder="-- Select a completed enrollment --" />
             </div>
 
             @if (!_completedEnrollments.Any())
@@ -214,28 +187,8 @@
         color: var(--text-primary);
     }
 
-    .form-group select,
-    .form-group input[type="date"] {
-        width: 100%;
+    .dev-select .cs-trigger {
         padding: 10px 14px;
-        border-radius: 10px;
-        border: 1px solid var(--glass-border);
-        background: rgba(255, 255, 255, 0.05);
-        color: var(--text-primary);
-        font-size: 14px;
-        outline: none;
-        transition: border-color 0.2s;
-    }
-
-    .form-group select:focus,
-    .form-group input[type="date"]:focus {
-        border-color: #667eea;
-    }
-
-    .form-group select option,
-    .form-group select optgroup {
-        background: #1a1a2e;
-        color: #e0e0e0;
     }
 
     .empty-state {
@@ -336,7 +289,6 @@
 
     private string _selectedBookingKey = "";
     private string _selectedResetKey = "";
-    private DateTime _selectedDate = DateTime.Today;
 
     protected override async Task OnInitializedAsync()
     {
@@ -368,6 +320,40 @@
         }
     }
 
+    private IEnumerable<CustomSelect.SelectOptionGroup> GetBookingGroups()
+    {
+        var groups = new List<CustomSelect.SelectOptionGroup>();
+
+        if (_schedules.Any())
+        {
+            var scheduleOptions = _schedules.Select(s =>
+                new CustomSelect.SelectOption(
+                    $"schedule:{s.Id}",
+                    $"{s.Modality} - {s.ScheduledAt:dd/MM/yyyy HH:mm} {(s.UserName ?? $"User #{s.UserId}")} {(s.TrainerName != null ? $"(Trainer: {s.TrainerName})" : string.Empty)}".Trim()
+                )).ToList();
+            groups.Add(new CustomSelect.SelectOptionGroup("Class Schedules", scheduleOptions));
+        }
+
+        if (_enrollments.Any())
+        {
+            var enrollmentOptions = _enrollments.Select(e =>
+                new CustomSelect.SelectOption(
+                    $"enrollment:{e.Id}",
+                    $"{e.SessionTitle} - {e.StartTime:dd/MM/yyyy HH:mm} {(e.UserName ?? e.UserId)}"
+                )).ToList();
+            groups.Add(new CustomSelect.SelectOptionGroup("Session Enrollments", enrollmentOptions));
+        }
+
+        return groups;
+    }
+
+    private IEnumerable<CustomSelect.SelectOption> GetCompletedEnrollmentOptions()
+        => _completedEnrollments.Select(e =>
+            new CustomSelect.SelectOption(
+                e.Id.ToString(),
+                $"{e.SessionTitle} - {e.StartTime:dd/MM/yyyy HH:mm} ({(e.UserName ?? e.UserId)})"
+            ));
+
     private async Task MarkAsDone()
     {
         if (string.IsNullOrEmpty(_selectedBookingKey)) return;
@@ -386,11 +372,11 @@
 
             if (type == "schedule")
             {
-                result = await Api.DevCompleteSchedule(id, _selectedDate);
+                result = await Api.DevCompleteSchedule(id);
             }
             else
             {
-                result = await Api.DevCompleteEnrollment(id, _selectedDate);
+                result = await Api.DevCompleteEnrollment(id);
             }
 
             if (result is not null && result.Success)
