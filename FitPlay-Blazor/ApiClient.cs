@@ -313,12 +313,6 @@ public class ApiClient
 
     private static async Task<string> ReadApiErrorAsync(HttpResponseMessage response)
     {
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            return "Your session has expired or you are not logged in. Please log in again.";
-
-        if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            return "You do not have permission to perform this action.";
-
         try
         {
             var error = await response.Content.ReadFromJsonAsync<ApiError>();
