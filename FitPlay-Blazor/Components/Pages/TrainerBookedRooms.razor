@@ -1,0 +1,1205 @@
+@page "/trainer/rooms/booked"
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Booked Rooms - FitPlay</PageTitle>
+
+<div class="page-wrap">
+    <div class="page-header">
+        <h1>My Booked Rooms</h1>
+        <p class="page-subtitle">View and manage your room bookings</p>
+    </div>
+
+    <div class="toolbar">
+        <div class="date-filters">
+            <div class="filter-group">
+                <label>From</label>
+                <input type="date" @bind="_fromDate" @bind:after="Load" />
+            </div>
+            <div class="filter-group">
+                <label>To</label>
+                <input type="date" @bind="_toDate" @bind:after="Load" />
+            </div>
+        </div>
+        <button class="btn-refresh" @onclick="Load">
+            <span class="icon">🔄</span>
+            Refresh
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading bookings...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="error-state">
+            <span class="icon">⚠️</span>
+            <p>@_error</p>
+        </div>
+    }
+    else if (!_bookings.Any())
+    {
+        <div class="empty-state">
+            <span class="icon">📅</span>
+            <h3>No bookings found</h3>
+            <p>You haven't booked any rooms yet. Visit the <a href="/trainer/rooms">Rooms page</a> to book a room.</p>
+        </div>
+    }
+    else
+    {
+        @foreach (var group in _groupedBookings)
+        {
+            <div class="date-group">
+                <h2 class="date-header">
+                    <span class="date-icon">📅</span>
+                    @group.Key.ToString("dddd, dd MMMM yyyy")
+                </h2>
+                
+                <div class="bookings-grid">
+                    @foreach (var booking in group.Value)
+                    {
+                        var isUpcoming = booking.StartTime > DateTime.UtcNow;
+                        var isCancellable = isUpcoming && (booking.Status == "Pending" || booking.Status == "Confirmed");
+                        var statusClass = GetStatusClass(booking.Status);
+                        
+                        <article class="booking-card @statusClass">
+                            <div class="card-header">
+                                <div class="room-info">
+                                    <h3>@(booking.RoomName ?? "Unknown Room")</h3>
+                                    <p class="location">
+                                        <span class="icon">📍</span>
+                                        @if (!string.IsNullOrEmpty(booking.GymName) && !string.IsNullOrEmpty(booking.LocationName))
+                                        {
+                                            <text>@booking.GymName - @booking.LocationName</text>
+                                        }
+                                        else if (!string.IsNullOrEmpty(booking.LocationName))
+                                        {
+                                            <text>@booking.LocationName</text>
+                                        }
+                                        else
+                                        {
+                                            <text>Location unavailable</text>
+                                        }
+                                    </p>
+                                </div>
+                                <div class="status-badge @statusClass">@booking.Status</div>
+                            </div>
+                            
+                            <div class="card-content">
+                                <div class="info-row">
+                                    <span class="label">
+                                        <span class="icon">🕐</span>
+                                        Time
+                                    </span>
+                                    <span class="value">
+                                        @booking.StartTime.ToLocalTime().ToString("HH:mm") → @booking.EndTime.ToLocalTime().ToString("HH:mm")
+                                        <span class="duration">(@GetDurationHours(booking.StartTime, booking.EndTime)h)</span>
+                                    </span>
+                                </div>
+                                
+                                <div class="info-row">
+                                    <span class="label">
+                                        <span class="icon">🎯</span>
+                                        Modality
+                                    </span>
+                                    <span class="value">@booking.Modality</span>
+                                </div>
+                                
+                                <div class="info-row">
+                                    <span class="label">
+                                        <span class="icon">💰</span>
+                                        Cost
+                                    </span>
+                                    <span class="value cost">@booking.TotalCost.ToString("C")</span>
+                                </div>
+                                
+                                <div class="info-row @(booking.QueuedClientsCount > 0 ? "queued-highlight" : "")">
+                                    <span class="label">
+                                        <span class="icon">👥</span>
+                                        Interested
+                                    </span>
+                                    <span class="value @(booking.QueuedClientsCount > 0 ? "interested-count" : "")">
+                                        @if (booking.QueuedClientsCount > 0)
+                                        {
+                                            <text>@booking.QueuedClientsCount client@(booking.QueuedClientsCount == 1 ? "" : "s") in queue</text>
+                                        }
+                                        else
+                                        {
+                                            <text>No one yet</text>
+                                        }
+                                    </span>
+                                </div>
+                                
+                                @if (!string.IsNullOrWhiteSpace(booking.Notes))
+                                {
+                                    <div class="info-row notes">
+                                        <span class="label">
+                                            <span class="icon">📋</span>
+                                            Notes
+                                        </span>
+                                        <span class="value">@booking.Notes</span>
+                                    </div>
+                                }
+                                
+                                <div class="info-row meta">
+                                    <span class="label">Booked</span>
+                                    <span class="value">@booking.CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+                                </div>
+                            </div>
+                            
+                            @* Pay and Confirm button for Pending bookings *@
+                            @if (isUpcoming && booking.Status == "Pending")
+                            {
+                                @if (_showPaymentUI && _paymentBookingId == booking.Id && !string.IsNullOrWhiteSpace(_paymentClientSecret))
+                                {
+                                    <div class="card-actions payment-section">
+                                        <div class="payment-container">
+                                            <p class="payment-label">Enter your payment details</p>
+                                            <div id="payment-element-@booking.Id"></div>
+                                            <div class="payment-buttons">
+                                                <button class="btn-confirm" 
+                                                        @onclick="() => ConfirmPayment(booking.Id)"
+                                                        disabled="@(_confirmingBookingId == booking.Id)">
+                                                    @if (_confirmingBookingId == booking.Id)
+                                                    {
+                                                        <text>Processing...</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="icon">✓</span>
+                                                        <text>Confirm Payment</text>
+                                                    }
+                                                </button>
+                                                <button class="btn-cancel-payment" 
+                                                        @onclick="CancelPaymentForm"
+                                                        disabled="@(_confirmingBookingId == booking.Id)">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(_paymentError))
+                                            {
+                                                <div class="payment-error">@_paymentError</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="card-actions">
+                                        <button class="btn-confirm" 
+                                                @onclick="() => InitiatePayment(booking.Id)"
+                                                disabled="@(_confirmingBookingId == booking.Id)">
+                                            @if (_confirmingBookingId == booking.Id)
+                                            {
+                                                <text>Loading payment...</text>
+                                            }
+                                            else
+                                            {
+                                                <span class="icon">✓</span>
+                                                <text>Pay and Confirm</text>
+                                            }
+                                        </button>
+                                    </div>
+                                }
+                            }
+                            
+                            @* Success message after confirmation *@
+                            @if (_confirmedBookingId == booking.Id && !string.IsNullOrEmpty(_confirmSuccessMessage))
+                            {
+                                <div class="success-message">
+                                    @_confirmSuccessMessage
+                                </div>
+                            }
+                            
+                            @* Cancel button with fee preview for Confirmed bookings *@
+                            @if (isCancellable && booking.Status == "Confirmed")
+                            {
+                                @if (_cancelPreviewBookingId == booking.Id && _cancelPreview != null)
+                                {
+                                    <div class="cancel-preview">
+                                        <p class="fee-warning">
+                                            ⚠️ Cancellation fee: @(_cancelPreview.CancelFeeRate.ToString("P0")) = @(_cancelPreview.FeeAmount.ToString("C"))
+                                        </p>
+                                        <div class="card-actions">
+                                            <button class="btn-cancel-confirm" 
+                                                    @onclick="() => ExecuteCancel(booking.Id)"
+                                                    disabled="@_cancelling">
+                                                @if (_cancelling)
+                                                {
+                                                    <text>Cancelling...</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Confirm Cancel</text>
+                                                }
+                                            </button>
+                                            <button class="btn-keep" 
+                                                    @onclick="ClosePreview"
+                                                    disabled="@_cancelling">
+                                                Keep Booking
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="card-actions">
+                                        <button class="btn-cancel" 
+                                                @onclick="() => ShowCancelPreview(booking.Id)"
+                                                disabled="@_cancelling">
+                                            <span class="icon">✕</span>
+                                            <text>Cancel Booking</text>
+                                        </button>
+                                    </div>
+                                }
+                            }
+                            
+                            @* Cancel button for Pending bookings (no fee) *@
+                            @if (isCancellable && booking.Status == "Pending")
+                            {
+                                <div class="card-actions">
+                                    <button class="btn-cancel" 
+                                            @onclick="() => CancelBooking(booking.Id)"
+                                            disabled="@_cancelling">
+                                        @if (_cancelling && _cancelPreviewBookingId == booking.Id)
+                                        {
+                                            <text>Cancelling...</text>
+                                        }
+                                        else
+                                        {
+                                            <span class="icon">✕</span>
+                                            <text>Cancel Booking</text>
+                                        }
+                                    </button>
+                                </div>
+                            }
+                        </article>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .page-wrap {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 8px;
+    }
+
+    .page-subtitle {
+        color: var(--text-muted);
+        font-size: 15px;
+        margin: 0;
+    }
+
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding: 16px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+    }
+
+    .date-filters {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .filter-group label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .filter-group input {
+        padding: 10px 14px;
+        border-radius: 9px;
+        border: 1px solid var(--glass-border);
+        background: rgba(255,255,255,.04);
+        color: var(--text-primary);
+        font-size: 14px;
+        font-family: inherit;
+        transition: border-color 0.2s, background 0.2s;
+    }
+
+    .filter-group input:focus {
+        outline: none;
+        border-color: var(--accent-teal);
+        background: rgba(255,255,255,.06);
+    }
+
+    .btn-refresh {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        border-radius: 9px;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, transform 0.1s;
+    }
+
+    .btn-refresh:hover {
+        border-color: rgba(14,240,255,0.7);
+        box-shadow: 0 0 28px rgba(14,240,255,0.35);
+        background: linear-gradient(135deg, rgba(14,240,255,0.14), rgba(255,77,250,0.14));
+        transform: translateY(-1px);
+    }
+
+    .btn-refresh .icon {
+        font-size: 16px;
+    }
+
+    .loading-state, .error-state, .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+    }
+
+    .loading-state p, .error-state p, .empty-state p {
+        color: var(--text-muted);
+        margin: 12px 0 0;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        margin: 0 auto 16px;
+        border: 3px solid rgba(14,240,255,0.2);
+        border-top-color: var(--accent-teal);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .error-state {
+        background: rgba(255,77,109,0.08);
+        border-color: rgba(255,77,109,0.3);
+    }
+
+    .error-state .icon {
+        font-size: 48px;
+    }
+
+    .error-state p {
+        color: #ff9aa2;
+    }
+
+    .empty-state .icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+        opacity: 0.6;
+    }
+
+    .empty-state h3 {
+        color: var(--text-primary);
+        margin: 0 0 8px;
+        font-size: 20px;
+    }
+
+    .empty-state a {
+        color: var(--accent-teal);
+        text-decoration: none;
+        font-weight: 600;
+        transition: opacity 0.2s;
+    }
+
+    .empty-state a:hover {
+        opacity: 0.8;
+        text-decoration: underline;
+    }
+
+    .date-group {
+        margin-bottom: 32px;
+    }
+
+    .date-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 16px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid var(--glass-border);
+    }
+
+    .date-icon {
+        font-size: 24px;
+    }
+
+    .bookings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 16px;
+    }
+
+    .booking-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+        padding: 0;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .booking-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 18px;
+        background: rgba(255,255,255,0.02);
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .room-info h3 {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 6px;
+    }
+
+    .room-info .location {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .room-info .location .icon {
+        font-size: 14px;
+    }
+
+    .status-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+
+    .status-badge.status-confirmed {
+        background: rgba(14,240,255,0.15);
+        color: var(--accent-teal);
+        border: 1px solid rgba(14,240,255,0.3);
+    }
+
+    .status-badge.status-pending {
+        background: rgba(255,193,7,0.15);
+        color: #ffc107;
+        border: 1px solid rgba(255,193,7,0.3);
+    }
+
+    .status-badge.status-cancelled {
+        background: rgba(255,77,109,0.15);
+        color: #ff9aa2;
+        border: 1px solid rgba(255,77,109,0.3);
+    }
+
+    .status-badge.status-completed {
+        background: rgba(158,158,158,0.15);
+        color: #9e9e9e;
+        border: 1px solid rgba(158,158,158,0.3);
+    }
+
+    .card-content {
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        font-size: 14px;
+    }
+
+    .info-row .label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-muted);
+        font-weight: 600;
+        min-width: 100px;
+    }
+
+    .info-row .label .icon {
+        font-size: 16px;
+    }
+
+    .info-row .value {
+        color: var(--text-primary);
+        text-align: right;
+        flex: 1;
+    }
+
+    .info-row .value.cost {
+        color: var(--accent-teal);
+        font-weight: 700;
+        font-size: 16px;
+    }
+
+    .info-row .duration {
+        color: var(--text-muted);
+        font-size: 12px;
+        margin-left: 6px;
+    }
+
+    .info-row.notes {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .info-row.notes .value {
+        text-align: left;
+        padding: 10px;
+        background: rgba(255,255,255,0.03);
+        border-radius: 8px;
+        width: 100%;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .info-row.meta {
+        padding-top: 8px;
+        border-top: 1px solid var(--glass-border);
+        font-size: 12px;
+        opacity: 0.7;
+    }
+
+    .info-row.queued-highlight {
+        background: rgba(255,215,0,0.06);
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,215,0,0.2);
+    }
+
+    .interested-count {
+        color: var(--accent-gold, #ffd700) !important;
+        font-weight: 700 !important;
+    }
+
+    .card-actions {
+        padding: 14px 18px;
+        background: rgba(255,255,255,0.02);
+        border-top: 1px solid var(--glass-border);
+    }
+
+    .btn-cancel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px;
+        background: rgba(255,77,109,0.15);
+        border: 1px solid rgba(255,77,109,0.4);
+        border-radius: 9px;
+        color: #ff9aa2;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel:hover:not(:disabled) {
+        background: rgba(255,77,109,0.25);
+        border-color: rgba(255,77,109,0.6);
+        transform: translateY(-1px);
+    }
+
+    .btn-cancel:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-cancel .icon {
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    /* Pay and Confirm button */
+    .btn-confirm {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px;
+        background: rgba(0,230,180,0.15);
+        border: 1px solid rgba(0,230,180,0.4);
+        border-radius: 9px;
+        color: #00e6b4;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-confirm:hover:not(:disabled) {
+        background: rgba(0,230,180,0.25);
+        border-color: rgba(0,230,180,0.6);
+        transform: translateY(-1px);
+    }
+
+    .btn-confirm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-confirm .icon {
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    /* Payment section */
+    .payment-section {
+        padding: 18px !important;
+    }
+
+    .payment-container {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .payment-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .payment-container [id^="payment-element-"] {
+        background: #fff;
+        padding: 16px;
+        border-radius: 12px;
+        min-height: 50px;
+    }
+
+    .payment-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .payment-buttons .btn-confirm {
+        flex: 2;
+    }
+
+    .btn-cancel-payment {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 9px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel-payment:hover:not(:disabled) {
+        background: rgba(255,255,255,0.12);
+        border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-cancel-payment:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .payment-error {
+        padding: 10px 14px;
+        background: rgba(255,77,109,0.1);
+        border: 1px solid rgba(255,77,109,0.3);
+        border-radius: 8px;
+        color: #ff9aa2;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    /* Success message */
+    .success-message {
+        padding: 10px 18px;
+        background: rgba(0,230,180,0.1);
+        border: 1px solid rgba(0,230,180,0.3);
+        border-radius: 8px;
+        color: #00e6b4;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 8px 18px 14px;
+        text-align: center;
+    }
+
+    /* Cancel preview */
+    .cancel-preview {
+        padding: 14px 18px;
+        background: rgba(255,77,109,0.08);
+        border-top: 1px solid rgba(255,77,109,0.2);
+    }
+
+    .fee-warning {
+        color: #ffb347;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 12px;
+        text-align: center;
+    }
+
+    .cancel-preview .card-actions {
+        display: flex;
+        gap: 10px;
+        padding: 0;
+        background: transparent;
+        border-top: none;
+    }
+
+    .btn-cancel-confirm {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px;
+        background: rgba(255,77,109,0.25);
+        border: 1px solid rgba(255,77,109,0.5);
+        border-radius: 9px;
+        color: #ff6b7a;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel-confirm:hover:not(:disabled) {
+        background: rgba(255,77,109,0.4);
+        border-color: rgba(255,77,109,0.7);
+    }
+
+    .btn-cancel-confirm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-keep {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 9px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-keep:hover:not(:disabled) {
+        background: rgba(255,255,255,0.12);
+        border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-keep:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .page-wrap {
+            padding: 16px;
+        }
+
+        .page-header h1 {
+            font-size: 24px;
+        }
+
+        .toolbar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .date-filters {
+            width: 100%;
+        }
+
+        .filter-group {
+            flex: 1;
+        }
+
+        .btn-refresh {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .bookings-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .card-header {
+            flex-direction: column;
+        }
+
+        .status-badge {
+            align-self: flex-start;
+        }
+
+        .info-row {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .info-row .value {
+            text-align: left;
+        }
+    }
+</style>
+
+@code {
+    private List<ApiClient.RoomBookingRead> _bookings = new();
+    private Dictionary<DateOnly, List<ApiClient.RoomBookingRead>> _groupedBookings = new();
+    private bool _loading = true;
+    private bool _cancelling = false;
+    private int? _confirmingBookingId;
+    private int? _confirmedBookingId;
+    private string? _confirmSuccessMessage;
+    private int? _cancelPreviewBookingId;
+    private ApiClient.CancellationPreview? _cancelPreview;
+    private string? _error;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+
+    // ── Stripe payment state ──
+    private int? _paymentBookingId;
+    private string? _paymentClientSecret;
+    private bool _paymentElementMounted;
+    private bool _isMountingPayment;
+    private bool _showPaymentUI;
+    private string? _paymentError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isMountingPayment || _paymentElementMounted
+            || !_showPaymentUI
+            || string.IsNullOrWhiteSpace(_paymentClientSecret)
+            || _paymentBookingId is null)
+            return;
+
+        _isMountingPayment = true;
+        _paymentElementMounted = true;
+
+        try
+        {
+            var error = await JS.InvokeAsync<string?>(
+                "fitplayStripe.mount",
+                _paymentClientSecret,
+                $"#payment-element-{_paymentBookingId}");
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                _paymentElementMounted = false;
+                _paymentError = error;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _paymentElementMounted = false;
+            _paymentError = $"Failed to load payment form: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            _isMountingPayment = false;
+        }
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        _error = null;
+        _bookings.Clear();
+        _groupedBookings.Clear();
+        _confirmedBookingId = null;
+        _confirmSuccessMessage = null;
+        _cancelPreviewBookingId = null;
+        _cancelPreview = null;
+        _showPaymentUI = false;
+
+        try
+        {
+            var from = _fromDate.HasValue ? _fromDate.Value.ToUniversalTime() : (DateTime?)null;
+            var to = _toDate.HasValue ? _toDate.Value.AddDays(1).ToUniversalTime() : (DateTime?)null;
+
+            _bookings = await Api.GetMyBookings(from, to);
+            
+            // Group by date (local time)
+            _groupedBookings = _bookings
+                .GroupBy(b => DateOnly.FromDateTime(b.StartTime.ToLocalTime()))
+                .OrderByDescending(g => g.Key)
+                .ToDictionary(g => g.Key, g => g.OrderBy(b => b.StartTime).ToList());
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load bookings: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // ── Stripe Payment Flow ──
+
+    private async Task InitiatePayment(int bookingId)
+    {
+        _confirmingBookingId = bookingId;
+        _paymentError = null;
+        _error = null;
+
+        try
+        {
+            var response = await Api.CreateBookingPaymentIntent(bookingId);
+            _paymentClientSecret = response?.ClientSecret;
+
+            if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+            {
+                _paymentError = "Failed to initialize payment.";
+                _confirmingBookingId = null;
+                return;
+            }
+
+            _paymentBookingId = bookingId;
+            _paymentElementMounted = false;
+            _confirmingBookingId = null;
+            _showPaymentUI = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Failed to initialize payment: {ex.Message}";
+            _error = _paymentError;
+            _confirmingBookingId = null;
+        }
+    }
+
+    private async Task ConfirmPayment(int bookingId)
+    {
+        if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+        {
+            _paymentError = "Payment not initialized.";
+            return;
+        }
+
+        _confirmingBookingId = bookingId;
+        _paymentError = null;
+
+        try
+        {
+            var successUrl = Navigation.ToAbsoluteUri("/trainer/rooms/booked").ToString();
+            var stripeError = await JS.InvokeAsync<string?>("fitplayStripe.confirm", successUrl);
+
+            if (!string.IsNullOrWhiteSpace(stripeError))
+            {
+                _paymentError = stripeError;
+                return;
+            }
+
+            // Payment succeeded at Stripe - extract PI id from the client secret
+            // Client secret format: pi_xxx_secret_yyy → PI id is pi_xxx
+            var paymentIntentId = _paymentClientSecret.Split("_secret_")[0];
+
+            // Confirm booking on our backend
+            await Api.ConfirmBookingPayment(bookingId, paymentIntentId);
+
+            // Reset payment state
+            _paymentBookingId = null;
+            _paymentClientSecret = null;
+            _paymentElementMounted = false;
+            _showPaymentUI = false;
+            _paymentError = null;
+
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Payment successful! Booking confirmed.";
+            await Load();
+            // Re-set the success message after reload
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Payment successful! Booking confirmed.";
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Payment failed: {ex.Message}";
+        }
+        finally
+        {
+            _confirmingBookingId = null;
+        }
+    }
+
+    private void CancelPaymentForm()
+    {
+        _paymentBookingId = null;
+        _paymentClientSecret = null;
+        _paymentElementMounted = false;
+        _showPaymentUI = false;
+        _paymentError = null;
+        _confirmingBookingId = null;
+    }
+
+    private async Task ShowCancelPreview(int bookingId)
+    {
+        _cancelPreviewBookingId = bookingId;
+        _cancelPreview = null;
+        _error = null;
+
+        try
+        {
+            _cancelPreview = await Api.GetCancellationPreview(bookingId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load cancellation info: {ex.Message}";
+            _cancelPreviewBookingId = null;
+        }
+    }
+
+    private void ClosePreview()
+    {
+        _cancelPreviewBookingId = null;
+        _cancelPreview = null;
+    }
+
+    private async Task ExecuteCancel(int bookingId)
+    {
+        _cancelling = true;
+        try
+        {
+            await Api.CancelRoomBooking(bookingId);
+            _cancelPreviewBookingId = null;
+            _cancelPreview = null;
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to cancel booking: {ex.Message}";
+        }
+        finally
+        {
+            _cancelling = false;
+        }
+    }
+
+    private async Task CancelBooking(int bookingId)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this booking?");
+        if (!confirmed) return;
+
+        _cancelling = true;
+        _cancelPreviewBookingId = bookingId;
+        try
+        {
+            await Api.CancelRoomBooking(bookingId);
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to cancel booking: {ex.Message}";
+        }
+        finally
+        {
+            _cancelling = false;
+            _cancelPreviewBookingId = null;
+        }
+    }
+
+    private static string GetStatusClass(string status) => status.ToLowerInvariant() switch
+    {
+        "confirmed" => "status-confirmed",
+        "pending" => "status-pending",
+        "cancelled" => "status-cancelled",
+        "completed" => "status-completed",
+        _ => ""
+    };
+
+    private static decimal GetDurationHours(DateTime start, DateTime end)
+    {
+        var duration = end - start;
+        return (decimal)duration.TotalHours;
+    }
+}

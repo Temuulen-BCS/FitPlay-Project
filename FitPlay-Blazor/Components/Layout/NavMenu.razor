@@ -2,11 +2,6 @@
 
 @inject NavigationManager NavigationManager
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">FitPlay</a>
-    </div>
-</div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
@@ -18,39 +13,92 @@
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="trainings">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Trainings
-            </NavLink>
-        </div>
+        <AuthorizeView Roles="User">
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="user/trainings">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Trainings
+                </NavLink>
+            </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="progress">
-                <span class="bi bi-graph-up-nav-menu" aria-hidden="true"></span> My Progress
-            </NavLink>
-        </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="user/progress">
+                    <span class="bi bi-graph-up-nav-menu" aria-hidden="true"></span> My Progress
+                </NavLink>
+            </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="achievements">
-                <span class="bi bi-trophy-nav-menu" aria-hidden="true"></span> Achievements
-            </NavLink>
-        </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="user/achievements">
+                    <span class="bi bi-trophy-nav-menu" aria-hidden="true"></span> Achievements
+                </NavLink>
+            </div>
 
-        <div class="nav-section-header px-3">
-            <span>Trainer</span>
-        </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="membership">
+                    <span class="bi bi-stars-nav-menu" aria-hidden="true"></span> Membership
+                </NavLink>
+            </div>
+        </AuthorizeView>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="trainer/validations">
-                <span class="bi bi-check-circle-nav-menu" aria-hidden="true"></span> Validations
-            </NavLink>
-        </div>
+        <AuthorizeView Roles="GymAdmin">
+            <div class="nav-section-header px-3">
+                <span>Gym Admin</span>
+            </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="trainer/users/1">
-                <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Manage Users
-            </NavLink>
-        </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="gym/dashboard">
+                    <span class="bi bi-speedometer2-nav-menu" aria-hidden="true"></span> Dashboard
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="gym/locations">
+                    <span class="bi bi-geo-alt-nav-menu" aria-hidden="true"></span> Locations
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="gym/rooms">
+                    <span class="bi bi-layout-nav-menu" aria-hidden="true"></span> Rooms
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="gym/trainers">
+                    <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Trainers
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="gym/sessions">
+                    <span class="bi bi-calendar3-nav-menu" aria-hidden="true"></span> Sessions
+                </NavLink>
+            </div>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="Trainer">
+            <div class="nav-section-header px-3">
+                <span>Trainer</span>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="trainer/dashboard">
+                    <span class="bi bi-speedometer2-nav-menu" aria-hidden="true"></span> Dashboard
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="trainer/validations">
+                    <span class="bi bi-check-circle-nav-menu" aria-hidden="true"></span> Validations
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="trainer/exercises">
+                    <span class="bi bi-activity-nav-menu" aria-hidden="true"></span> Exercises
+                </NavLink>
+            </div>
+
+        </AuthorizeView>
 
         <AuthorizeView>
             <Authorized>
@@ -62,7 +110,7 @@
                 <div class="nav-item px-3">
                     <form action="Account/Logout" method="post">
                         <AntiforgeryToken />
-                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                        <input type="hidden" name="ReturnUrl" value="/" />
                         <button type="submit" class="nav-link">
                             <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
                         </button>
@@ -71,14 +119,14 @@
             </Authorized>
             <NotAuthorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Register">
+                    <a class="nav-link" href="Account/Register" data-enhanced-nav="false">
                         <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
-                    </NavLink>
+                    </a>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Login">
+                    <a class="nav-link" href="Account/Login" data-enhanced-nav="false">
                         <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
-                    </NavLink>
+                    </a>
                 </div>
             </NotAuthorized>
         </AuthorizeView>

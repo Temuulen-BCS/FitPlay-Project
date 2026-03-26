@@ -1,0 +1,498 @@
+@page "/user/my-sessions"
+@attribute [Authorize(Roles = "User")]
+@layout UserLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Layout
+
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>My Sessions - FitPlay</PageTitle>
+
+<div class="ms-page">
+
+    <div class="ms-header">
+        <div>
+            <p class="ms-eyebrow">My Account</p>
+            <h1 class="ms-title">My Sessions</h1>
+        </div>
+        <a href="/user/book-class" class="btn-primary-ms">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Book a Class
+        </a>
+    </div>
+
+    <!-- Tabs -->
+    <div class="ms-tabs">
+        <button class="ms-tab @(_tab == "upcoming" ? "active" : "")" @onclick='() => _tab = "upcoming"'>Upcoming</button>
+        <button class="ms-tab @(_tab == "past" ? "active" : "")" @onclick='() => _tab = "past"'>Past</button>
+        <button class="ms-tab @(_tab == "all" ? "active" : "")" @onclick='() => _tab = "all"'>All</button>
+    </div>
+
+    @if (_bookedClassesError)
+    {
+        <div class="ms-warn-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Booked classes could not be loaded. Please try again later.
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="ms-loading">
+            <div class="ms-spinner"></div>
+            <p>Loading your sessions...</p>
+        </div>
+    }
+    else if (_filtered.Count == 0)
+    {
+        <div class="ms-empty">
+            <div class="ms-empty-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+            </div>
+            <p>No sessions found for this filter.</p>
+            <a href="/user/book-class" class="btn-primary-ms">Book a Class</a>
+        </div>
+    }
+    else
+    {
+        <div class="ms-cards">
+            @foreach (var b in _filtered)
+            {
+                var isPast = b.ScheduledAt < DateTime.UtcNow;
+                var isCancelled = string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+                var isCompleted = string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+                var canCancelBooking = !isPast && !isCancelled && !isCompleted;
+
+                <div class="ms-card @(isCancelled ? "card-cancelled" : isPast || isCompleted ? "card-past" : "card-upcoming")">
+                    <div class="ms-card-header">
+                        <div class="ms-card-meta">
+                            <span class="schedule-badge @GetScheduleBadgeClass(b.Status)">@b.Status</span>
+                        </div>
+                        <div class="ms-card-actions">
+                            @if (canCancelBooking)
+                            {
+                                <button class="btn-cancel"
+                                        @onclick="() => ConfirmCancelBooking(b)"
+                                        disabled="@(_cancellingBookId == b.Id)">
+                                    @(_cancellingBookId == b.Id ? "..." : "Cancel Booking")
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <h3 class="ms-card-title">@b.Modality</h3>
+                    <p class="ms-booked-coach">Coach: @b.TrainerName</p>
+                    @if (!string.IsNullOrWhiteSpace(b.Notes))
+                    {
+                        <p class="ms-card-desc ms-booked-note">@b.Notes</p>
+                    }
+
+                    <div class="ms-card-details">
+                        <div class="ms-detail">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <span>@b.ScheduledAt.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @b.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+<!-- Cancel booked class confirm -->
+@if (_cancelBookTarget != null)
+{
+    <div class="ms-overlay" @onclick="CloseCancelBooking">
+        <div class="ms-modal" @onclick:stopPropagation>
+            <h3 class="ms-modal-title">Cancel Booking</h3>
+            <p class="ms-modal-body">
+                Are you sure you want to cancel your booking for
+                <strong>@_cancelBookTarget.Modality</strong>
+                with @(_cancelBookTarget.TrainerName)?
+            </p>
+            <div class="ms-modal-actions">
+                <button class="btn-modal-ghost" @onclick="CloseCancelBooking">Keep</button>
+                <button class="btn-modal-danger" @onclick="ExecuteCancelBooking" disabled="@(_cancellingBookId.HasValue)">
+                    @(_cancellingBookId.HasValue ? "Cancelling..." : "Yes, Cancel")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="ms-toast error">@_error</div>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private string _tab = "upcoming";
+
+    private List<ApiClient.ClassScheduleWithTrainer> _bookedClasses = new();
+    private bool _bookedClassesError;
+
+    private ApiClient.ClassScheduleWithTrainer? _cancelBookTarget;
+    private int? _cancellingBookId;
+
+    private List<ApiClient.ClassScheduleWithTrainer> _filtered
+    {
+        get
+        {
+            var now = DateTime.UtcNow;
+
+            var filtered = _tab switch
+            {
+                "upcoming" => _bookedClasses.Where(b =>
+                    b.ScheduledAt >= now
+                    && string.Equals(b.Status, "Scheduled", StringComparison.OrdinalIgnoreCase)),
+                "past" => _bookedClasses.Where(b =>
+                    b.ScheduledAt < now
+                    || string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)),
+                _ => _bookedClasses.AsEnumerable()
+            };
+
+            return _tab == "upcoming"
+                ? filtered.OrderBy(b => b.ScheduledAt).ToList()
+                : filtered.OrderByDescending(b => b.ScheduledAt).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var currentUserId = await ResolveCurrentUserIdAsync();
+            if (currentUserId is null)
+            {
+                _error = "Could not resolve user profile.";
+                return;
+            }
+
+            try { _bookedClasses = await Api.GetUserScheduleWithTrainer(currentUserId.Value); }
+            catch { _bookedClassesError = true; }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load sessions: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task<int?> ResolveCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            Nav.NavigateTo("/Account/Login", true);
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            Nav.NavigateTo("/Account/Login", true);
+            return null;
+        }
+
+        var domainUser = await Api.GetUserByIdentity(identityId);
+        if (domainUser is null)
+        {
+            Nav.NavigateTo("/Account/Login", true);
+            return null;
+        }
+
+        return domainUser.Id;
+    }
+
+    private void ConfirmCancelBooking(ApiClient.ClassScheduleWithTrainer schedule)
+    {
+        _cancelBookTarget = schedule;
+        _error = null;
+    }
+
+    private void CloseCancelBooking() => _cancelBookTarget = null;
+
+    private async Task ExecuteCancelBooking()
+    {
+        if (_cancelBookTarget is null) return;
+
+        _cancellingBookId = _cancelBookTarget.Id;
+        try
+        {
+            await Api.UnbookClass(_cancelBookTarget.Id);
+            _bookedClasses.RemoveAll(s => s.Id == _cancelBookTarget.Id);
+            _cancelBookTarget = null;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not cancel booking: {ex.Message}";
+        }
+        finally
+        {
+            _cancellingBookId = null;
+        }
+    }
+
+    private static string GetScheduleBadgeClass(string status) => status?.ToLower() switch
+    {
+        "scheduled" => "badge-confirmed",
+        "completed" => "badge-pending",
+        "cancelled" => "badge-cancelled",
+        _           => "badge-unknown"
+    };
+}
+
+<style>
+    .ms-page {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 5rem;
+        color: var(--text-primary, #f8f9fb);
+    }
+
+    /* Header */
+    .ms-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .ms-eyebrow {
+        margin: 0 0 4px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: #0ef0ff;
+    }
+    .ms-title { margin: 0; font-size: 2rem; font-weight: 700; }
+
+    .btn-primary-ms {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
+        color: #001e24;
+        border: none;
+        padding: 0.7rem 1.4rem;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        font-family: inherit;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 18px rgba(14,240,255,0.35);
+    }
+    .btn-primary-ms:hover { transform: scale(1.03); box-shadow: 0 6px 28px rgba(14,240,255,0.55); }
+
+    /* Tabs */
+    .ms-tabs {
+        display: flex;
+        gap: 0.25rem;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 30px;
+        padding: 3px;
+        width: fit-content;
+        margin-bottom: 1.75rem;
+    }
+    .ms-tab {
+        background: transparent;
+        border: none;
+        color: var(--text-muted, #9aa0b5);
+        font-size: 0.85rem;
+        font-weight: 500;
+        font-family: inherit;
+        padding: 0.45rem 1.1rem;
+        border-radius: 26px;
+        cursor: pointer;
+        transition: background 0.18s, color 0.18s;
+    }
+    .ms-tab:hover { color: #f8f9fb; }
+    .ms-tab.active { background: rgba(14,240,255,0.15); color: #0ef0ff; font-weight: 600; }
+
+    /* Loading */
+    .ms-loading {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        min-height: 40vh; gap: 1rem; color: var(--text-muted, #9aa0b5);
+    }
+    .ms-spinner {
+        width: 38px; height: 38px;
+        border: 3px solid rgba(14,240,255,0.2);
+        border-top-color: #0ef0ff;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Empty */
+    .ms-empty {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        min-height: 32vh; gap: 1rem; color: var(--text-muted, #9aa0b5); text-align: center;
+    }
+    .ms-empty-icon {
+        width: 70px; height: 70px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Warning banner */
+    .ms-warn-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255,180,0,0.08);
+        border: 1px solid rgba(255,180,0,0.25);
+        color: #ffb400;
+        padding: 0.7rem 1.2rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        margin-bottom: 1.25rem;
+    }
+
+    /* Cards */
+    .ms-cards { display: flex; flex-direction: column; gap: 1rem; }
+
+    .ms-card {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 18px;
+        padding: 1.4rem 1.5rem;
+        transition: border-color 0.2s;
+    }
+    .ms-card:hover { border-color: rgba(14,240,255,0.25); }
+    .card-upcoming { border-left: 3px solid rgba(14,240,255,0.5); }
+    .card-past     { border-left: 3px solid rgba(255,180,0,0.4); opacity: 0.8; }
+    .card-cancelled { border-left: 3px solid rgba(255,255,255,0.1); opacity: 0.55; }
+
+    .ms-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.6rem;
+    }
+    .ms-card-meta { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+
+    /* Badges */
+    .schedule-badge {
+        font-size: 0.7rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        padding: 2px 9px; border-radius: 20px;
+    }
+    .badge-confirmed { background: rgba(14,240,255,0.12); color: #0ef0ff; border: 1px solid rgba(14,240,255,0.3); }
+    .badge-pending   { background: rgba(255,180,0,0.12);  color: #ffb400; border: 1px solid rgba(255,180,0,0.3); }
+    .badge-cancelled { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
+    .badge-unknown   { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
+
+    /* Card actions */
+    .ms-card-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    .btn-cancel {
+        background: transparent;
+        border: 1px solid rgba(255,47,180,0.3);
+        color: #ff2fb4;
+        font-size: 0.78rem; font-weight: 600; font-family: inherit;
+        padding: 4px 12px; border-radius: 20px; cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-cancel:hover { background: rgba(255,47,180,0.08); border-color: rgba(255,47,180,0.55); }
+    .btn-cancel:disabled { opacity: 0.5; cursor: default; }
+
+    /* Card content */
+    .ms-card-title { margin: 0 0 0.3rem; font-size: 1.1rem; font-weight: 700; }
+    .ms-card-desc  { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-muted, #9aa0b5); line-height: 1.5; }
+    .ms-booked-coach { margin: 0 0 0.5rem; font-size: 0.85rem; color: #0ef0ff; }
+    .ms-booked-note { margin-bottom: 0.55rem; }
+    .ms-card-details { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-top: 0.5rem; }
+    .ms-detail {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 0.82rem; color: var(--text-muted, #9aa0b5);
+    }
+
+    /* Modals */
+    .ms-overlay {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        z-index: 9500;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .ms-modal {
+        background: #0d1117;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 18px;
+        padding: 2rem;
+        max-width: 420px; width: 90%;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+    .ms-modal-title { margin: 0 0 0.75rem; font-size: 1.25rem; font-weight: 700; }
+    .ms-modal-body  { margin: 0 0 1.75rem; color: var(--text-muted, #9aa0b5); line-height: 1.6; }
+    .ms-modal-body strong { color: #f8f9fb; }
+    .ms-modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+
+    .btn-modal-ghost {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.14);
+        color: var(--text-muted, #9aa0b5);
+        font-size: 0.9rem; font-weight: 600; font-family: inherit;
+        padding: 0.6rem 1.4rem; border-radius: 30px; cursor: pointer;
+        transition: border-color 0.18s, color 0.18s;
+    }
+    .btn-modal-ghost:hover { border-color: rgba(255,255,255,0.3); color: #f8f9fb; }
+
+    .btn-modal-danger {
+        background: linear-gradient(135deg, #ff2fb4, #c0106a);
+        border: none; color: #fff;
+        font-size: 0.9rem; font-weight: 700; font-family: inherit;
+        padding: 0.6rem 1.4rem; border-radius: 30px; cursor: pointer;
+        transition: transform 0.18s, box-shadow 0.18s;
+        box-shadow: 0 4px 16px rgba(255,47,180,0.35);
+    }
+    .btn-modal-danger:hover { transform: scale(1.03); box-shadow: 0 6px 24px rgba(255,47,180,0.55); }
+    .btn-modal-danger:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+    /* Error toast */
+    .ms-toast.error {
+        position: fixed;
+        bottom: 2rem; right: 2rem;
+        padding: 0.875rem 1.5rem;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        z-index: 9000;
+        backdrop-filter: blur(10px);
+        background: rgba(255,47,180,0.15);
+        border: 1px solid rgba(255,47,180,0.35);
+        color: #ff2fb4;
+    }
+
+    @@keyframes slideIn {
+        from { transform: translateY(20px); opacity: 0; }
+        to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    @@media (max-width: 600px) {
+        .ms-card-header { flex-direction: column; align-items: flex-start; }
+        .ms-card-actions { width: 100%; justify-content: flex-end; }
+    }
+</style>

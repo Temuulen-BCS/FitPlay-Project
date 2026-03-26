@@ -1,0 +1,70 @@
+@using FitPlay.Blazor.Services
+
+<div class="checkin-card">
+    <h4>Check-in</h4>
+
+    @if (_checkedIn)
+    {
+        <div class="success">Check-in concluido. +@_xpAwarded XP</div>
+    }
+    else
+    {
+        <div class="row">
+            <input type="number" @bind="EnrollmentId" min="1" placeholder="Enrollment ID" />
+            <button @onclick="Submit" disabled="@_loading">@(_loading ? "Enviando..." : "Check-in")</button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="error">@_error</div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public int EnrollmentId { get; set; }
+    [Parameter] public EventCallback<int> OnCheckedIn { get; set; }
+    [Inject] public ApiClient Api { get; set; } = default!;
+
+    private bool _loading;
+    private bool _checkedIn;
+    private int _xpAwarded;
+    private string? _error;
+
+    private async Task Submit()
+    {
+        if (EnrollmentId <= 0)
+        {
+            _error = "Enrollment ID invalido.";
+            return;
+        }
+
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var result = await Api.CheckInEnrollment(EnrollmentId);
+            _xpAwarded = result?.XpAwarded ?? 0;
+            _checkedIn = true;
+            await OnCheckedIn.InvokeAsync(_xpAwarded);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
+
+<style>
+    .checkin-card { border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; background: var(--glass-bg); }
+    .row { display: flex; gap: 8px; }
+    input { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(255,255,255,.06); color: var(--text-primary); }
+    button { padding: 8px 12px; border-radius: 8px; border: none; background: var(--accent-teal); color: #001; font-weight: 700; }
+    .success { margin-top: 8px; color: #6dff9d; }
+    .error { margin-top: 8px; color: #ff9aa2; }
+</style>

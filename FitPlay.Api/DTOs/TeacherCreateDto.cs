@@ -17,4 +17,10 @@ public class TeacherCreateDto
     [Phone]
     [MaxLength(20)]
     public string Phone { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ASP.NET Identity user ID to link this domain record to an Identity account.
+    /// </summary>
+    [MaxLength(450)]
+    public string? IdentityUserId { get; set; }
 }

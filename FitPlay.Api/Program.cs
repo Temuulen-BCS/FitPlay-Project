@@ -1,7 +1,10 @@
+﻿using FitPlay.Api;
 using FitPlay.Api.Data;
 //using FitPlay.Api.Endpoints;
-using FitPlay.Api.Auth;                
+using FitPlay.Api.Auth;
+using Stripe;
 using FitPlay.Domain.Data;
+using FitPlay.Api.Services;
 using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer; 
 using Microsoft.AspNetCore.Identity;        
@@ -12,9 +15,15 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Railway injects PORT env var; bind to it for production
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.UseUrls($"http://+:{port}");
+
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
 
 builder.Services.AddSwaggerGen(c =>
 {
@@ -46,29 +55,89 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Database: build connection string from Railway PG* env vars, or fall back to appsettings
+static string BuildConnectionString(IConfiguration config)
+{
+    var pgHost     = Environment.GetEnvironmentVariable("PGHOST");
+    var pgPort     = Environment.GetEnvironmentVariable("PGPORT") ?? "5432";
+    var pgDatabase = Environment.GetEnvironmentVariable("PGDATABASE");
+    var pgUser     = Environment.GetEnvironmentVariable("PGUSER");
+    var pgPassword = Environment.GetEnvironmentVariable("PGPASSWORD");
+
+    // Railway PostgreSQL: use individual PG* variables directly
+    if (pgHost != null && pgDatabase != null && pgUser != null && pgPassword != null)
+        return $"Host={pgHost};Port={pgPort};Database={pgDatabase};"
+             + $"Username={pgUser};Password={pgPassword};"
+             + "SSL Mode=Require;Trust Server Certificate=true";
+
+    // Local development: use appsettings.json
+    return config.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("No database connection string found.");
+}
+
+var connStr = BuildConnectionString(builder.Configuration);
+var isPostgres = Environment.GetEnvironmentVariable("PGHOST") != null;
+
 builder.Services.AddDbContext<FitPlayContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly("FitPlay.Api")
-    ));
+{
+    if (isPostgres)
+        options.UseNpgsql(connStr, b => b.MigrationsAssembly("FitPlay.Api"));
+    else
+        options.UseSqlServer(connStr, b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure());
+});
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (isPostgres)
+        options.UseNpgsql(connStr);
+    else
+        options.UseSqlServer(connStr, b => b.EnableRetryOnFailure());
+});
+
+// CORS – allow the Blazor front-end origin (set via env var in production)
+var allowedOrigins = builder.Configuration["AllowedOrigins"]
+    ?? Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
+    ?? "https://localhost:7050";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+        policy.WithOrigins(allowedOrigins.Split(','))
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials());
+});
 
 // Register gamification services
 builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<AchievementService>();
 builder.Services.AddScoped<TrainingCompletionService>();
 builder.Services.AddScoped<TrainingService>();
+builder.Services.AddScoped<ClassScheduleService>();
+builder.Services.AddScoped<ClassQueueService>();
+builder.Services.AddScoped<MembershipService>();
+
+// Register gym/sessions services
+builder.Services.AddScoped<IAcademyService, AcademyService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
+builder.Services.AddScoped<ICheckInService, CheckInService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager();
 
-var jwtKey = builder.Configuration["Jwt:Key"]!;
-var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
-var jwtAudience = builder.Configuration["Jwt:Audience"]!;
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException(
+        "Missing config 'Jwt:Key'. Set env var Jwt__Key (Railway) or Jwt:Key in appsettings.json.");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]
+    ?? throw new InvalidOperationException(
+        "Missing config 'Jwt:Issuer'. Set env var Jwt__Issuer (Railway) or Jwt:Issuer in appsettings.json.");
+var jwtAudience = builder.Configuration["Jwt:Audience"]
+    ?? throw new InvalidOperationException(
+        "Missing config 'Jwt:Audience'. Set env var Jwt__Audience (Railway) or Jwt:Audience in appsettings.json.");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -87,18 +156,33 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ActiveMembership", policy =>
+        policy.RequireClaim("membership", "active"));
+});
 
 
 var app = builder.Build();
 
+StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
+
+// Always expose Swagger in production on Railway (useful for testing)
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// Exempt the Stripe webhooks from HTTPS redirection so the Stripe CLI can POST
+// to http://localhost without getting a 307 redirect.
+// In production (Railway), HTTPS is handled by the reverse proxy.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseWhen(
+        ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook")
+            && !ctx.Request.Path.StartsWithSegments("/api/booking-webhook"),
+        branch => branch.UseHttpsRedirection());
 }
 
-app.UseHttpsRedirection();
+app.UseCors("AllowFrontend");
 
 app.UseAuthentication();   
 app.UseAuthorization();    
@@ -120,7 +204,19 @@ app.MapGet("/weatherforecast", () =>
         });
 });
 
-// app.MapUsersEndpoints();
 app.MapControllers();
 
+// Seed roles on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+
+    await db1.Database.MigrateAsync();
+    await db2.Database.MigrateAsync();
+}
+
 app.Run();
+
+
+

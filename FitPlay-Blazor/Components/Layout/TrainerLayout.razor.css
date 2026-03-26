@@ -1,0 +1,26 @@
+.top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    overflow: visible;
+}
+
+.nav-inner {
+    overflow: visible;
+}
+
+.nav-links-top ::deep a.active {
+    color: var(--accent-teal);
+}
+
+.trainer-content {
+    padding-top: 5.5rem;
+}
+
+@media (max-width: 768px) {
+    .trainer-content {
+        padding-top: 4.75rem;
+    }
+}
