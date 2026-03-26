@@ -40,7 +40,8 @@ builder.Services.AddHttpClient<ApiClient>(client =>
 {
     var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
     var tokenHandler = sp.GetRequiredService<ApiTokenHandler>();
-    return new AuthTokenMessageHandler(httpContextAccessor, tokenHandler);
+    var logger = sp.GetRequiredService<ILogger<AuthTokenMessageHandler>>();
+    return new AuthTokenMessageHandler(httpContextAccessor, tokenHandler, logger);
 });
 
 builder.Services.AddHttpClient<BuilderHtmlService>();
