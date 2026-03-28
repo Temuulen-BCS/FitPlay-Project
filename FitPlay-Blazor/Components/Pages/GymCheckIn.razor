@@ -62,10 +62,10 @@
                         <span class="distance-value">@FormatDistance(distance)</span>
                     </div>
 
-                    @if (distance >= 500)
+                    @if (distance >= 200)
                     {
                         <div class="checkout-section">
-                            <p class="checkout-message">✅ You can now check out (500m+ from gym)</p>
+                            <p class="checkout-message">✅ You can now check out (200m+ from gym)</p>
                             <button class="btn btn-danger checkout-btn" @onclick="CheckOut" disabled="@isProcessing">
                                 @if (isProcessing)
                                 {
@@ -78,7 +78,7 @@
                     else
                     {
                         <div class="checkout-section">
-                            <p class="checkout-message">📍 Move at least 500m away from the gym to check out</p>
+                            <p class="checkout-message">📍 Move at least 200m away from the gym to check out</p>
                             <button class="btn btn-secondary" disabled>
                                 Check Out (Too Close)
                             </button>
@@ -229,15 +229,14 @@
             gymLocations = gymTask.Result;
             activeVisit = activeVisitTask.Result;
 
-            if (activeVisit == null)
-            {
-                await GetLocation();
-            }
-            else
+            if (activeVisit != null)
             {
                 // Start timer for real-time duration updates
                 StartDurationTimer();
             }
+            
+            // Always get location (needed for both check-in and check-out)
+            await GetLocation();
         }
         catch (Exception ex)
         {
@@ -352,7 +351,7 @@
         catch (Exception ex)
         {
             errorMessage = ex.Message.Contains("too close") 
-                ? "You're still too close to the gym. Please move at least 500m away and try again."
+                ? "You're still too close to the gym. Please move at least 200m away and try again."
                 : $"Check-out failed: {ex.Message}";
         }
         finally

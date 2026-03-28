@@ -56,6 +56,12 @@ public class ClassScheduleService
 
         var items = await query
             .Include(s => s.Trainer)
+            .Include(s => s.RoomBooking)
+                .ThenInclude(rb => rb!.Room)
+                    .ThenInclude(r => r!.GymLocation)
+            .Include(s => s.RoomBooking)
+                .ThenInclude(rb => rb!.ClassSession)
+                    .ThenInclude(cs => cs!.Enrollments)
             .OrderBy(s => s.ScheduledAt)
             .ToListAsync();
 
@@ -133,6 +139,11 @@ public class ClassScheduleService
         var items = await query
             .Include(s => s.Trainer)
             .Include(s => s.RoomBooking)
+                .ThenInclude(rb => rb!.Room)
+                    .ThenInclude(r => r!.GymLocation)
+            .Include(s => s.RoomBooking)
+                .ThenInclude(rb => rb!.ClassSession)
+                    .ThenInclude(cs => cs!.Enrollments)
             .OrderBy(s => s.ScheduledAt)
             .ToListAsync();
 
@@ -346,6 +357,15 @@ public class ClassScheduleService
             durationMinutes = duration.TotalMinutes;
         }
 
+        // Capacity from ClassSession
+        int? maxCapacity = schedule.RoomBooking?.ClassSession?.MaxStudents;
+        int? bookedCount = schedule.RoomBooking?.ClassSession?.Enrollments?
+            .Count(e => e.Status != ClassEnrollmentStatus.Cancelled);
+
+        // Location info
+        string? roomName = schedule.RoomBooking?.Room?.Name;
+        string? gymLocationName = schedule.RoomBooking?.Room?.GymLocation?.Name;
+
         return new ClassScheduleDto(
             Id: schedule.Id,
             UserId: schedule.UserId,
@@ -356,7 +376,11 @@ public class ClassScheduleService
             Notes: schedule.Notes,
             PaymentStatus: schedule.PaymentStatus.ToString(),
             PaidAmount: schedule.PaidAmount,
-            DurationMinutes: durationMinutes
+            DurationMinutes: durationMinutes,
+            MaxCapacity: maxCapacity,
+            BookedCount: bookedCount,
+            RoomName: roomName,
+            GymLocationName: gymLocationName
         );
     }
 
@@ -370,6 +394,15 @@ public class ClassScheduleService
             durationMinutes = duration.TotalMinutes;
         }
 
+        // Capacity from ClassSession
+        int? maxCapacity = s.RoomBooking?.ClassSession?.MaxStudents;
+        int? bookedCount = s.RoomBooking?.ClassSession?.Enrollments?
+            .Count(e => e.Status != ClassEnrollmentStatus.Cancelled);
+
+        // Location info
+        string? roomName = s.RoomBooking?.Room?.Name;
+        string? gymLocationName = s.RoomBooking?.Room?.GymLocation?.Name;
+
         return new ClassScheduleWithTrainerDto(
             s.Id,
             s.TrainerId,
@@ -382,7 +415,11 @@ public class ClassScheduleService
             s.PaidAmount,
             RoomBookingStatus: s.RoomBooking?.Status.ToString(),
             QueueCount: queueCount,
-            DurationMinutes: durationMinutes
+            DurationMinutes: durationMinutes,
+            MaxCapacity: maxCapacity,
+            BookedCount: bookedCount,
+            RoomName: roomName,
+            GymLocationName: gymLocationName
         );
     }
 

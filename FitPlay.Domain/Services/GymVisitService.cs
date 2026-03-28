@@ -8,7 +8,7 @@ namespace FitPlay.Domain.Services;
 public class GymVisitService : IGymVisitService
 {
     private const double CheckInMaxDistanceMeters = 200.0;
-    private const double CheckOutMinDistanceMeters = 500.0;
+    private const double CheckOutMinDistanceMeters = 200.0;
 
     private readonly FitPlayContext _db;
 
@@ -142,6 +142,47 @@ public class GymVisitService : IGymVisitService
             gl.Longitude)).ToList();
     }
 
+    public async Task<List<LocationPresenceDto>> GetActiveCountsByGymAsync(int gymId)
+    {
+        var locationCounts = await _db.GymVisits
+            .Include(v => v.GymLocation)
+            .Where(v => v.CheckOutTime == null && v.GymLocation.GymId == gymId && v.GymLocation.IsActive)
+            .GroupBy(v => new { v.GymLocationId, v.GymLocation.Name })
+            .Select(g => new LocationPresenceDto(
+                g.Key.GymLocationId,
+                g.Key.Name,
+                g.Count()))
+            .ToListAsync();
+
+        // Also include locations with zero active visits
+        var allLocationsInGym = await _db.GymLocations
+            .AsNoTracking()
+            .Where(gl => gl.GymId == gymId && gl.IsActive)
+            .Select(gl => new { gl.Id, gl.Name })
+            .ToListAsync();
+
+        var locationCountsDict = locationCounts.ToDictionary(lc => lc.GymLocationId);
+
+        var result = allLocationsInGym.Select(loc => 
+            locationCountsDict.ContainsKey(loc.Id) 
+                ? locationCountsDict[loc.Id]
+                : new LocationPresenceDto(loc.Id, loc.Name, 0)
+        ).OrderBy(lc => lc.LocationName).ToList();
+
+        return result;
+    }
+
+    public async Task<int?> GetGymIdFromLocationIdAsync(int gymLocationId)
+    {
+        var gymLocation = await _db.GymLocations
+            .AsNoTracking()
+            .Where(gl => gl.Id == gymLocationId)
+            .Select(gl => gl.GymId)
+            .FirstOrDefaultAsync();
+
+        return gymLocation == 0 ? null : gymLocation;
+    }
+
     /// <summary>
     /// Calculates the great circle distance between two points on Earth using the Haversine formula.
     /// Returns distance in meters.
@@ -161,6 +202,73 @@ public class GymVisitService : IGymVisitService
 
         var distanceKm = EarthRadiusKm * c;
         return distanceKm * 1000; // Convert to meters
+    }
+
+    public async Task<List<ActiveVisitDetailDto>> GetActiveVisitDetailsByLocationAsync(int gymLocationId)
+    {
+        var query = from visit in _db.GymVisits
+                   join gymLocation in _db.GymLocations on visit.GymLocationId equals gymLocation.Id
+                   where visit.GymLocationId == gymLocationId && visit.CheckOutTime == null
+                   select new
+                   {
+                       visit.Id,
+                       visit.UserId,
+                       visit.CheckInTime,
+                       gymLocation.Name
+                   };
+
+        var activeVisits = await query.ToListAsync();
+        var result = new List<ActiveVisitDetailDto>();
+
+        foreach (var visit in activeVisits)
+        {
+            // Find user details from Identity system (we'll need to pass this through the API layer)
+            // For now, we'll work with what we have and let the controller layer handle user lookups
+
+            // Look for any active class sessions for this user at this location
+            var classDetails = await (from enrollment in _db.ClassEnrollments
+                                    join classSession in _db.ClassSessions on enrollment.ClassSessionId equals classSession.Id
+                                    join roomBooking in _db.RoomBookings on classSession.RoomBookingId equals roomBooking.Id
+                                    join room in _db.Rooms on roomBooking.RoomId equals room.Id
+                                    where enrollment.UserId == visit.UserId
+                                       && room.GymLocationId == gymLocationId
+                                       && enrollment.Status == ClassEnrollmentStatus.Confirmed
+                                       && classSession.Status == ClassSessionStatus.Ongoing
+                                       && DateTime.UtcNow >= classSession.StartTime
+                                       && DateTime.UtcNow <= classSession.EndTime
+                                    select new
+                                    {
+                                        ClassSessionId = classSession.Id,
+                                        ClassTitle = classSession.Title,
+                                        SessionStartTime = classSession.StartTime,
+                                        SessionEndTime = classSession.EndTime,
+                                        TrainerId = classSession.TrainerId,
+                                        RoomName = room.Name,
+                                        PaidAmount = enrollment.PaidAmount,
+                                        EnrollmentStatus = enrollment.Status.ToString()
+                                    }).FirstOrDefaultAsync();
+
+            result.Add(new ActiveVisitDetailDto(
+                visit.Id,
+                visit.UserId,
+                string.Empty, // UserName - will be populated in controller
+                string.Empty, // UserEmail - will be populated in controller
+                null, // UserPhone - will be populated in controller
+                visit.CheckInTime,
+                classDetails?.ClassSessionId,
+                classDetails?.ClassTitle,
+                classDetails?.SessionStartTime,
+                classDetails?.SessionEndTime,
+                classDetails?.TrainerId,
+                string.Empty, // TrainerName - will be populated in controller
+                string.Empty, // TrainerEmail - will be populated in controller
+                classDetails?.RoomName,
+                classDetails?.PaidAmount,
+                classDetails?.EnrollmentStatus
+            ));
+        }
+
+        return result;
     }
 
     private static double DegreesToRadians(double degrees)

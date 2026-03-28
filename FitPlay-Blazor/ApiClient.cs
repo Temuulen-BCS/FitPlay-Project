@@ -268,7 +268,11 @@ public class ApiClient
         string? Notes,
         string PaymentStatus = "None",
         decimal? PaidAmount = null,
-        double? DurationMinutes = null
+        double? DurationMinutes = null,
+        int? MaxCapacity = null,
+        int? BookedCount = null,
+        string? RoomName = null,
+        string? GymLocationName = null
     );
 
     public record ClassScheduleWithTrainer(
@@ -283,7 +287,11 @@ public class ApiClient
         decimal? PaidAmount = null,
         string? RoomBookingStatus = null,
         int QueueCount = 0,
-        double? DurationMinutes = null
+        double? DurationMinutes = null,
+        int? MaxCapacity = null,
+        int? BookedCount = null,
+        string? RoomName = null,
+        string? GymLocationName = null
     );
 
     public record XpTransaction(
@@ -320,6 +328,7 @@ public class ApiClient
     public record GymVisitRead(int Id, string UserId, int GymLocationId, string GymLocationName, DateTime CheckInTime, DateTime? CheckOutTime, double CheckInLatitude, double CheckInLongitude, double? CheckOutLatitude, double? CheckOutLongitude);
     public record GymCheckInRequest(int GymLocationId, double Latitude, double Longitude);
     public record GymCheckOutRequest(double Latitude, double Longitude);
+    public record LocationPresenceRead(int GymLocationId, string LocationName, int ActiveCount);
     public record RoomRead(int Id, int GymLocationId, string Name, string? Description, int Capacity, decimal PricePerHour, bool IsActive, List<RoomOperatingHoursDto>? OperatingHours);
     public record RoomOperatingHoursDto(DayOfWeek DayOfWeek, TimeOnly? OpenTime, TimeOnly? CloseTime, bool IsClosed);
 
@@ -1026,6 +1035,9 @@ public class ApiClient
 
     public async Task<List<GymVisitRead>> GetGymVisitHistory(int limit = 50)
         => await GetJsonAsync<List<GymVisitRead>>($"/api/gym-visits/history?limit={limit}") ?? new();
+
+    public async Task<List<LocationPresenceRead>> GetActiveCountsAsync(int gymId)
+        => await GetJsonAsync<List<LocationPresenceRead>>($"/api/gym-visits/active-counts/{gymId}") ?? new();
     #endregion
 
     #region Dev API

@@ -27,6 +27,7 @@ public class FitPlayContext : DbContext
     public DbSet<RoomCheckIn> RoomCheckIns => Set<RoomCheckIn>();
     public DbSet<GymVisit> GymVisits => Set<GymVisit>();
     public DbSet<ClassQueueEntry> ClassQueueEntries => Set<ClassQueueEntry>();
+    public DbSet<TrainerNotification> TrainerNotifications => Set<TrainerNotification>();
 
     // Exercise & Training
     public DbSet<Exercise> Exercises => Set<Exercise>();
@@ -307,6 +308,36 @@ public class FitPlayContext : DbContext
             .HasOne(gv => gv.GymLocation)
             .WithMany()
             .HasForeignKey(gv => gv.GymLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // TrainerNotification configuration
+        b.Entity<TrainerNotification>()
+            .HasIndex(tn => new { tn.TrainerId, tn.IsRead });
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.TrainerId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.SenderGymAdminId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.SubjectUserId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.Message)
+            .HasMaxLength(1000)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .HasOne(tn => tn.GymLocation)
+            .WithMany()
+            .HasForeignKey(tn => tn.GymLocationId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // Exercise indexes

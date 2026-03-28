@@ -920,38 +920,24 @@
                     }
                     else
                     {
-                        <CustomSelect Value="@(_selectedExerciseId?.ToString() ?? string.Empty)"
-                                      ValueChanged="OnExerciseSelectedChanged"
-                                      Options="@GetExerciseOptions()"
-                                      Placeholder="Select an exercise" />
+                        <div class="exercise-picker">
+                            @foreach (var ex in _exerciseSelections)
+                            {
+                                <label class="exercise-row">
+                                    <input type="checkbox"
+                                           checked="@_selectedExerciseIds.Contains(ex.ExerciseId)"
+                                           @onchange="() => ToggleExercise(ex.ExerciseId)" />
+                                    <span class="exercise-row-header">@ex.Title (@ex.Category)</span>
+                                </label>
+                            }
+                        </div>
                     }
                 </div>
-                @if (_selectedExercise is not null)
-                {
-                    <div class="exercise-config">
-                        <div class="form-group">
-                            <label>Sets</label>
-                            <input type="number" min="1" max="20" @bind="_selectedExercise.Sets" />
-                        </div>
-                        <div class="form-group">
-                            <label>Reps</label>
-                            <input type="number" min="1" max="100" @bind="_selectedExercise.Reps" />
-                        </div>
-                        <div class="form-group">
-                            <label>Rest (sec)</label>
-                            <input type="number" min="0" max="300" @bind="_selectedExercise.RestSeconds" />
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label>Notes</label>
-                            <textarea @bind="_selectedExercise.Notes" placeholder="Optional notes"></textarea>
-                        </div>
-                    </div>
-                }
                 @if (!string.IsNullOrEmpty(_trainingError))
                 {
                     <div class="inline-error">@_trainingError</div>
                 }
-                @if (_exerciseSelections.Any() && _selectedExerciseId is null)
+                @if (_exerciseSelections.Any() && !_selectedExerciseIds.Any())
                 {
                     <div class="inline-warning">
                         <span>Select at least one exercise to create a training.</span>
@@ -961,7 +947,7 @@
             </div>
             <div class="create-modal-actions">
                 <button class="btn-secondary" @onclick="CloseTrainingModal" disabled="@_creatingTraining">Cancel</button>
-                <button class="btn-primary" @onclick="CreateTraining" disabled="@(_creatingTraining || _selectedExerciseId is null)">
+                <button class="btn-primary" @onclick="CreateTraining" disabled="@(_creatingTraining || !_selectedExerciseIds.Any())">
                     @if (_creatingTraining)
                     {
                         <span>Creating...</span>
@@ -998,8 +984,7 @@
     private TrainingForm _trainingForm = new();
     private List<ApiClient.Exercise> _exerciseCatalog = new();
     private List<TrainingExerciseSelection> _exerciseSelections = new();
-    private int? _selectedExerciseId;
-    private TrainingExerciseSelection? _selectedExercise;
+    private HashSet<int> _selectedExerciseIds = new();
 
     private int? _currentTrainerId;
     private List<ApiClient.TrainingSummary> _myTrainings = new();
@@ -1153,7 +1138,6 @@
             Reps = 10,
             RestSeconds = 60
         }).ToList();
-        SyncSelectedExercise();
     }
 
     // ── modal helpers ──────────────────────────────────────────────────────
@@ -1210,25 +1194,24 @@
         _creatingTraining = true;
         try
         {
-            var selectedExercise = GetSelectedExercise();
-            if (selectedExercise is null)
+            var selectedExercises = _exerciseSelections
+                .Where(ex => _selectedExerciseIds.Contains(ex.ExerciseId))
+                .Select((ex, i) => new
+                {
+                    ex.ExerciseId,
+                    SortOrder = i,
+                    ex.Sets,
+                    ex.Reps,
+                    ex.RestSeconds,
+                    Notes = (string?)null
+                })
+                .ToArray();
+
+            if (!selectedExercises.Any())
             {
                 _trainingError = "Select at least one exercise.";
                 return;
             }
-
-            var selectedExercises = new[]
-            {
-                new
-                {
-                    ExerciseId = selectedExercise.ExerciseId,
-                    SortOrder = 0,
-                    selectedExercise.Sets,
-                    selectedExercise.Reps,
-                    selectedExercise.RestSeconds,
-                    Notes = string.IsNullOrWhiteSpace(selectedExercise.Notes) ? null : selectedExercise.Notes.Trim()
-                }
-            };
 
             var request = new
             {
@@ -1270,36 +1253,14 @@
         if (_trainingForm.DurationMin < 1 || _trainingForm.DurationMin > 480) return "Duration must be between 1 and 480 minutes.";
         if (_trainingForm.XpReward < 1 || _trainingForm.XpReward > 10000) return "XP reward must be between 1 and 10000.";
         if (_trainingForm.Difficulty < 1 || _trainingForm.Difficulty > 5) return "Difficulty must be between 1 and 5.";
-        var selected = GetSelectedExercise();
-        if (selected is null) return "Select at least one exercise.";
-        if (selected.Sets < 1 || selected.Sets > 20) return "Sets must be between 1 and 20.";
-        if (selected.Reps < 1 || selected.Reps > 100) return "Reps must be between 1 and 100.";
-        if (selected.RestSeconds < 0 || selected.RestSeconds > 300) return "Rest seconds must be between 0 and 300.";
+        if (!_selectedExerciseIds.Any()) return "Select at least one exercise.";
         return null;
     }
 
-    private TrainingExerciseSelection? GetSelectedExercise()
-        => _selectedExerciseId is null
-            ? null
-            : _exerciseSelections.FirstOrDefault(ex => ex.ExerciseId == _selectedExerciseId.Value);
-
-    private void SyncSelectedExercise()
+    private void ToggleExercise(int exerciseId)
     {
-        _selectedExercise = GetSelectedExercise();
-        if (_selectedExercise is null)
-        {
-            _selectedExerciseId = null;
-        }
-    }
-
-    private IEnumerable<CustomSelect.SelectOption> GetExerciseOptions()
-        => _exerciseSelections.Select(ex => new CustomSelect.SelectOption(ex.ExerciseId.ToString(), $"{ex.Title} ({ex.Category})"));
-
-    private Task OnExerciseSelectedChanged(string value)
-    {
-        _selectedExerciseId = int.TryParse(value, out var parsed) ? parsed : null;
-        SyncSelectedExercise();
-        return Task.CompletedTask;
+        if (!_selectedExerciseIds.Remove(exerciseId))
+            _selectedExerciseIds.Add(exerciseId);
     }
 
     // ── misc helpers ───────────────────────────────────────────────────────
@@ -1360,8 +1321,7 @@
         {
             ex.Sets = 3; ex.Reps = 10; ex.RestSeconds = 60; ex.Notes = string.Empty;
         }
-        _selectedExerciseId = null;
-        _selectedExercise = null;
+        _selectedExerciseIds.Clear();
     }
 
     // ── inner types ────────────────────────────────────────────────────────

@@ -191,6 +191,21 @@
             <h3 class="class-name">HIIT Inferno</h3>
             <p class="class-meta">Coach: Marcus | DJ: Pulse</p>
             <span class="slots">8 slots left</span>
+            <button class="class-expand-btn" @onclick='() => ToggleHomeCard("hiit")'>
+                @(_expandedHomeCards.Contains("hiit") ? "\u2212" : "+")
+            </button>
+            @if (_expandedHomeCards.Contains("hiit"))
+            {
+                <div class="class-details">
+                    <div class="detail-row"><span class="detail-label">Capacity</span><span class="detail-value">7/15 clients</span></div>
+                    <div class="capacity-bar"><div class="capacity-fill" style="width:47%"></div></div>
+                    <div class="detail-row"><span class="detail-label">Duration</span><span class="detail-value">1h</span></div>
+                    <div class="detail-row"><span class="detail-label">Trainer</span><span class="detail-value">Marcus Reed</span></div>
+                    <div class="detail-row"><span class="detail-label">Room Status</span><span class="detail-value">Confirmed</span></div>
+                    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">FitPlay Downtown</span></div>
+                    <a href="/user/gym-checkin" class="checkin-link">Check In / Check Out</a>
+                </div>
+            }
         </div>
         <div class="class-card">
             <div class="class-header">
@@ -201,6 +216,21 @@
             <h3 class="class-name">Box & Flow</h3>
             <p class="class-meta">Coach: Leila | DJ: Neon</p>
             <span class="slots">12 slots left</span>
+            <button class="class-expand-btn" @onclick='() => ToggleHomeCard("box")'>
+                @(_expandedHomeCards.Contains("box") ? "\u2212" : "+")
+            </button>
+            @if (_expandedHomeCards.Contains("box"))
+            {
+                <div class="class-details">
+                    <div class="detail-row"><span class="detail-label">Capacity</span><span class="detail-value">8/20 clients</span></div>
+                    <div class="capacity-bar"><div class="capacity-fill" style="width:40%"></div></div>
+                    <div class="detail-row"><span class="detail-label">Duration</span><span class="detail-value">45min</span></div>
+                    <div class="detail-row"><span class="detail-label">Trainer</span><span class="detail-value">Leila Costa</span></div>
+                    <div class="detail-row"><span class="detail-label">Room Status</span><span class="detail-value">Confirmed</span></div>
+                    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">FitPlay Downtown</span></div>
+                    <a href="/user/gym-checkin" class="checkin-link">Check In / Check Out</a>
+                </div>
+            }
         </div>
         <div class="class-card">
             <div class="class-header">
@@ -211,15 +241,46 @@
             <h3 class="class-name">Night Yoga</h3>
             <p class="class-meta">Coach: Sana | Ambient Mix</p>
             <span class="slots">5 slots left</span>
+            <button class="class-expand-btn" @onclick='() => ToggleHomeCard("yoga")'>
+                @(_expandedHomeCards.Contains("yoga") ? "\u2212" : "+")
+            </button>
+            @if (_expandedHomeCards.Contains("yoga"))
+            {
+                <div class="class-details">
+                    <div class="detail-row"><span class="detail-label">Capacity</span><span class="detail-value">5/10 clients</span></div>
+                    <div class="capacity-bar"><div class="capacity-fill" style="width:50%"></div></div>
+                    <div class="detail-row"><span class="detail-label">Duration</span><span class="detail-value">1h 15min</span></div>
+                    <div class="detail-row"><span class="detail-label">Trainer</span><span class="detail-value">Sana Park</span></div>
+                    <div class="detail-row"><span class="detail-label">Room Status</span><span class="detail-value">Confirmed</span></div>
+                    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">FitPlay Uptown</span></div>
+                    <a href="/user/gym-checkin" class="checkin-link">Check In / Check Out</a>
+                </div>
+            }
         </div>
         <div class="class-card">
             <div class="class-header">
                 <span class="class-time">22:30</span>
+                <span class="class-duration">1h</span>
                 <span class="intensity high">High Intensity</span>
             </div>
             <h3 class="class-name">Combat Zone</h3>
             <p class="class-meta">Coach: Dex | DJ: Bass Drop</p>
             <span class="slots">3 slots left</span>
+            <button class="class-expand-btn" @onclick='() => ToggleHomeCard("combat")'>
+                @(_expandedHomeCards.Contains("combat") ? "\u2212" : "+")
+            </button>
+            @if (_expandedHomeCards.Contains("combat"))
+            {
+                <div class="class-details">
+                    <div class="detail-row"><span class="detail-label">Capacity</span><span class="detail-value">12/15 clients</span></div>
+                    <div class="capacity-bar"><div class="capacity-fill" style="width:80%"></div></div>
+                    <div class="detail-row"><span class="detail-label">Duration</span><span class="detail-value">1h</span></div>
+                    <div class="detail-row"><span class="detail-label">Trainer</span><span class="detail-value">Dex Monroe</span></div>
+                    <div class="detail-row"><span class="detail-label">Room Status</span><span class="detail-value">Confirmed</span></div>
+                    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">FitPlay Downtown</span></div>
+                    <a href="/user/gym-checkin" class="checkin-link">Check In / Check Out</a>
+                </div>
+            }
         </div>
     </div>
 </section>
@@ -933,6 +994,9 @@
     private bool _hasInitializedJs;
     private bool _jsInitialized;
 
+    // ── Expand details state for static cards ──
+    private HashSet<string> _expandedHomeCards = new();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (_jsInitialized)
@@ -967,6 +1031,14 @@
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
             : name[0].ToString().ToUpperInvariant();
+    }
+
+    private void ToggleHomeCard(string cardId)
+    {
+        if (!_expandedHomeCards.Remove(cardId))
+        {
+            _expandedHomeCards.Add(cardId);
+        }
     }
 
 }

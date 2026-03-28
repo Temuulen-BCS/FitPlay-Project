@@ -91,6 +91,36 @@ public class GymVisitController : ControllerBase
         var history = await _gymVisitService.GetVisitHistoryAsync(actorId, limit);
         return Ok(history);
     }
+
+    [HttpGet("active-counts/{gymId}")]
+    [Authorize(Roles = "GymAdmin")]
+    public async Task<ActionResult<List<LocationPresenceDto>>> GetActiveCounts(int gymId)
+    {
+        try
+        {
+            var counts = await _gymVisitService.GetActiveCountsByGymAsync(gymId);
+            return Ok(counts);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("active-details/{gymLocationId}")]
+    [Authorize(Roles = "GymAdmin")]
+    public async Task<ActionResult<List<ActiveVisitDetailDto>>> GetActiveVisitDetails(int gymLocationId)
+    {
+        try
+        {
+            var details = await _gymVisitService.GetActiveVisitDetailsByLocationAsync(gymLocationId);
+            return Ok(details);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
 
 [ApiController]
