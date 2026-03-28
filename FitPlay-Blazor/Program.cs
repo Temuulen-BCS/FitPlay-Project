@@ -5,6 +5,9 @@ using FitPlay_Blazor.Auth;
 using FitPlay.Blazor.Services;
 using FitPlay.Domain.Data;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication.Facebook;
+using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -15,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 var builder = WebApplication.CreateBuilder(args);
 
 // Railway injects PORT env var; bind to it for production
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5275";
 builder.WebHost.UseUrls($"http://+:{port}");
 
 builder.Services.AddRazorComponents()
@@ -57,6 +60,43 @@ builder.Services.AddAuthentication(options =>
         options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
     })
     .AddIdentityCookies();
+
+// ── External authentication providers ──
+// Credentials are read from Configuration (appsettings or env vars).
+// Use env vars on Railway: Authentication__Google__ClientId, etc.
+var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
+var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
+{
+    builder.Services.AddAuthentication().AddGoogle(options =>
+    {
+        options.ClientId = googleClientId;
+        options.ClientSecret = googleClientSecret;
+    });
+}
+
+var fbAppId = builder.Configuration["Authentication:Facebook:AppId"];
+var fbAppSecret = builder.Configuration["Authentication:Facebook:AppSecret"];
+if (!string.IsNullOrEmpty(fbAppId) && !string.IsNullOrEmpty(fbAppSecret))
+{
+    builder.Services.AddAuthentication().AddFacebook(options =>
+    {
+        options.AppId = fbAppId;
+        options.AppSecret = fbAppSecret;
+    });
+}
+
+var ghClientId = builder.Configuration["Authentication:GitHub:ClientId"];
+var ghClientSecret = builder.Configuration["Authentication:GitHub:ClientSecret"];
+if (!string.IsNullOrEmpty(ghClientId) && !string.IsNullOrEmpty(ghClientSecret))
+{
+    builder.Services.AddAuthentication().AddGitHub(options =>
+    {
+        options.ClientId = ghClientId;
+        options.ClientSecret = ghClientSecret;
+        options.Scope.Add("user:email");
+    });
+}
 
 builder.Services.AddAuthorization(options =>
 {
@@ -183,7 +223,8 @@ foreach (var role in new[] { "Trainer", "User", "GymAdmin" })
 if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
-    app.UseHttpsRedirection();
+    // HTTPS redirection disabled for development - using HTTP only
+    // app.UseHttpsRedirection();
 }
 else
 {
