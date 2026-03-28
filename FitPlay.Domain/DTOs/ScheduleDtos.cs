@@ -11,7 +11,8 @@ public record ClassScheduleDto(
     string Status,
     string? Notes,
     string PaymentStatus = "None",
-    decimal? PaidAmount = null
+    decimal? PaidAmount = null,
+    double? DurationMinutes = null
 );
 
 public record CreateClassScheduleRequest(
@@ -45,7 +46,8 @@ public record ClassScheduleWithTrainerDto(
     string PaymentStatus = "None",
     decimal? PaidAmount = null,
     string? RoomBookingStatus = null,
-    int QueueCount = 0
+    int QueueCount = 0,
+    double? DurationMinutes = null
 );
 
 // Payment DTOs

@@ -1,0 +1,736 @@
+@page "/user/gym-checkin"
+@rendermode InteractiveServer
+@layout UserLayout
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay.Blazor.Services
+@using Microsoft.JSInterop
+@inject ApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@attribute [Authorize]
+
+<PageTitle>GYM Check In - FitPlay</PageTitle>
+
+<div class="gym-checkin-page">
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">
+                <span class="gym-icon">🏋️</span>
+                GYM Check In
+            </h1>
+            <p class="page-subtitle">Track your gym visits with location verification</p>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-card">
+                <div class="loading-spinner"></div>
+                <p>@loadingMessage</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-card">
+                <div class="error-icon">⚠️</div>
+                <h3>Error</h3>
+                <p>@errorMessage</p>
+                <button class="btn btn-primary" @onclick="RefreshPage">Try Again</button>
+            </div>
+        }
+        else if (activeVisit != null)
+        {
+            <!-- Active Visit State -->
+            <div class="active-visit-card">
+                <div class="visit-header">
+                    <div class="visit-status">
+                        <span class="status-indicator active"></span>
+                        <span class="status-text">CHECKED IN</span>
+                    </div>
+                    <div class="visit-duration">@GetVisitDuration()</div>
+                </div>
+                
+                <div class="gym-info">
+                    <h3 class="gym-name">@activeVisit.GymLocationName</h3>
+                    <p class="checkin-time">Checked in at @activeVisit.CheckInTime.ToString("HH:mm on MMM dd")</p>
+                </div>
+
+                @if (userLocation != null)
+                {
+                    var distance = CalculateDistance(userLocation.Latitude, userLocation.Longitude, activeVisit.CheckInLatitude, activeVisit.CheckInLongitude);
+                    <div class="distance-info">
+                        <span class="distance-label">Distance from gym:</span>
+                        <span class="distance-value">@FormatDistance(distance)</span>
+                    </div>
+
+                    @if (distance >= 500)
+                    {
+                        <div class="checkout-section">
+                            <p class="checkout-message">✅ You can now check out (500m+ from gym)</p>
+                            <button class="btn btn-danger checkout-btn" @onclick="CheckOut" disabled="@isProcessing">
+                                @if (isProcessing)
+                                {
+                                    <span class="spinner"></span>
+                                }
+                                Check Out
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="checkout-section">
+                            <p class="checkout-message">📍 Move at least 500m away from the gym to check out</p>
+                            <button class="btn btn-secondary" disabled>
+                                Check Out (Too Close)
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <!-- Check-In State -->
+            <div class="checkin-section">
+                @if (userLocation != null && gymLocations.Any())
+                {
+                    <div class="location-status">
+                        <span class="location-icon">📍</span>
+                        <span>Your location detected (±@((int)userLocation.Accuracy)m accuracy)</span>
+                    </div>
+
+                    <div class="gym-locations">
+                        <h3>Available Gyms</h3>
+                        @if (nearbyGyms.Any())
+                        {
+                            foreach (var gym in nearbyGyms)
+                            {
+                                var distance = CalculateDistance(userLocation.Latitude, userLocation.Longitude, gym.Latitude!.Value, gym.Longitude!.Value);
+                                var canCheckIn = distance <= 200;
+                                
+                                <div class="gym-card @(canCheckIn ? "can-checkin" : "too-far")">
+                                    <div class="gym-details">
+                                        <h4 class="gym-name">@gym.Name</h4>
+                                        <p class="gym-address">@gym.Address, @gym.City</p>
+                                        <div class="gym-distance">
+                                            <span class="distance-icon">📏</span>
+                                            <span class="distance">@FormatDistance(distance)</span>
+                                            @if (canCheckIn)
+                                            {
+                                                <span class="status-badge in-range">In Range</span>
+                                            }
+                                            
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="gym-action">
+                                        @if (canCheckIn)
+                                        {
+                                            <button class="btn btn-success checkin-btn" @onclick="() => CheckIn(gym)" disabled="@isProcessing">
+                                                @if (isProcessing)
+                                                {
+                                                    <span class="spinner"></span>
+                                                }
+                                                Check In
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-secondary" disabled>
+                                                Too Far
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="no-gyms">
+                                <p>No gyms found near your current location.</p>
+                                <button class="btn btn-outline-primary" @onclick="RefreshPage">Refresh Location</button>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (gymLocations.Any())
+                {
+                    <div class="location-request">
+                        <div class="location-icon">📍</div>
+                        <h3>Location Access Required</h3>
+                        <p>We need your location to verify you're at the gym for check-in.</p>
+                        <button class="btn btn-primary" @onclick="GetLocation">Enable Location Access</button>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (successMessage != null)
+        {
+            <div class="success-card">
+                <div class="success-icon">✅</div>
+                <h3>Success!</h3>
+                <p>@successMessage</p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private string loadingMessage = "Loading...";
+    private string? errorMessage;
+    private string? successMessage;
+    
+    private UserLocation? userLocation;
+    private List<ApiClient.GymLocationForCheckInRead> gymLocations = new();
+    private List<ApiClient.GymLocationForCheckInRead> nearbyGyms = new();
+    private ApiClient.GymVisitRead? activeVisit;
+    private Timer? _durationTimer;
+
+    public class UserLocation
+    {
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public double Accuracy { get; set; }
+    }
+
+    public class GeolocationResult
+    {
+        public double latitude { get; set; }
+        public double longitude { get; set; }
+        public double accuracy { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            loadingMessage = "Loading gym data...";
+            errorMessage = null;
+            successMessage = null;
+            StateHasChanged();
+
+            // Load gym locations and active visit in parallel
+            var gymTask = Api.GetAllGymLocations();
+            var activeVisitTask = Api.GetActiveGymVisit();
+            
+            await Task.WhenAll(gymTask, activeVisitTask);
+            
+            gymLocations = gymTask.Result;
+            activeVisit = activeVisitTask.Result;
+
+            if (activeVisit == null)
+            {
+                await GetLocation();
+            }
+            else
+            {
+                // Start timer for real-time duration updates
+                StartDurationTimer();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GetLocation()
+    {
+        try
+        {
+            loadingMessage = "Getting your location...";
+            isLoading = true;
+            StateHasChanged();
+
+            var locationResult = await JS.InvokeAsync<GeolocationResult>("geolocation.getCurrentPosition");
+            
+            userLocation = new UserLocation
+            {
+                Latitude = locationResult.latitude,
+                Longitude = locationResult.longitude,
+                Accuracy = locationResult.accuracy
+            };
+
+            // Sort gyms by distance
+            nearbyGyms = gymLocations
+                .Where(g => g.Latitude.HasValue && g.Longitude.HasValue)
+                .OrderBy(g => CalculateDistance(userLocation.Latitude, userLocation.Longitude, g.Latitude!.Value, g.Longitude!.Value))
+                .ToList();
+
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message.Contains("Permission denied") 
+                ? "Location access denied. Please enable location permissions in your browser settings and try again."
+                : $"Failed to get location: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CheckIn(ApiClient.GymLocationForCheckInRead gym)
+    {
+        if (userLocation == null) return;
+
+        try
+        {
+            isProcessing = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            var request = new ApiClient.GymCheckInRequest(gym.Id, userLocation.Latitude, userLocation.Longitude);
+            activeVisit = await Api.CheckInToGym(request);
+            
+            successMessage = $"Successfully checked in to {gym.Name}!";
+            
+            // Start timer for real-time duration updates
+            StartDurationTimer();
+            
+            // Auto-hide success message after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ => {
+                successMessage = null;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message.Contains("too far") 
+                ? "You're too far from the gym. Please get closer (within 200m) and try again."
+                : $"Check-in failed: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CheckOut()
+    {
+        if (userLocation == null) return;
+
+        try
+        {
+            isProcessing = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            var request = new ApiClient.GymCheckOutRequest(userLocation.Latitude, userLocation.Longitude);
+            await Api.CheckOutOfGym(request);
+            
+            successMessage = "Successfully checked out! See you next time.";
+            activeVisit = null;
+            
+            // Stop the duration timer
+            StopDurationTimer();
+            
+            // Auto-hide success message and redirect after 2 seconds
+            _ = Task.Delay(2000).ContinueWith(_ => {
+                successMessage = null;
+                InvokeAsync(() => Navigation.NavigateTo("/user/dashboard"));
+            });
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message.Contains("too close") 
+                ? "You're still too close to the gym. Please move at least 500m away and try again."
+                : $"Check-out failed: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshPage()
+    {
+        await LoadData();
+    }
+
+    private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double R = 6371e3; // Earth's radius in meters
+        var φ1 = lat1 * Math.PI / 180;
+        var φ2 = lat2 * Math.PI / 180;
+        var Δφ = (lat2 - lat1) * Math.PI / 180;
+        var Δλ = (lon2 - lon1) * Math.PI / 180;
+
+        var a = Math.Sin(Δφ / 2) * Math.Sin(Δφ / 2) +
+                Math.Cos(φ1) * Math.Cos(φ2) *
+                Math.Sin(Δλ / 2) * Math.Sin(Δλ / 2);
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+        return R * c;
+    }
+
+    private string FormatDistance(double meters)
+    {
+        if (meters >= 1000)
+            return $"{meters / 1000:F1} km";
+        return $"{meters:F0} m";
+    }
+
+    private string GetVisitDuration()
+    {
+        if (activeVisit == null) return "";
+        
+        var duration = DateTime.UtcNow - activeVisit.CheckInTime;
+        if (duration.TotalMinutes < 60)
+            return $"{(int)duration.TotalMinutes}m";
+        return $"{(int)duration.TotalHours}h {(int)duration.TotalMinutes % 60}m";
+    }
+
+    private void StartDurationTimer()
+    {
+        StopDurationTimer(); // Stop any existing timer first
+        
+        _durationTimer = new Timer(async _ => {
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+    }
+
+    private void StopDurationTimer()
+    {
+        _durationTimer?.Dispose();
+        _durationTimer = null;
+    }
+
+    public void Dispose()
+    {
+        StopDurationTimer();
+    }
+}
+
+<style>
+    .gym-checkin-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1a2e 100%);
+        padding: 2rem 0;
+    }
+
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    .page-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .gym-icon {
+        font-size: 2rem;
+    }
+
+    .page-subtitle {
+        color: var(--text-muted);
+        font-size: 1.1rem;
+    }
+
+    .loading-card, .error-card, .success-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 2rem;
+        text-align: center;
+        backdrop-filter: blur(20px);
+    }
+
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--glass-border);
+        border-top: 4px solid var(--accent-magenta);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .error-card {
+        border-color: #ff4757;
+    }
+
+    .success-card {
+        border-color: #2ed573;
+        color: #2ed573;
+    }
+
+    .active-visit-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 2rem;
+        backdrop-filter: blur(20px);
+        margin-bottom: 2rem;
+    }
+
+    .visit-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .visit-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--accent-magenta);
+        animation: pulse 2s infinite;
+    }
+
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .status-text {
+        font-weight: bold;
+        color: var(--accent-magenta);
+    }
+
+    .visit-duration {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: var(--text-primary);
+    }
+
+    .gym-info h3 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .checkin-time {
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+    }
+
+    .distance-info {
+        display: flex;
+        justify-content: space-between;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .checkout-section {
+        text-align: center;
+    }
+
+    .checkout-message {
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .location-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        color: var(--text-muted);
+    }
+
+    .gym-locations h3 {
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+    }
+
+    .gym-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        backdrop-filter: blur(20px);
+        transition: all 0.3s ease;
+    }
+
+    .gym-card.can-checkin {
+        border-color: var(--accent-teal);
+        box-shadow: 0 0 20px rgba(14, 240, 255, 0.1);
+    }
+
+    .gym-card.too-far {
+        opacity: 0.6;
+    }
+
+    .gym-details h4 {
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .gym-address {
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .gym-distance {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .distance {
+        font-weight: bold;
+        color: var(--text-primary);
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .status-badge.in-range {
+        background: var(--accent-teal);
+        color: var(--bg-dark);
+    }
+
+    .status-badge.too-far {
+        background: var(--text-muted);
+        color: var(--bg-dark);
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: var(--accent-magenta);
+        color: white;
+    }
+
+    .btn-success {
+        background: var(--accent-teal);
+        color: var(--bg-dark);
+    }
+
+    .btn-danger {
+        background: #ff4757;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: var(--text-muted);
+        color: var(--bg-dark);
+    }
+
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid transparent;
+        border-top: 2px solid currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    .location-request {
+        text-align: center;
+        padding: 3rem 2rem;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        backdrop-filter: blur(20px);
+    }
+
+    .location-request .location-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .no-gyms {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+
+    @@media (max-width: 768px) {
+        .gym-card {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .gym-action {
+            width: 100%;
+        }
+        
+        .btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>

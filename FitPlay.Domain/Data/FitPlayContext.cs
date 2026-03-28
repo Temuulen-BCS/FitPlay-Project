@@ -25,6 +25,7 @@ public class FitPlayContext : DbContext
     public DbSet<ClassEnrollment> ClassEnrollments => Set<ClassEnrollment>();
     public DbSet<PaymentSplit> PaymentSplits => Set<PaymentSplit>();
     public DbSet<RoomCheckIn> RoomCheckIns => Set<RoomCheckIn>();
+    public DbSet<GymVisit> GymVisits => Set<GymVisit>();
     public DbSet<ClassQueueEntry> ClassQueueEntries => Set<ClassQueueEntry>();
 
     // Exercise & Training
@@ -292,6 +293,21 @@ public class FitPlayContext : DbContext
             .WithMany(ce => ce.CheckIns)
             .HasForeignKey(ci => ci.ClassEnrollmentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // GymVisit configuration
+        b.Entity<GymVisit>()
+            .HasIndex(gv => new { gv.UserId, gv.CheckOutTime });
+
+        b.Entity<GymVisit>()
+            .Property(gv => gv.UserId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<GymVisit>()
+            .HasOne(gv => gv.GymLocation)
+            .WithMany()
+            .HasForeignKey(gv => gv.GymLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Exercise indexes
         b.Entity<ExerciseLog>().HasIndex(x => new { x.ClientId, x.PerformedAt });

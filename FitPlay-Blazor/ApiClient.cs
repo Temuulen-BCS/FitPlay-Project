@@ -267,7 +267,8 @@ public class ApiClient
         string Status,
         string? Notes,
         string PaymentStatus = "None",
-        decimal? PaidAmount = null
+        decimal? PaidAmount = null,
+        double? DurationMinutes = null
     );
 
     public record ClassScheduleWithTrainer(
@@ -281,7 +282,8 @@ public class ApiClient
         string PaymentStatus = "None",
         decimal? PaidAmount = null,
         string? RoomBookingStatus = null,
-        int QueueCount = 0
+        int QueueCount = 0,
+        double? DurationMinutes = null
     );
 
     public record XpTransaction(
@@ -314,6 +316,10 @@ public class ApiClient
 
     public record GymRead(int Id, string Name, string CNPJ, decimal CommissionRate, decimal CancelFeeRate, string? StripeAccountId, bool IsActive, string? OwnerUserId);
     public record GymLocationRead(int Id, int GymId, string Name, string Address, string City, string State, string ZipCode, double? Latitude, double? Longitude, bool IsActive);
+    public record GymLocationForCheckInRead(int Id, string Name, string Address, string City, string State, double? Latitude, double? Longitude);
+    public record GymVisitRead(int Id, string UserId, int GymLocationId, string GymLocationName, DateTime CheckInTime, DateTime? CheckOutTime, double CheckInLatitude, double CheckInLongitude, double? CheckOutLatitude, double? CheckOutLongitude);
+    public record GymCheckInRequest(int GymLocationId, double Latitude, double Longitude);
+    public record GymCheckOutRequest(double Latitude, double Longitude);
     public record RoomRead(int Id, int GymLocationId, string Name, string? Description, int Capacity, decimal PricePerHour, bool IsActive, List<RoomOperatingHoursDto>? OperatingHours);
     public record RoomOperatingHoursDto(DayOfWeek DayOfWeek, TimeOnly? OpenTime, TimeOnly? CloseTime, bool IsClosed);
 
@@ -989,6 +995,37 @@ public class ApiClient
         var res = await DeleteAsync($"/api/sessions/{sessionId}");
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
     }
+    #endregion
+
+    #region Gym Visit API
+    public async Task<List<GymLocationForCheckInRead>> GetAllGymLocations()
+        => await GetJsonAsync<List<GymLocationForCheckInRead>>("/api/gym-locations/all") ?? new();
+
+    public async Task<GymVisitRead?> CheckInToGym(GymCheckInRequest request)
+    {
+        var res = await PostJsonAsync("/api/gym-visits/checkin", request);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<GymVisitRead>();
+    }
+
+    public async Task<GymVisitRead?> CheckOutOfGym(GymCheckOutRequest request)
+    {
+        var res = await PostJsonAsync("/api/gym-visits/checkout", request);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<GymVisitRead>();
+    }
+
+    public async Task<GymVisitRead?> GetActiveGymVisit()
+    {
+        var res = await GetAsync("/api/gym-visits/active");
+        if (res.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<GymVisitRead>();
+    }
+
+    public async Task<List<GymVisitRead>> GetGymVisitHistory(int limit = 50)
+        => await GetJsonAsync<List<GymVisitRead>>($"/api/gym-visits/history?limit={limit}") ?? new();
     #endregion
 
     #region Dev API

@@ -5,7 +5,7 @@
 @using System.Security.Claims
 @using System.Globalization
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Policy = "ActiveMembership")]
+@attribute [Authorize]
 @inject ApiClient Api
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -154,6 +154,13 @@
                         <div class="class-card">
                             <div class="class-header">
                                 <span class="class-time">@classItem.ScheduledAt.ToString("HH:mm")</span>
+                                @{
+                                    var duration = FormatDuration(classItem.DurationMinutes);
+                                }
+                                @if (!string.IsNullOrEmpty(duration))
+                                {
+                                    <span class="class-duration">@duration</span>
+                                }
                                 <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
                             <h3 class="class-name">@classItem.Modality</h3>
@@ -215,6 +222,13 @@
                         <div class="class-card booked">
                             <div class="class-header">
                                 <span class="class-time">@classItem.ScheduledAt.ToString("ddd, MMM dd")</span>
+                                @{
+                                    var duration = FormatDuration(classItem.DurationMinutes);
+                                }
+                                @if (!string.IsNullOrEmpty(duration))
+                                {
+                                    <span class="class-duration">@duration</span>
+                                }
                                 <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
                             <h3 class="class-name">@classItem.Modality</h3>
@@ -1160,6 +1174,9 @@
     private string? _queuePaymentError;
     private bool _isProcessingQueuePayment;
 
+    // ── User membership state ──
+    private bool _hasActiveMembership;
+
     // ── Stripe payment state ──
     private int? _paymentScheduleId;
     private string? _paymentClientSecret;
@@ -1180,6 +1197,11 @@
             _isLoading = false;
             return;
         }
+
+        // Check user membership status
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _hasActiveMembership = user.HasClaim("membership", "active");
 
         await LoadClasses();
     }
@@ -1651,9 +1673,21 @@
 
     private string GetQueueCostLabel(string? notes)
     {
-        // Since BookClass.razor requires ActiveMembership policy, users are always members.
-        // But if the policy is relaxed in the future, show the 5% cost for non-members.
-        return "Free for members";
+        if (_hasActiveMembership)
+        {
+            return "Free for members";
+        }
+        else
+        {
+            // Non-members pay 5% of class cost
+            var price = TryExtractPricePerStudent(notes);
+            if (price.HasValue)
+            {
+                var queueCost = price.Value * 0.05m;
+                return $"{queueCost:C} queue cost (5% of class price)";
+            }
+            return "5% queue cost";
+        }
     }
 
     private static decimal? TryExtractPricePerStudent(string? notes)
@@ -1686,5 +1720,30 @@
             return $"Coach: {classItem.TrainerName}";
         }
         return "Coach: TBA";
+    }
+
+    private static string? FormatDuration(double? durationMinutes)
+    {
+        if (!durationMinutes.HasValue || durationMinutes.Value <= 0)
+        {
+            return null;
+        }
+
+        var minutes = (int)Math.Round(durationMinutes.Value);
+        var hours = minutes / 60;
+        var remainingMinutes = minutes % 60;
+
+        if (hours > 0 && remainingMinutes > 0)
+        {
+            return $"{hours}h {remainingMinutes}min";
+        }
+        else if (hours > 0)
+        {
+            return $"{hours}h";
+        }
+        else
+        {
+            return $"{remainingMinutes}min";
+        }
     }
 }

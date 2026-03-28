@@ -45,7 +45,7 @@ builder.Services.AddHttpContextAccessor();
 // Register HttpClient and ApiClient for API calls
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
     ?? Environment.GetEnvironmentVariable("API_BASE_URL")
-    ?? "https://localhost:7248";
+    ?? "http://localhost:5179";
 
 builder.Services.AddHttpClient<ApiClient>(client =>
 {

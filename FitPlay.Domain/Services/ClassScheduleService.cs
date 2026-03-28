@@ -338,6 +338,14 @@ public class ClassScheduleService
 
     private static ClassScheduleDto ToDto(ClassSchedule schedule)
     {
+        // Calculate duration from RoomBooking if available
+        double? durationMinutes = null;
+        if (schedule.RoomBooking != null)
+        {
+            var duration = schedule.RoomBooking.EndTime - schedule.RoomBooking.StartTime;
+            durationMinutes = duration.TotalMinutes;
+        }
+
         return new ClassScheduleDto(
             Id: schedule.Id,
             UserId: schedule.UserId,
@@ -347,12 +355,21 @@ public class ClassScheduleService
             Status: schedule.Status.ToString(),
             Notes: schedule.Notes,
             PaymentStatus: schedule.PaymentStatus.ToString(),
-            PaidAmount: schedule.PaidAmount
+            PaidAmount: schedule.PaidAmount,
+            DurationMinutes: durationMinutes
         );
     }
 
     private static ClassScheduleWithTrainerDto ToWithTrainerDto(ClassSchedule s, int queueCount = 0)
     {
+        // Calculate duration from RoomBooking if available
+        double? durationMinutes = null;
+        if (s.RoomBooking != null)
+        {
+            var duration = s.RoomBooking.EndTime - s.RoomBooking.StartTime;
+            durationMinutes = duration.TotalMinutes;
+        }
+
         return new ClassScheduleWithTrainerDto(
             s.Id,
             s.TrainerId,
@@ -364,7 +381,8 @@ public class ClassScheduleService
             s.PaymentStatus.ToString(),
             s.PaidAmount,
             RoomBookingStatus: s.RoomBooking?.Status.ToString(),
-            QueueCount: queueCount
+            QueueCount: queueCount,
+            DurationMinutes: durationMinutes
         );
     }
 
