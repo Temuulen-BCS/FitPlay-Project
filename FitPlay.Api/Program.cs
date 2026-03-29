@@ -1,4 +1,4 @@
-﻿using FitPlay.Api;
+using FitPlay.Api;
 using FitPlay.Api.Data;
 //using FitPlay.Api.Endpoints;
 using FitPlay.Api.Auth;
@@ -12,13 +12,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;       
 using Microsoft.OpenApi.Models;             
 using System.Text;
-using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Railway injects PORT env var; bind to it for production
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-builder.WebHost.UseUrls($"http://+:{port}");
 
 
 builder.Services.AddControllers();
@@ -56,58 +51,19 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Database: build connection string from Railway PG* env vars, or fall back to appsettings
-static string BuildConnectionString(IConfiguration config)
-{
-    var pgHost     = Environment.GetEnvironmentVariable("PGHOST");
-    var pgPort     = Environment.GetEnvironmentVariable("PGPORT") ?? "5432";
-    var pgDatabase = Environment.GetEnvironmentVariable("PGDATABASE");
-    var pgUser     = Environment.GetEnvironmentVariable("PGUSER");
-    var pgPassword = Environment.GetEnvironmentVariable("PGPASSWORD");
-
-    // Railway PostgreSQL: use individual PG* variables directly
-    if (pgHost != null && pgDatabase != null && pgUser != null && pgPassword != null)
-        return $"Host={pgHost};Port={pgPort};Database={pgDatabase};"
-             + $"Username={pgUser};Password={pgPassword};"
-             + "SSL Mode=Require;Trust Server Certificate=true";
-
-    // Local development: use appsettings.json
-    return config.GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("No database connection string found.");
-}
-
-var connStr = BuildConnectionString(builder.Configuration);
-var isPostgres = Environment.GetEnvironmentVariable("PGHOST") != null;
-
 builder.Services.AddDbContext<FitPlayContext>(options =>
-{
-    if (isPostgres)
-        options.UseNpgsql(connStr, b => b.MigrationsAssembly("FitPlay.Api"));
-    else
-        options.UseSqlServer(connStr, b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure());
-});
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure()
+    ));
+
+builder.Services.AddSingleton<FitPlay.Domain.Services.IClockService, FitPlay.Domain.Services.ClockService>();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-{
-    if (isPostgres)
-        options.UseNpgsql(connStr);
-    else
-        options.UseSqlServer(connStr, b => b.EnableRetryOnFailure());
-});
-
-// CORS – allow the Blazor front-end origin (set via env var in production)
-var allowedOrigins = builder.Configuration["AllowedOrigins"]
-    ?? Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
-    ?? "https://localhost:7050";
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-        policy.WithOrigins(allowedOrigins.Split(','))
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials());
-});
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.EnableRetryOnFailure()
+    ));
 
 // Register gamification services
 builder.Services.AddScoped<ProgressService>();
@@ -115,7 +71,6 @@ builder.Services.AddScoped<AchievementService>();
 builder.Services.AddScoped<TrainingCompletionService>();
 builder.Services.AddScoped<TrainingService>();
 builder.Services.AddScoped<ClassScheduleService>();
-builder.Services.AddScoped<ClassQueueService>();
 builder.Services.AddScoped<MembershipService>();
 
 // Register gym/sessions services
@@ -124,21 +79,18 @@ builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
 builder.Services.AddScoped<ICheckInService, CheckInService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.IGymVisitService, FitPlay.Domain.Services.GymVisitService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.ClassQueueService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.ITrainerNotificationService, FitPlay.Domain.Services.TrainerNotificationService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager();
 
-var jwtKey = (builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException(
-        "Missing config 'Jwt:Key'. Set env var Jwt__Key (Railway) or Jwt:Key in appsettings.json.")).Trim();
-var jwtIssuer = (builder.Configuration["Jwt:Issuer"]
-    ?? throw new InvalidOperationException(
-        "Missing config 'Jwt:Issuer'. Set env var Jwt__Issuer (Railway) or Jwt:Issuer in appsettings.json.")).Trim();
-var jwtAudience = (builder.Configuration["Jwt:Audience"]
-    ?? throw new InvalidOperationException(
-        "Missing config 'Jwt:Audience'. Set env var Jwt__Audience (Railway) or Jwt:Audience in appsettings.json.")).Trim();
+var jwtKey = builder.Configuration["Jwt:Key"]!;
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
+var jwtAudience = builder.Configuration["Jwt:Audience"]!;
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -153,33 +105,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey)
-            ) { KeyId = "fitplay-hmac" }
-        };
-
-        // Surface the exact JWT validation error in a response header so the
-        // Blazor frontend can display it (since we can't check Railway logs).
-        // Header values must not contain newlines — Kestrel rejects them.
-        options.Events = new JwtBearerEvents
-        {
-            OnAuthenticationFailed = context =>
-            {
-                var msg = context.Exception.Message
-                    .Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
-                if (msg.Length > 500) msg = msg[..500];
-                context.Response.Headers.Append("Token-Validation-Error", msg);
-                return Task.CompletedTask;
-            },
-            OnChallenge = context =>
-            {
-                if (context.AuthenticateFailure != null)
-                {
-                    var msg = context.AuthenticateFailure.Message
-                        .Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
-                    if (msg.Length > 500) msg = msg[..500];
-                    context.Response.Headers.Append("Token-Validation-Error", msg);
-                }
-                return Task.CompletedTask;
-            }
+            )
         };
     });
 
@@ -192,40 +118,20 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-// ── Startup diagnostics: log JWT config so we can verify Railway env vars ──
-var jwtKeyHash = Convert.ToHexString(
-    System.Security.Cryptography.SHA256.HashData(
-        Encoding.UTF8.GetBytes(jwtKey)))[..16];
-app.Logger.LogInformation(
-    "JWT config → Issuer={Issuer}, Audience={Audience}, KeyLength={KeyLen}, KeyHash={KeyHash}",
-    jwtIssuer, jwtAudience, jwtKey.Length, jwtKeyHash);
-
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
-// Always expose Swagger in production on Railway (useful for testing)
-app.UseSwagger();
-app.UseSwaggerUI();
-
-// Exempt the Stripe webhooks from HTTPS redirection so the Stripe CLI can POST
-// to http://localhost without getting a 307 redirect.
-// In production (Railway), HTTPS is handled by the reverse proxy.
 if (app.Environment.IsDevelopment())
 {
-    app.UseWhen(
-        ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook")
-            && !ctx.Request.Path.StartsWithSegments("/api/booking-webhook"),
-        branch => branch.UseHttpsRedirection());
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-app.UseCors("AllowFrontend");
-
-// Railway terminates TLS at its reverse proxy.  Without forwarded headers,
-// ASP.NET Core sees http:// which can break JWT audience/issuer validation
-// when the expected values use https://.
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+// Exempt the Stripe webhook from HTTPS redirection so the Stripe CLI can POST
+// to http://localhost:5179/api/billing/webhook without getting a 307 redirect.
+// Also skip HTTPS in development
+app.UseWhen(
+    ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook") && !app.Environment.IsDevelopment(),
+    branch => branch.UseHttpsRedirection());
 
 app.UseAuthentication();   
 app.UseAuthorization();    
@@ -255,8 +161,57 @@ using (var scope = app.Services.CreateScope())
     var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
 
-    await db1.Database.MigrateAsync();
-    await db2.Database.MigrateAsync();
+    try
+    {
+        await db1.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Migration for ApplicationDbContext failed, trying EnsureCreated");
+        await db1.Database.EnsureCreatedAsync();
+    }
+
+    try
+    {
+        await db2.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Migration for FitPlayContext failed, trying EnsureCreated");
+        await db2.Database.EnsureCreatedAsync();
+    }
+
+    // Backfill Teacher.IdentityUserId for records missing the link
+    try
+    {
+        var teachersWithoutIdentity = await db2.Teachers
+            .Where(t => t.IdentityUserId == null || t.IdentityUserId == "")
+            .ToListAsync();
+
+        if (teachersWithoutIdentity.Any())
+        {
+            foreach (var teacher in teachersWithoutIdentity)
+            {
+                var identityUser = await db1.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Email != null
+                        && u.Email.ToLower() == teacher.Email.ToLower());
+
+                if (identityUser != null)
+                {
+                    teacher.IdentityUserId = identityUser.Id;
+                    app.Logger.LogInformation(
+                        "Backfilled Teacher '{Name}' (Id={Id}) with IdentityUserId={IdentityUserId}",
+                        teacher.Name, teacher.Id, identityUser.Id);
+                }
+            }
+            await db2.SaveChangesAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Teacher IdentityUserId backfill failed (non-fatal)");
+    }
 }
 
 app.Run();

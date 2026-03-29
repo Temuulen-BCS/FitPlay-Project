@@ -14,10 +14,12 @@ public class RoomService : IRoomService
     };
 
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public RoomService(FitPlayContext db)
+    public RoomService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<List<RoomResponseDto>> GetRoomsByLocationAsync(int locationId, bool? isActive = null)
@@ -188,8 +190,8 @@ public class RoomService : IRoomService
             Status = RoomBookingStatus.Pending,
             TotalCost = CalculateCost(room.PricePerHour, request.StartTime, request.EndTime),
             Notes = request.Notes?.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = _clock.UtcNow,
+            UpdatedAt = _clock.UtcNow
         };
 
         _db.RoomBookings.Add(booking);
@@ -224,7 +226,7 @@ public class RoomService : IRoomService
         booking.Status = newStatus;
         booking.Notes = request.Notes?.Trim();
         booking.TotalCost = CalculateCost(booking.Room?.PricePerHour ?? booking.TotalCost, request.StartTime, request.EndTime);
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
 
         await _db.SaveChangesAsync();
         return ToDto(booking);
@@ -240,7 +242,7 @@ public class RoomService : IRoomService
             throw new UnauthorizedAccessException("You can only cancel your own bookings.");
 
         booking.Status = RoomBookingStatus.Cancelled;
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         return true;
@@ -374,7 +376,7 @@ public class RoomService : IRoomService
             throw new InvalidOperationException("Only pending bookings can be confirmed.");
 
         booking.Status = RoomBookingStatus.Confirmed;
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         return ToDto(booking);

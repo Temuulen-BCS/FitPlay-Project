@@ -8,10 +8,12 @@ namespace FitPlay.Domain.Services;
 public class TrainerNotificationService : ITrainerNotificationService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public TrainerNotificationService(FitPlayContext db)
+    public TrainerNotificationService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<TrainerNotificationDto> CreateAsync(string senderAdminId, CreateTrainerNotificationRequest request)
@@ -24,7 +26,7 @@ public class TrainerNotificationService : ITrainerNotificationService
             SubjectUserId = request.SubjectUserId,
             Message = request.Message,
             IsRead = false,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = _clock.UtcNow
         };
 
         _db.TrainerNotifications.Add(notification);

@@ -272,7 +272,11 @@ public class ApiClient
         int? MaxCapacity = null,
         int? BookedCount = null,
         string? RoomName = null,
-        string? GymLocationName = null
+        string? GymLocationName = null,
+        string? GymLocationAddress = null,
+        string? GymLocationCity = null,
+        string? GymLocationState = null,
+        string? GymLocationZipCode = null
     );
 
     public record ClassScheduleWithTrainer(
@@ -290,8 +294,13 @@ public class ApiClient
         double? DurationMinutes = null,
         int? MaxCapacity = null,
         int? BookedCount = null,
+        bool IsBooked = false,
         string? RoomName = null,
-        string? GymLocationName = null
+        string? GymLocationName = null,
+        string? GymLocationAddress = null,
+        string? GymLocationCity = null,
+        string? GymLocationState = null,
+        string? GymLocationZipCode = null
     );
 
     public record XpTransaction(
@@ -430,7 +439,7 @@ public class ApiClient
 
     // ── GymAdmin records ──
     public record CreateGymRequest(string Name, string CNPJ, decimal CommissionRate, decimal CancelFeeRate);
-    public record UpdateGymRequest(string Name, decimal CommissionRate, decimal CancelFeeRate, bool IsActive);
+    public record UpdateGymRequest(string Name, string CNPJ, decimal CommissionRate, decimal CancelFeeRate, bool IsActive);
     public record CreateGymLocationRequest(string Name, string Address, string City, string State, string ZipCode, double? Latitude, double? Longitude);
     public record UpdateGymLocationRequest(string Name, string Address, string City, string State, string ZipCode, double? Latitude, double? Longitude, bool IsActive);
     public record CreateRoomRequest(string Name, string? Description, int Capacity, decimal PricePerHour, List<RoomOperatingHoursDto>? OperatingHours = null);
@@ -457,6 +466,46 @@ public class ApiClient
     public record JoinQueueResponse(int QueueEntryId, decimal QueueCost, bool HasMembership, string? ClientSecret, int MonthlySkipCount = 0);
     public record ConfirmQueuePaymentRequest(string StripePaymentIntentId);
     public record UserQueueEntry(int ClassScheduleId, bool IsNotified, decimal QueueCost, bool IsSkipped = false);
+
+    // ── LIVE Presence / Trainer Notification records ──
+    public record ActiveVisitDetailRead(
+        int VisitId,
+        string UserId,
+        string UserName,
+        string UserEmail,
+        string? UserPhone,
+        DateTime CheckInTime,
+        int? ClassSessionId,
+        string? ClassTitle,
+        DateTime? SessionStartTime,
+        DateTime? SessionEndTime,
+        string? TrainerId,
+        string? TrainerName,
+        string? TrainerEmail,
+        string? RoomName,
+        decimal? PaidAmount,
+        string? EnrollmentStatus
+    );
+
+    public record CreateTrainerNotificationRequest(
+        string TrainerId,
+        int GymLocationId,
+        string SubjectUserId,
+        string Message
+    );
+
+    public record TrainerNotificationRead(
+        int Id,
+        string TrainerId,
+        string SenderGymAdminId,
+        int GymLocationId,
+        string GymLocationName,
+        string SubjectUserId,
+        string SubjectUserName,
+        string Message,
+        bool IsRead,
+        DateTime CreatedAt
+    );
     #endregion
 
     #region Billing API
@@ -645,9 +694,9 @@ public class ApiClient
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
 
-    public async Task<ClassSchedule?> UnbookClass(int scheduleId)
+    public async Task<ClassSchedule?> UnbookClass(int scheduleId, int userId)
     {
-        var res = await PostAsync($"/api/classeschedules/{scheduleId}/unbook", null);
+        var res = await PostJsonAsync($"/api/classeschedules/{scheduleId}/unbook", new { UserId = userId });
         if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<ClassSchedule>();
     }
@@ -1013,7 +1062,7 @@ public class ApiClient
     public async Task<GymVisitRead?> CheckInToGym(GymCheckInRequest request)
     {
         var res = await PostJsonAsync("/api/gym-visits/checkin", request);
-        res.EnsureSuccessStatusCode();
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
         return await res.Content.ReadFromJsonAsync<GymVisitRead>();
     }
 
@@ -1038,6 +1087,54 @@ public class ApiClient
 
     public async Task<List<LocationPresenceRead>> GetActiveCountsAsync(int gymId)
         => await GetJsonAsync<List<LocationPresenceRead>>($"/api/gym-visits/active-counts/{gymId}") ?? new();
+
+    public async Task<List<ActiveVisitDetailRead>> GetActiveVisitDetailsAsync(int gymLocationId)
+        => await GetJsonAsync<List<ActiveVisitDetailRead>>($"/api/gym-visits/active-details/{gymLocationId}") ?? new();
+
+    public async Task<CanCheckInResponse> CanCheckInToGym(int gymLocationId)
+    {
+        var res = await GetAsync($"/api/gym-visits/can-checkin/{gymLocationId}");
+        if (!res.IsSuccessStatusCode) return new CanCheckInResponse(false, false, null, null, null);
+        var result = await res.Content.ReadFromJsonAsync<CanCheckInResponse>();
+        return result ?? new CanCheckInResponse(false, false, null, null, null);
+    }
+
+    public record CanCheckInResponse(
+        bool HasEnrollment,
+        bool CanCheckInNow,
+        DateTime? NextClassStartTime,
+        DateTime? NextClassEndTime,
+        string? NextClassTitle,
+        bool HasPastClass = false,
+        bool CheckedInForPastClass = false,
+        DateTime? PastClassCheckInTime = null,
+        string? PastClassTitle = null);
+    #endregion
+
+    #region Trainer Notification API
+    public async Task<TrainerNotificationRead?> SendTrainerNotificationAsync(CreateTrainerNotificationRequest request)
+    {
+        var res = await PostJsonAsync("/api/trainer-notifications", request);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<TrainerNotificationRead>();
+    }
+
+    public async Task<List<TrainerNotificationRead>> GetMyNotificationsAsync(bool unreadOnly = false)
+        => await GetJsonAsync<List<TrainerNotificationRead>>($"/api/trainer-notifications?unreadOnly={unreadOnly}") ?? new();
+
+    public async Task<TrainerNotificationRead?> MarkNotificationAsReadAsync(int notificationId)
+    {
+        var res = await PatchJsonAsync($"/api/trainer-notifications/{notificationId}/read", new { });
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException(await ReadApiErrorAsync(res));
+        return await res.Content.ReadFromJsonAsync<TrainerNotificationRead>();
+    }
+
+    public async Task<int> GetUnreadNotificationCountAsync()
+    {
+        var res = await GetAsync("/api/trainer-notifications/unread-count");
+        if (!res.IsSuccessStatusCode) return 0;
+        return await res.Content.ReadFromJsonAsync<int>();
+    }
     #endregion
 
     #region Dev API

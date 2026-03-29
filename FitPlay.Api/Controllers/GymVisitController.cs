@@ -121,6 +121,18 @@ public class GymVisitController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpGet("can-checkin/{gymLocationId}")]
+    [Authorize(Roles = "Admin,User")]
+    public async Task<ActionResult<CheckInEligibilityDto>> CanCheckIn(int gymLocationId)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var eligibility = await _gymVisitService.GetCheckInEligibilityAsync(actorId, gymLocationId);
+        return Ok(eligibility);
+    }
 }
 
 [ApiController]

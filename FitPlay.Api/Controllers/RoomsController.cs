@@ -17,12 +17,14 @@ public class RoomsController : ControllerBase
     private readonly IRoomService _roomService;
     private readonly ClassQueueService _queueService;
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public RoomsController(IRoomService roomService, ClassQueueService queueService, FitPlayContext db)
+    public RoomsController(IRoomService roomService, ClassQueueService queueService, FitPlayContext db, IClockService clock)
     {
         _roomService = roomService;
         _queueService = queueService;
         _db = db;
+        _clock = clock;
     }
 
     [HttpGet("/api/locations/{id:int}/rooms")]
@@ -113,7 +115,7 @@ public class RoomsController : ControllerBase
     [HttpGet("/api/rooms/{id:int}/availability")]
     public async Task<ActionResult<RoomAvailabilityResponseDto>> GetAvailability(int id, [FromQuery] DateOnly? date = null)
     {
-        var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var targetDate = date ?? DateOnly.FromDateTime(_clock.UtcNow);
         var availability = await _roomService.GetRoomAvailabilityAsync(id, targetDate);
         return Ok(availability);
     }
@@ -287,7 +289,7 @@ public class RoomsController : ControllerBase
 
         // Store the PI id on the booking so we can reuse/verify later
         booking.StripePaymentIntentId = paymentIntent.Id;
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new CreateBookingPaymentIntentResponse(paymentIntent.ClientSecret));
@@ -339,7 +341,7 @@ public class RoomsController : ControllerBase
         booking.Status = RoomBookingStatus.Confirmed;
         booking.StripePaymentIntentId = paymentIntent.Id;
         booking.PaidAmount = booking.TotalCost;
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         // Notify queued students that the trainer has paid

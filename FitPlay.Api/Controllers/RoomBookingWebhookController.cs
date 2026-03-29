@@ -1,6 +1,7 @@
 using System.Text;
 using FitPlay.Domain.Data;
 using FitPlay.Domain.Models;
+using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -14,11 +15,13 @@ public class RoomBookingWebhookController : ControllerBase
 {
     private readonly FitPlayContext _db;
     private readonly StripeOptions _stripeOptions;
+    private readonly IClockService _clock;
 
-    public RoomBookingWebhookController(FitPlayContext db, IOptions<StripeOptions> stripeOptions)
+    public RoomBookingWebhookController(FitPlayContext db, IOptions<StripeOptions> stripeOptions, IClockService clock)
     {
         _db = db;
         _stripeOptions = stripeOptions.Value;
+        _clock = clock;
     }
 
     [HttpPost]
@@ -80,7 +83,7 @@ public class RoomBookingWebhookController : ControllerBase
         booking.Status = RoomBookingStatus.Confirmed;
         booking.StripePaymentIntentId = paymentIntent.Id;
         booking.PaidAmount = booking.TotalCost;
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
     }
 }

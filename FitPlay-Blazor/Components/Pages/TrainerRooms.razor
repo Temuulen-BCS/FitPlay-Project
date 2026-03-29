@@ -229,6 +229,14 @@
                                        @bind="_bookingForm.PricePerStudent"
                                        placeholder="e.g. 19.99" />
                             </div>
+                            <div class="form-group">
+                                <label>Max Students <span class="capacity-hint">(room cap: @_modalRoom!.Capacity)</span></label>
+                                <input type="number"
+                                       min="1"
+                                       max="@_modalRoom!.Capacity"
+                                       @bind="_bookingForm.MaxStudents"
+                                       placeholder="@_modalRoom!.Capacity" />
+                            </div>
                         </div>
 
                     
@@ -735,6 +743,12 @@
         font-size: 12px; 
         color: var(--text-muted); 
         font-weight: 600; 
+    }
+
+    .form-group label .capacity-hint {
+        font-weight: 400;
+        opacity: 0.65;
+        font-size: 11px;
     }
 
     .form-group input,
@@ -1315,7 +1329,7 @@
         _modalLocation = location;
         _scheduleError = null;
         _scheduleSuccess = null;
-        _bookingForm = new BookingForm();
+        _bookingForm = new BookingForm { MaxStudents = room.Capacity };
         _timeBlocks = new List<TimeBlock> { new TimeBlock() };
         _totalPrice = 0;
         _blockPrices.Clear();
@@ -1624,6 +1638,12 @@
         if (!_bookingForm.PricePerStudent.HasValue || _bookingForm.PricePerStudent.Value <= 0)
             return "Please enter a valid price per student.";
 
+        if (!_bookingForm.MaxStudents.HasValue || _bookingForm.MaxStudents.Value < 1)
+            return "Please enter a valid max students count (at least 1).";
+
+        if (_modalRoom is not null && _bookingForm.MaxStudents.Value > _modalRoom.Capacity)
+            return $"Max students cannot exceed room capacity ({_modalRoom.Capacity}).";
+
         if (!_timeBlocks.Any(b => b.IsValid()))
             return "Please add at least one valid time block.";
 
@@ -1694,7 +1714,40 @@
                 return;
             }
 
-            // Step 2: Create class schedule linked to the first booking
+            // Step 2: Create a ClassSession for each booking so capacity is tracked
+            var validBlocks = _timeBlocks.Where(b => b.IsValid()).ToList();
+            for (int i = 0; i < createdBookingIds.Count && i < validBlocks.Count; i++)
+            {
+                var block = validBlocks[i];
+                var sessionStart = CombineDateAndTime(_modalSelectedDate, block.StartTime!);
+                var sessionEnd = CombineDateAndTime(_modalSelectedDate, block.EndTime!);
+
+                var sessionBody = new ApiClient.CreateClassSessionBody(
+                    Title: _bookingForm.Modality!.Trim(),
+                    Description: _bookingForm.Notes?.Trim(),
+                    MaxStudents: _bookingForm.MaxStudents!.Value,
+                    PricePerStudent: _bookingForm.PricePerStudent!.Value,
+                    StartTime: sessionStart,
+                    EndTime: sessionEnd
+                );
+
+                try
+                {
+                    await Api.CreateSessionFromBooking(createdBookingIds[i], sessionBody);
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+                {
+                    // Session already exists for this booking - skip silently
+                    Console.WriteLine($"Session already exists for booking {createdBookingIds[i]}, skipping creation");
+                }
+                catch (Exception ex)
+                {
+                    // Any other error during session creation is critical - throw to trigger rollback
+                    throw new InvalidOperationException($"Failed to create class session for booking {createdBookingIds[i]}: {ex.Message}", ex);
+                }
+            }
+
+            // Step 3: Create class schedule linked to the first booking
             var firstBlock = _timeBlocks.First(b => b.IsValid());
             var scheduledAt = CombineDateAndTime(_modalSelectedDate, firstBlock.StartTime!);
             var notes = BuildNotesWithMultipleBookings(
@@ -1795,9 +1848,9 @@
 
     private class BookingForm
     {
-  
         public string? Modality { get; set; }
         public decimal? PricePerStudent { get; set; }
+        public int? MaxStudents { get; set; }
         public string? Notes { get; set; }
     }
 

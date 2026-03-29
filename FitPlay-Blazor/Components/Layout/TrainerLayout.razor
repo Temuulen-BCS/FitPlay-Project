@@ -2,6 +2,7 @@
 @implements IDisposable
 
 @inject NavigationManager NavigationManager
+@inject ApiClient Api
 
 <header class="top-nav">
     <div class="nav-inner">
@@ -12,6 +13,12 @@
             <NavLink href="/trainer/gyms">Gyms</NavLink>
             <NavLink href="/trainer/exercises">Exercises</NavLink>
             <NavLink href="/trainer/rooms/booked">Booked rooms</NavLink>
+            <NavLink href="/trainer/notifications" class="@NotificationBellClass" title="Notifications">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+            </NavLink>
         </nav>
         <AuthorizeView>
             <Authorized>
@@ -85,18 +92,29 @@
 
 @code {
     private string? currentUrl;
+    private int _unreadCount;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
+        await RefreshUnreadCountAsync();
     }
 
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        await RefreshUnreadCountAsync();
         StateHasChanged();
     }
+
+    private async Task RefreshUnreadCountAsync()
+    {
+        try { _unreadCount = await Api.GetUnreadNotificationCountAsync(); }
+        catch { _unreadCount = 0; }
+    }
+
+    private string NotificationBellClass => _unreadCount > 0 ? "nav-icon-btn has-notifications" : "nav-icon-btn";
 
     public void Dispose()
     {

@@ -21,6 +21,17 @@
         <p class="subtitle">Find and book classes with our trainers!</p>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(_paymentError))
+    {
+        <div class="error-banner">
+            <div class="error-header">
+                <span>⚠️ Booking Error</span>
+                <button @onclick="() => _paymentError = null" class="btn-close-error">×</button>
+            </div>
+            <p>@_paymentError</p>
+        </div>
+    }
+
     @{
         var notifiedClasses = _userQueueEntries
             .Where(e => e.IsNotified && !e.IsSkipped)
@@ -153,14 +164,7 @@
                         var intensity = GetIntensity(classItem.Modality, classItem.Notes);
                         <div class="class-card">
                             <div class="class-header">
-                                <span class="class-time">@classItem.ScheduledAt.ToString("HH:mm")</span>
-                                @{
-                                    var duration = FormatDuration(classItem.DurationMinutes);
-                                }
-                                @if (!string.IsNullOrEmpty(duration))
-                                {
-                                    <span class="class-duration">@duration</span>
-                                }
+                                <span class="class-time">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
                                 <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
                             <h3 class="class-name">@classItem.Modality</h3>
@@ -168,6 +172,10 @@
                             <div class="class-tags">
                                 <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
                                 <span class="price-tag">@GetPriceLabel(classItem.Notes)</span>
+                                @if (classItem.MaxCapacity.HasValue)
+                                {
+                                    <span class="capacity-tag">Capacity: @FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
+                                }
                             </div>
                             <button class="class-expand-btn" @onclick="() => ToggleClassDetails(classItem.Id)">
                                 @(_expandedClassIds.Contains(classItem.Id) ? "−" : "+")
@@ -175,6 +183,18 @@
                             @if (_expandedClassIds.Contains(classItem.Id))
                             {
                                 <div class="class-details">
+                                    <div class="detail-row">
+                                        <span class="detail-label">Day</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("dddd, MMMM dd, yyyy")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time Start</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time End</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.AddMinutes(classItem.DurationMinutes ?? 0).ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
                                     <div class="detail-row">
                                         <span class="detail-label">Capacity</span>
                                         <span class="detail-value">@FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
@@ -205,7 +225,7 @@
                                     </div>
                                     <div class="detail-row">
                                         <span class="detail-label">Location</span>
-                                        <span class="detail-value">@(classItem.GymLocationName ?? "N/A")</span>
+                                        <span class="detail-value">@FormatFullLocation(classItem.GymLocationName, classItem.GymLocationAddress, classItem.GymLocationCity, classItem.GymLocationState, classItem.GymLocationZipCode)</span>
                                     </div>
                                     @if (!string.IsNullOrEmpty(classItem.RoomName))
                                     {
@@ -248,9 +268,16 @@
                             }
                             else
                             {
-                                <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@(isBooking || _isInitiatingPayment)">
-                                    @(isBooking || _isInitiatingPayment ? "Please wait..." : "Book Now")
-                                </button>
+                                @if (classItem.IsBooked)
+                                {
+                                    <button class="btn-fully-booked" disabled>Fully Booked</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@(isBooking || _isInitiatingPayment)">
+                                        @(isBooking || _isInitiatingPayment ? "Please wait..." : "Book Now")
+                                    </button>
+                                }
                             }
                         </div>
                     }
@@ -269,14 +296,7 @@
                         var intensity = GetIntensity(classItem.Modality, classItem.Notes);
                         <div class="class-card booked">
                             <div class="class-header">
-                                <span class="class-time">@classItem.ScheduledAt.ToString("ddd, MMM dd")</span>
-                                @{
-                                    var duration = FormatDuration(classItem.DurationMinutes);
-                                }
-                                @if (!string.IsNullOrEmpty(duration))
-                                {
-                                    <span class="class-duration">@duration</span>
-                                }
+                                <span class="class-time">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
                                 <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
                             <h3 class="class-name">@classItem.Modality</h3>
@@ -284,6 +304,10 @@
                             <div class="class-tags">
                                 <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
                                 <span class="price-tag">@GetPriceLabel(classItem.Notes)</span>
+                                @if (classItem.MaxCapacity.HasValue)
+                                {
+                                    <span class="capacity-tag">Capacity: @FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
+                                }
                             </div>
                             <button class="class-expand-btn" @onclick="() => ToggleClassDetails(classItem.Id)">
                                 @(_expandedClassIds.Contains(classItem.Id) ? "−" : "+")
@@ -291,6 +315,18 @@
                             @if (_expandedClassIds.Contains(classItem.Id))
                             {
                                 <div class="class-details">
+                                    <div class="detail-row">
+                                        <span class="detail-label">Day</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("dddd, MMMM dd, yyyy")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time Start</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time End</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.AddMinutes(classItem.DurationMinutes ?? 0).ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
                                     <div class="detail-row">
                                         <span class="detail-label">Capacity</span>
                                         <span class="detail-value">@FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
@@ -313,7 +349,7 @@
                                     }
                                     <div class="detail-row">
                                         <span class="detail-label">Location</span>
-                                        <span class="detail-value">@(classItem.GymLocationName ?? "N/A")</span>
+                                        <span class="detail-value">@FormatFullLocation(classItem.GymLocationName, classItem.GymLocationAddress, classItem.GymLocationCity, classItem.GymLocationState, classItem.GymLocationZipCode)</span>
                                     </div>
                                     @if (!string.IsNullOrEmpty(classItem.RoomName))
                                     {
@@ -483,6 +519,17 @@
         padding: 2px 8px;
     }
 
+    .capacity-tag {
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        color: var(--text-muted);
+        border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.05);
+        border-radius: 999px;
+        padding: 2px 8px;
+    }
+
     .payment-badge {
         display: inline-block;
         font-size: 11px;
@@ -522,6 +569,18 @@
         opacity: 0.6;
         cursor: not-allowed;
         box-shadow: none;
+    }
+
+    .btn-fully-booked {
+        width: 100%;
+        padding: 12px 14px;
+        background: rgba(255,255,255,0.04);
+        border: 2px solid rgba(255,255,255,0.12);
+        color: var(--text-muted);
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: not-allowed;
+        opacity: 0.7;
     }
 
     /* ── Queue styles ── */
@@ -582,6 +641,50 @@
     }
 
     /* ── Notification Banner ── */
+    .error-banner {
+        background: linear-gradient(135deg, rgba(255,107,107,0.12), rgba(255,71,71,0.08));
+        border: 1px solid rgba(255,107,107,0.4);
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 24px rgba(255,107,107,0.15);
+        animation: bannerIn 0.4s ease;
+    }
+
+    .error-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+        font-weight: 700;
+        color: #ff6b6b;
+        margin-bottom: 8px;
+        letter-spacing: 0.2px;
+    }
+
+    .error-banner p {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    .btn-close-error {
+        background: transparent;
+        border: none;
+        color: #ff6b6b;
+        font-size: 24px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+
+    .btn-close-error:hover {
+        opacity: 1;
+    }
+
     .notification-banner {
         background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,165,0,0.06));
         border: 1px solid rgba(255,215,0,0.35);
@@ -1102,7 +1205,8 @@
 
     /* ── Expand / Detail Panel ── */
     .class-expand-btn {
-        width: 100%;
+        width: 52.13334px;
+        margin-right: 41px;
         padding: 6px 0;
         background: rgba(255,255,255,0.04);
         border: 1px dashed rgba(255,255,255,0.15);
@@ -1204,7 +1308,7 @@
             <h3 class="confirm-title">Cancel booking?</h3>
             <p class="confirm-text">
                 Are you sure you want to cancel <strong>@_pendingCancel.Modality</strong>
-                on @_pendingCancel.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")?
+                on @_pendingCancel.ScheduledAt.ToLocalTime().ToString("ddd, MMM dd 'at' HH:mm")?
                 @if (_pendingCancel.PaymentStatus == "Completed" && _pendingCancel.PaidAmount.HasValue)
                 {
                     <br /><br />
@@ -1343,6 +1447,7 @@
     // ── Queue state ──
     private List<ApiClient.UserQueueEntry> _userQueueEntries = new();
     private HashSet<int> _queuedClassIds = new();
+    private HashSet<int> _enrolledScheduleIds = new();
     private bool _isJoiningQueue;
     private int _monthlySkipCount = 0;
     private int? _skipConfirmScheduleId;
@@ -1480,10 +1585,24 @@
         try
         {
             _publicClasses = await Api.GetPublicClassSchedules();
+            Console.WriteLine($"[BookClass] Loaded {_publicClasses.Count} public classes");
+            
             var allUserClasses = await Api.GetUserSchedule(_currentUserId.Value);
             _userClasses = allUserClasses
                 .Where(c => string.Equals(c.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
                 .ToList();
+            Console.WriteLine($"[BookClass] User has {_userClasses.Count} booked classes");
+
+            // Build HashSet of enrolled schedule IDs
+            _enrolledScheduleIds = new HashSet<int>(_userClasses.Select(c => c.Id));
+            Console.WriteLine($"[BookClass] Enrolled IDs: {string.Join(", ", _enrolledScheduleIds)}");
+
+            // Filter out already-booked classes from public list
+            var beforeFilterCount = _publicClasses.Count;
+            _publicClasses = _publicClasses
+                .Where(c => !_enrolledScheduleIds.Contains(c.Id))
+                .ToList();
+            Console.WriteLine($"[BookClass] Filtered public classes: {beforeFilterCount} -> {_publicClasses.Count} (removed {beforeFilterCount - _publicClasses.Count})");
 
             // Fetch which classes the user is already queued for (includes IsNotified)
             _userQueueEntries = await Api.GetUserQueueEntries(_currentUserId.Value);
@@ -1502,21 +1621,38 @@
 
     private async Task bookClass(int scheduleId)
     {
-        if (_currentUserId is null) return;
+        Console.WriteLine($"bookClass called for scheduleId: {scheduleId}");
+        
+        if (_currentUserId is null)
+        {
+            Console.WriteLine("ERROR: _currentUserId is null");
+            return;
+        }
+
+        Console.WriteLine($"_currentUserId: {_currentUserId}");
 
         var classItem = _publicClasses.FirstOrDefault(c => c.Id == scheduleId);
-        if (classItem == null) return;
+        if (classItem == null)
+        {
+            Console.WriteLine($"ERROR: No class found with scheduleId: {scheduleId}");
+            return;
+        }
+
+        Console.WriteLine($"Found class: {classItem.Modality}, Notes: {classItem.Notes}");
 
         var price = TryExtractPricePerStudent(classItem.Notes);
+        Console.WriteLine($"Extracted price: {price}");
 
         // Free class — book directly without payment
         if (!price.HasValue || price.Value == 0)
         {
+            Console.WriteLine("Booking as free class");
             await BookFreeClass(scheduleId);
             return;
         }
 
         // Paid class — open Stripe payment modal
+        Console.WriteLine($"Initiating payment for ${price.Value}");
         await InitiatePayment(scheduleId, classItem.Modality, price.Value);
     }
 
@@ -1542,17 +1678,23 @@
 
     private async Task InitiatePayment(int scheduleId, string className, decimal price)
     {
+        Console.WriteLine($"InitiatePayment called: scheduleId={scheduleId}, className={className}, price={price}");
+        
         _isInitiatingPayment = true;
         _paymentError = null;
 
         try
         {
+            Console.WriteLine($"Calling CreateClassBookingPaymentIntent for user {_currentUserId}");
             var response = await Api.CreateClassBookingPaymentIntent(scheduleId, _currentUserId!.Value);
             _paymentClientSecret = response?.ClientSecret;
+
+            Console.WriteLine($"Payment intent response: ClientSecret={(response?.ClientSecret != null ? "exists" : "null")}, Amount={response?.Amount}");
 
             if (string.IsNullOrWhiteSpace(_paymentClientSecret))
             {
                 _paymentError = "Failed to initialize payment.";
+                Console.WriteLine("ERROR: Payment client secret is null or empty");
                 return;
             }
 
@@ -1561,12 +1703,17 @@
             _paymentClassName = className;
             _paymentElementMounted = false;
             _showPaymentModal = true;
+            
+            Console.WriteLine($"Payment modal state set: _showPaymentModal={_showPaymentModal}");
+            
             await InvokeAsync(StateHasChanged);
+            Console.WriteLine("StateHasChanged invoked");
         }
         catch (Exception ex)
         {
             _paymentError = $"Failed to initialize payment: {ex.Message}";
-            Console.WriteLine(_paymentError);
+            Console.WriteLine($"ERROR in InitiatePayment: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
         }
         finally
         {
@@ -1778,17 +1925,15 @@
 
     private async Task ConfirmCancelBooking()
     {
-        if (_pendingCancel is null || _currentUserId is null)
-        {
-            return;
-        }
+        if (_pendingCancel == null || _currentUserId == null) return;
 
         _isCanceling = true;
         try
         {
-            await Api.UnbookClass(_pendingCancel.Id);
+            await Api.UnbookClass(_pendingCancel.Id, _currentUserId.Value);
             await LoadClasses();
-            CloseCancelConfirm();
+            _showCancelConfirm = false;
+            _pendingCancel = null;
         }
         catch (Exception ex)
         {
@@ -1932,6 +2077,44 @@
         {
             return $"{remainingMinutes}min";
         }
+    }
+
+    private static string FormatFullLocation(string? name, string? address, string? city, string? state, string? zipCode)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            parts.Add(name);
+        }
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            parts.Add(address);
+        }
+
+        var cityStateZipParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            cityStateZipParts.Add(city);
+        }
+        if (!string.IsNullOrWhiteSpace(state))
+        {
+            cityStateZipParts.Add(state);
+        }
+
+        var cityStatePart = string.Join(", ", cityStateZipParts);
+        if (!string.IsNullOrWhiteSpace(zipCode))
+        {
+            cityStatePart = string.IsNullOrWhiteSpace(cityStatePart)
+                ? zipCode
+                : $"{cityStatePart} {zipCode}";
+        }
+        if (!string.IsNullOrWhiteSpace(cityStatePart))
+        {
+            parts.Add(cityStatePart);
+        }
+
+        return parts.Count > 0 ? string.Join(",", parts) : "N/A";
     }
 
     private void ToggleClassDetails(int classId)

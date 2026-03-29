@@ -8,10 +8,12 @@ namespace FitPlay.Domain.Services;
 public class AcademyService : IAcademyService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public AcademyService(FitPlayContext db)
+    public AcademyService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<List<GymResponseDto>> GetGymsAsync(bool? isActive = null)
@@ -147,7 +149,7 @@ public class AcademyService : IAcademyService
             // Allow re-request if rejected more than 7 days ago
             if (existing.Status == TrainerGymLinkStatus.Rejected)
             {
-                var daysSinceCreated = (DateTime.UtcNow - existing.CreatedAt).TotalDays;
+                var daysSinceCreated = (_clock.UtcNow - existing.CreatedAt).TotalDays;
                 if (daysSinceCreated < 7)
                 {
                     var daysLeft = (int)Math.Ceiling(7 - daysSinceCreated);
@@ -170,7 +172,7 @@ public class AcademyService : IAcademyService
             TrainerId = trainerId,
             GymId = request.GymId,
             Status = TrainerGymLinkStatus.Pending,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = _clock.UtcNow
         };
 
         _db.TrainerGymLinks.Add(link);

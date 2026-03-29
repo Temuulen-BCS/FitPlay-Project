@@ -34,6 +34,10 @@
                 <div class="error-icon">⚠️</div>
                 <h3>Error</h3>
                 <p>@errorMessage</p>
+                @if (showBookClassLink)
+                {
+                    <a href="/user/book-class" class="btn btn-primary" style="margin-bottom: 0.5rem;">Book a Class</a>
+                }
                 <button class="btn btn-primary" @onclick="RefreshPage">Try Again</button>
             </div>
         }
@@ -105,16 +109,21 @@
                             foreach (var gym in nearbyGyms)
                             {
                                 var distance = CalculateDistance(userLocation.Latitude, userLocation.Longitude, gym.Latitude!.Value, gym.Longitude!.Value);
-                                var canCheckIn = distance <= 200;
+                                var inRange = distance <= 200;
+                                var eligibility = gymEnrollmentStatus.TryGetValue(gym.Id, out var elig) ? elig : null;
+                                var hasEnrollment = eligibility?.HasEnrollment ?? false;
+                                var canCheckIn = inRange && (eligibility?.CanCheckInNow ?? false);
+                                var hasFutureClass = hasEnrollment && !canCheckIn;
+                                var hasPastClass = eligibility?.HasPastClass ?? false;
                                 
-                                <div class="gym-card @(canCheckIn ? "can-checkin" : "too-far")">
+                                <div class="gym-card @(hasPastClass ? "has-past-class" : (inRange ? (canCheckIn ? "can-checkin" : (hasFutureClass ? "has-upcoming" : "no-enrollment")) : "too-far"))">
                                     <div class="gym-details">
                                         <h4 class="gym-name">@gym.Name</h4>
                                         <p class="gym-address">@gym.Address, @gym.City</p>
                                         <div class="gym-distance">
                                             <span class="distance-icon">📏</span>
                                             <span class="distance">@FormatDistance(distance)</span>
-                                            @if (canCheckIn)
+                                            @if (inRange)
                                             {
                                                 <span class="status-badge in-range">In Range</span>
                                             }
@@ -123,15 +132,43 @@
                                     </div>
                                     
                                     <div class="gym-action">
-                                        @if (canCheckIn)
+                                        @if (hasPastClass)
                                         {
-                                            <button class="btn btn-success checkin-btn" @onclick="() => CheckIn(gym)" disabled="@isProcessing">
+                                            <div class="past-class-info">
+                                                <p class="past-class-title">@eligibility!.PastClassTitle</p>
+                                                @if (eligibility.CheckedInForPastClass)
+                                                {
+                                                    <p class="past-class-status checked-in">Check-in at @eligibility.PastClassCheckInTime!.Value.ToLocalTime().ToString("HH:mm")</p>
+                                                }
+                                                else
+                                                {
+                                                    <p class="past-class-status not-checked-in">No check-in registred</p>
+                                                }
+                                            </div>
+                                        }
+                                        else if (inRange && canCheckIn)
+                                        {
+                                            <button class="checkin-btn" @onclick="() => CheckIn(gym)" disabled="@isProcessing">
                                                 @if (isProcessing)
                                                 {
                                                     <span class="spinner"></span>
                                                 }
                                                 Check In
                                             </button>
+                                        }
+                                        else if (inRange && hasFutureClass)
+                                        {
+                                            <div class="upcoming-class-info">
+                                                <p class="upcoming-class-title">@eligibility!.NextClassTitle</p>
+                                                <p class="upcoming-class-time">Class starts in @FormatTimeUntil(eligibility.NextClassStartTime!.Value)</p>
+                                            </div>
+                                        }
+                                        else if (inRange && !hasEnrollment)
+                                        {
+                                            <div class="no-enrollment-info">
+                                                <p class="no-enrollment-text">No confirmed class booking at this location</p>
+                                                <a href="/user/book-class" class="btn btn-primary book-class-btn">Book a Class</a>
+                                            </div>
                                         }
                                         else
                                         {
@@ -181,12 +218,14 @@
     private string loadingMessage = "Loading...";
     private string? errorMessage;
     private string? successMessage;
+    private bool showBookClassLink = false;
     
     private UserLocation? userLocation;
     private List<ApiClient.GymLocationForCheckInRead> gymLocations = new();
     private List<ApiClient.GymLocationForCheckInRead> nearbyGyms = new();
     private ApiClient.GymVisitRead? activeVisit;
     private Timer? _durationTimer;
+    private Dictionary<int, ApiClient.CanCheckInResponse> gymEnrollmentStatus = new();
 
     public class UserLocation
     {
@@ -218,6 +257,7 @@
             loadingMessage = "Loading gym data...";
             errorMessage = null;
             successMessage = null;
+            showBookClassLink = false;
             StateHasChanged();
 
             // Load gym locations and active visit in parallel
@@ -272,6 +312,18 @@
                 .OrderBy(g => CalculateDistance(userLocation.Latitude, userLocation.Longitude, g.Latitude!.Value, g.Longitude!.Value))
                 .ToList();
 
+            // Pre-check enrollment eligibility for all gyms
+            gymEnrollmentStatus.Clear();
+            var checkTasks = nearbyGyms.Select(async g =>
+            {
+                var eligibility = await Api.CanCheckInToGym(g.Id);
+                return (g.Id, eligibility);
+            });
+            foreach (var result in await Task.WhenAll(checkTasks))
+            {
+                gymEnrollmentStatus[result.Id] = result.eligibility;
+            }
+
         }
         catch (Exception ex)
         {
@@ -294,6 +346,7 @@
         {
             isProcessing = true;
             errorMessage = null;
+            showBookClassLink = false;
             StateHasChanged();
 
             var request = new ApiClient.GymCheckInRequest(gym.Id, userLocation.Latitude, userLocation.Longitude);
@@ -312,9 +365,21 @@
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message.Contains("too far") 
-                ? "You're too far from the gym. Please get closer (within 200m) and try again."
-                : $"Check-in failed: {ex.Message}";
+            if (ex.Message.Contains("NO_CONFIRMED_ENROLLMENT"))
+            {
+                errorMessage = "You don't have any confirmed class bookings at this gym right now. Book a class first to check in.";
+                showBookClassLink = true;
+            }
+            else if (ex.Message.Contains("too far"))
+            {
+                errorMessage = "You're too far from the gym. Please get closer (within 200m) and try again.";
+                showBookClassLink = false;
+            }
+            else
+            {
+                errorMessage = $"Check-in failed: {ex.Message}";
+                showBookClassLink = false;
+            }
         }
         finally
         {
@@ -387,6 +452,18 @@
         if (meters >= 1000)
             return $"{meters / 1000:F1} km";
         return $"{meters:F0} m";
+    }
+
+    private string FormatTimeUntil(DateTime utcTime)
+    {
+        var diff = utcTime - DateTime.UtcNow;
+        if (diff.TotalSeconds <= 0) return "now";
+        if (diff.TotalMinutes < 1) return "less than a minute";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h {(int)diff.TotalMinutes % 60}m";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays} day{((int)diff.TotalDays > 1 ? "s" : "")}";
+        var weeks = (int)(diff.TotalDays / 7);
+        return $"{weeks} week{(weeks > 1 ? "s" : "")}";
     }
 
     private string GetVisitDuration()
@@ -487,17 +564,18 @@
     }
 
     .success-card {
-        border-color: #2ed573;
-        color: #2ed573;
+        border-color: #00e87a;
+        color: #00e87a;
     }
 
     .active-visit-card {
         background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
+        border: 1px solid rgba(0, 232, 122, 0.3);
         border-radius: 16px;
         padding: 2rem;
         backdrop-filter: blur(20px);
         margin-bottom: 2rem;
+        box-shadow: 0 0 20px rgba(0, 232, 122, 0.12);
     }
 
     .visit-header {
@@ -517,7 +595,8 @@
         width: 12px;
         height: 12px;
         border-radius: 50%;
-        background: var(--accent-magenta);
+        background: #00e87a;
+        box-shadow: 0 0 8px rgba(0, 232, 122, 0.6);
         animation: pulse 2s infinite;
     }
 
@@ -528,7 +607,7 @@
 
     .status-text {
         font-weight: bold;
-        color: var(--accent-magenta);
+        color: #00e87a;
     }
 
     .visit-duration {
@@ -596,12 +675,83 @@
     }
 
     .gym-card.can-checkin {
-        border-color: var(--accent-teal);
-        box-shadow: 0 0 20px rgba(14, 240, 255, 0.1);
+        border-color: rgba(0, 232, 122, 0.6);
+        box-shadow: 0 0 20px rgba(0, 232, 122, 0.15);
     }
 
     .gym-card.too-far {
         opacity: 0.6;
+    }
+
+    .gym-card.no-enrollment {
+        border-color: #ffa502;
+        opacity: 0.85;
+    }
+
+    .gym-card.has-upcoming {
+        border-color: var(--accent-magenta);
+        opacity: 0.9;
+    }
+
+    .upcoming-class-info {
+        text-align: center;
+    }
+
+    .upcoming-class-title {
+        color: var(--accent-magenta);
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .upcoming-class-time {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+
+    .no-enrollment-info {
+        text-align: center;
+    }
+
+    .no-enrollment-text {
+        color: #ffa502;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .book-class-btn {
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+    }
+
+    .gym-card.has-past-class {
+        border-color: var(--text-muted);
+        opacity: 0.85;
+    }
+
+    .past-class-info {
+        text-align: center;
+    }
+
+    .past-class-title {
+        color: var(--text-muted);
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .past-class-status {
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .past-class-status.checked-in {
+        color: #00e87a;
+    }
+
+    .past-class-status.not-checked-in {
+        color: #ffa502;
     }
 
     .gym-details h4 {
@@ -635,8 +785,8 @@
     }
 
     .status-badge.in-range {
-        background: var(--accent-teal);
-        color: var(--bg-dark);
+        background: #00e87a;
+        color: #021a0d;
     }
 
     .status-badge.too-far {
@@ -663,9 +813,37 @@
         color: white;
     }
 
-    .btn-success {
-        background: var(--accent-teal);
-        color: var(--bg-dark);
+    .checkin-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        border: 1px solid rgba(0, 232, 122, 0.3);
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        background: linear-gradient(135deg, #00e87a, #00a854);
+        color: #021a0d;
+        box-shadow: 0 0 12px rgba(0, 232, 122, 0.15);
+        transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .checkin-btn:hover:not(:disabled) {
+        background: #00e87a;
+        border-color: #00e87a;
+        box-shadow: 0 0 10px rgba(0, 232, 122, 0.5),
+                    0 0 25px rgba(0, 232, 122, 0.35),
+                    0 0 50px rgba(0, 232, 122, 0.2);
+        text-shadow: 0 0 8px rgba(0, 232, 122, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .checkin-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 
     .btn-danger {

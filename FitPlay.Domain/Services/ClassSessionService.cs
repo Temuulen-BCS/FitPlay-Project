@@ -8,10 +8,12 @@ namespace FitPlay.Domain.Services;
 public class ClassSessionService : IClassSessionService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public ClassSessionService(FitPlayContext db)
+    public ClassSessionService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<ClassSessionResponseDto?> GetSessionByIdAsync(int sessionId)
@@ -192,7 +194,7 @@ public class ClassSessionService : IClassSessionService
             UserId = normalizedUserId,
             Status = ClassEnrollmentStatus.Pending,
             PaidAmount = 0m,
-            EnrolledAt = DateTime.UtcNow
+            EnrolledAt = _clock.UtcNow
         };
 
         _db.ClassEnrollments.Add(enrollment);

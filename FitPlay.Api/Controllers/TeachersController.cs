@@ -100,6 +100,12 @@ public class TeachersController : ControllerBase
         teacher.Email = dto.Email;
         teacher.Phone = dto.Phone;
 
+        // Allow linking/updating the Identity user association
+        if (!string.IsNullOrWhiteSpace(dto.IdentityUserId))
+        {
+            teacher.IdentityUserId = dto.IdentityUserId.Trim();
+        }
+
         await _db.SaveChangesAsync();
         return NoContent();
     }

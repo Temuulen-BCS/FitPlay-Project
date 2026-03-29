@@ -11,10 +11,12 @@ public class GymVisitService : IGymVisitService
     private const double CheckOutMinDistanceMeters = 200.0;
 
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public GymVisitService(FitPlayContext db)
+    public GymVisitService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<GymVisitResponseDto> CheckInAsync(string userId, GymCheckInRequest request)
@@ -48,12 +50,53 @@ public class GymVisitService : IGymVisitService
         if (distance > CheckInMaxDistanceMeters)
             throw new InvalidOperationException($"You are too far from the gym. You must be within {CheckInMaxDistanceMeters}m to check in. Current distance: {distance:F0}m");
 
+        // Check if user has a confirmed (paid) class booking at this gym location
+        // Allow check-in up to 5 minutes before class starts, or while class is in progress
+        // Check both ClassEnrollment system AND ClassSchedule system
+        var now = _clock.UtcNow;
+
+        // --- Check 1: ClassEnrollment system ---
+        var hasConfirmedEnrollment = await (
+            from e in _db.ClassEnrollments
+            join s in _db.ClassSessions on e.ClassSessionId equals s.Id
+            join rb in _db.RoomBookings on s.RoomBookingId equals rb.Id
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where e.UserId == normalizedUserId
+                && e.Status == ClassEnrollmentStatus.Confirmed
+                && s.StartTime <= now.AddMinutes(5)
+                && s.EndTime >= now
+                && r.GymLocationId == request.GymLocationId
+            select e.Id
+        ).AnyAsync();
+
+        // --- Check 2: ClassSchedule system (book-class page bookings) ---
+        if (!hasConfirmedEnrollment)
+        {
+            hasConfirmedEnrollment = await (
+                from cs in _db.ClassSchedules
+                join u in _db.Users on cs.UserId equals u.Id
+                join rb in _db.RoomBookings on cs.RoomBookingId equals rb.Id
+                join r in _db.Rooms on rb.RoomId equals r.Id
+                where u.IdentityUserId == normalizedUserId
+                    && cs.Status == ClassScheduleStatus.Scheduled
+                    && (cs.PaymentStatus == ClassSchedulePaymentStatus.Completed
+                        || cs.PaymentStatus == ClassSchedulePaymentStatus.None)
+                    && rb.StartTime <= now.AddMinutes(5)
+                    && rb.EndTime >= now
+                    && r.GymLocationId == request.GymLocationId
+                select cs.Id
+            ).AnyAsync();
+        }
+
+        if (!hasConfirmedEnrollment)
+            throw new InvalidOperationException("NO_CONFIRMED_ENROLLMENT: You must have a confirmed (paid) class booking at this gym during the current time to check in.");
+
         // Create the visit
         var visit = new GymVisit
         {
             UserId = normalizedUserId,
             GymLocationId = request.GymLocationId,
-            CheckInTime = DateTime.UtcNow,
+            CheckInTime = _clock.UtcNow,
             CheckInLatitude = request.Latitude,
             CheckInLongitude = request.Longitude
         };
@@ -88,7 +131,7 @@ public class GymVisitService : IGymVisitService
             throw new InvalidOperationException($"You are too close to the gym. You must be at least {CheckOutMinDistanceMeters}m away to check out. Current distance: {distance:F0}m");
 
         // Update the visit with checkout info
-        activeVisit.CheckOutTime = DateTime.UtcNow;
+        activeVisit.CheckOutTime = _clock.UtcNow;
         activeVisit.CheckOutLatitude = request.Latitude;
         activeVisit.CheckOutLongitude = request.Longitude;
 
@@ -183,6 +226,115 @@ public class GymVisitService : IGymVisitService
         return gymLocation == 0 ? null : gymLocation;
     }
 
+    public async Task<CheckInEligibilityDto> GetCheckInEligibilityAsync(string userId, int gymLocationId)
+    {
+        var normalizedUserId = userId.Trim();
+        var now = _clock.UtcNow;
+
+        // --- Check 1: ClassEnrollment system (session-based enrollments) ---
+        var nextEnrollment = await (
+            from e in _db.ClassEnrollments
+            join s in _db.ClassSessions on e.ClassSessionId equals s.Id
+            join rb in _db.RoomBookings on s.RoomBookingId equals rb.Id
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where e.UserId == normalizedUserId
+                && e.Status == ClassEnrollmentStatus.Confirmed
+                && s.EndTime >= now
+                && r.GymLocationId == gymLocationId
+            orderby s.StartTime
+            select new
+            {
+                s.StartTime,
+                s.EndTime,
+                s.Title
+            }
+        ).FirstOrDefaultAsync();
+
+        if (nextEnrollment != null)
+        {
+            var canCheckInNow = nextEnrollment.StartTime <= now.AddMinutes(5) && nextEnrollment.EndTime >= now;
+            return new CheckInEligibilityDto(
+                true,
+                canCheckInNow,
+                nextEnrollment.StartTime,
+                nextEnrollment.EndTime,
+                nextEnrollment.Title);
+        }
+
+        // --- Check 3: Most recently ended class at this gym for this user (no time limit) ---
+        var pastEnrollment = await (
+            from e in _db.ClassEnrollments
+            join s in _db.ClassSessions on e.ClassSessionId equals s.Id
+            join rb in _db.RoomBookings on s.RoomBookingId equals rb.Id
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where e.UserId == normalizedUserId
+                && e.Status == ClassEnrollmentStatus.Confirmed
+                && s.EndTime < now
+                && r.GymLocationId == gymLocationId
+            orderby s.EndTime descending
+            select new
+            {
+                s.StartTime,
+                s.EndTime,
+                s.Title
+            }
+        ).FirstOrDefaultAsync();
+
+        if (pastEnrollment == null)
+        {
+            // Also check ClassSchedule system
+            var pastSchedule = await (
+                from cs in _db.ClassSchedules
+                join u in _db.Users on cs.UserId equals u.Id
+                join rb in _db.RoomBookings on cs.RoomBookingId equals rb.Id
+                join r in _db.Rooms on rb.RoomId equals r.Id
+                where u.IdentityUserId == normalizedUserId
+                    && cs.Status == ClassScheduleStatus.Scheduled
+                    && (cs.PaymentStatus == ClassSchedulePaymentStatus.Completed
+                        || cs.PaymentStatus == ClassSchedulePaymentStatus.None)
+                    && rb.EndTime < now
+                    && r.GymLocationId == gymLocationId
+                orderby rb.EndTime descending
+                select new
+                {
+                    rb.StartTime,
+                    rb.EndTime,
+                    Title = cs.Modality
+                }
+            ).FirstOrDefaultAsync();
+
+            if (pastSchedule != null)
+            {
+                pastEnrollment = pastSchedule;
+            }
+        }
+
+        if (pastEnrollment != null)
+        {
+            // Check if user has a gym visit at this location during the class window
+            var gymVisit = await _db.GymVisits
+                .AsNoTracking()
+                .FirstOrDefaultAsync(v =>
+                    v.UserId == normalizedUserId
+                    && v.GymLocationId == gymLocationId
+                    && v.CheckInTime >= pastEnrollment.StartTime.AddMinutes(-10)
+                    && v.CheckInTime <= pastEnrollment.EndTime);
+
+            return new CheckInEligibilityDto(
+                HasEnrollment: false,
+                CanCheckInNow: false,
+                NextClassStartTime: null,
+                NextClassEndTime: null,
+                NextClassTitle: null,
+                HasPastClass: true,
+                CheckedInForPastClass: gymVisit != null,
+                PastClassCheckInTime: gymVisit?.CheckInTime,
+                PastClassTitle: pastEnrollment.Title);
+        }
+
+        return new CheckInEligibilityDto(false, false, null, null, null);
+    }
+
     /// <summary>
     /// Calculates the great circle distance between two points on Earth using the Haversine formula.
     /// Returns distance in meters.
@@ -206,65 +358,302 @@ public class GymVisitService : IGymVisitService
 
     public async Task<List<ActiveVisitDetailDto>> GetActiveVisitDetailsByLocationAsync(int gymLocationId)
     {
-        var query = from visit in _db.GymVisits
-                   join gymLocation in _db.GymLocations on visit.GymLocationId equals gymLocation.Id
-                   where visit.GymLocationId == gymLocationId && visit.CheckOutTime == null
-                   select new
-                   {
-                       visit.Id,
-                       visit.UserId,
-                       visit.CheckInTime,
-                       gymLocation.Name
-                   };
+        // ── 1. Load active visits at this location ──
+        var activeVisits = await _db.GymVisits
+            .AsNoTracking()
+            .Where(v => v.GymLocationId == gymLocationId && v.CheckOutTime == null)
+            .ToListAsync();
 
-        var activeVisits = await query.ToListAsync();
+        if (!activeVisits.Any())
+            return new List<ActiveVisitDetailDto>();
+
+        var visitUserIds = activeVisits.Select(v => v.UserId).Distinct().ToList();
+
+        // ── 2. Batch-load domain Users (Identity ID → User) ──
+        var usersDict = new Dictionary<string, User>(StringComparer.OrdinalIgnoreCase);
+        var usersList = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.IdentityUserId != null && visitUserIds.Contains(u.IdentityUserId))
+            .ToListAsync();
+        foreach (var u in usersList)
+            if (u.IdentityUserId != null)
+                usersDict[u.IdentityUserId] = u;
+
+        // ── 3. Batch-load ALL teachers (for name resolution later) ──
+        var allTeachers = await _db.Teachers.AsNoTracking().ToListAsync();
+        var teachersByIdentityId = new Dictionary<string, Teacher>(StringComparer.OrdinalIgnoreCase);
+        var teachersById = new Dictionary<int, Teacher>();
+        foreach (var t in allTeachers)
+        {
+            teachersById[t.Id] = t;
+            if (!string.IsNullOrEmpty(t.IdentityUserId))
+                teachersByIdentityId[t.IdentityUserId] = t;
+        }
+
+        // ── 4. Batch-load TrainerGymLinks for this gym (name fallback) ──
+        var gymId = await _db.GymLocations
+            .Where(gl => gl.Id == gymLocationId)
+            .Select(gl => gl.GymId)
+            .FirstOrDefaultAsync();
+        var trainerLinkNames = new Dictionary<string, Teacher>(StringComparer.OrdinalIgnoreCase);
+        if (gymId > 0)
+        {
+            var links = await _db.TrainerGymLinks
+                .AsNoTracking()
+                .Where(tl => tl.GymId == gymId && tl.Status == TrainerGymLinkStatus.Approved)
+                .ToListAsync();
+            foreach (var link in links)
+            {
+                if (!string.IsNullOrEmpty(link.TrainerId) && teachersByIdentityId.TryGetValue(link.TrainerId, out var teacher))
+                    trainerLinkNames[link.TrainerId] = teacher;
+            }
+        }
+
+        // ── 5. Batch-load today's data (avoid N+1 per-visit queries) ──
+        var today = DateTime.UtcNow.Date;
+        var tomorrow = today.AddDays(1);
+
+        // 5a. Today's room bookings at this location
+        var todayBookings = await (
+            from rb in _db.RoomBookings
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where r.GymLocationId == gymLocationId
+               && rb.Status != RoomBookingStatus.Cancelled
+               && rb.StartTime < tomorrow
+               && rb.EndTime >= today
+            select new
+            {
+                BookingId = rb.Id,
+                rb.RoomId,
+                rb.TrainerId,
+                rb.StartTime,
+                rb.EndTime,
+                rb.Modality,
+                rb.PaidAmount,
+                RoomName = r.Name
+            }
+        ).AsNoTracking().ToListAsync();
+
+        // 5b. Today's class enrollments for our checked-in users at this location
+        var todayEnrollments = await (
+            from ce in _db.ClassEnrollments
+            join cs in _db.ClassSessions on ce.ClassSessionId equals cs.Id
+            join rb in _db.RoomBookings on cs.RoomBookingId equals rb.Id
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where visitUserIds.Contains(ce.UserId)
+               && r.GymLocationId == gymLocationId
+               && (ce.Status == ClassEnrollmentStatus.Confirmed
+                   || ce.Status == ClassEnrollmentStatus.Completed)
+               && cs.Status != ClassSessionStatus.Cancelled
+               && cs.StartTime < tomorrow
+               && cs.EndTime >= today
+            select new
+            {
+                ce.UserId,
+                ClassSessionId = cs.Id,
+                ClassTitle = cs.Title,
+                SessionStartTime = cs.StartTime,
+                SessionEndTime = cs.EndTime,
+                SessionTrainerId = cs.TrainerId,   // string (Identity ID)
+                RoomName = r.Name,
+                ce.PaidAmount,
+                EnrollmentStatus = ce.Status.ToString()
+            }
+        ).AsNoTracking().ToListAsync();
+
+        // 5c. Today's class schedules for our checked-in users
+        var domainUserIds = usersDict.Values.Select(u => u.Id).Distinct().ToList();
+        var todaySchedules = domainUserIds.Any()
+            ? await _db.ClassSchedules
+                .AsNoTracking()
+                .Where(cs => cs.UserId.HasValue
+                    && domainUserIds.Contains(cs.UserId.Value)
+                    && cs.Status != ClassScheduleStatus.Cancelled
+                    && cs.ScheduledAt >= today && cs.ScheduledAt < tomorrow)
+                .ToListAsync()
+            : new List<ClassSchedule>();
+
+        // ── 6. Resolve per visit ──
         var result = new List<ActiveVisitDetailDto>();
 
         foreach (var visit in activeVisits)
         {
-            // Find user details from Identity system (we'll need to pass this through the API layer)
-            // For now, we'll work with what we have and let the controller layer handle user lookups
+            var userInfo = usersDict.TryGetValue(visit.UserId, out var ui) ? ui : null;
+            var checkInTime = visit.CheckInTime;
 
-            // Look for any active class sessions for this user at this location
-            var classDetails = await (from enrollment in _db.ClassEnrollments
-                                    join classSession in _db.ClassSessions on enrollment.ClassSessionId equals classSession.Id
-                                    join roomBooking in _db.RoomBookings on classSession.RoomBookingId equals roomBooking.Id
-                                    join room in _db.Rooms on roomBooking.RoomId equals room.Id
-                                    where enrollment.UserId == visit.UserId
-                                       && room.GymLocationId == gymLocationId
-                                       && enrollment.Status == ClassEnrollmentStatus.Confirmed
-                                       && classSession.Status == ClassSessionStatus.Ongoing
-                                       && DateTime.UtcNow >= classSession.StartTime
-                                       && DateTime.UtcNow <= classSession.EndTime
-                                    select new
-                                    {
-                                        ClassSessionId = classSession.Id,
-                                        ClassTitle = classSession.Title,
-                                        SessionStartTime = classSession.StartTime,
-                                        SessionEndTime = classSession.EndTime,
-                                        TrainerId = classSession.TrainerId,
-                                        RoomName = room.Name,
-                                        PaidAmount = enrollment.PaidAmount,
-                                        EnrollmentStatus = enrollment.Status.ToString()
-                                    }).FirstOrDefaultAsync();
+            string trainerName = string.Empty;
+            string trainerEmail = string.Empty;
+            string? resolvedTrainerId = null;
+            int? dtoClassSessionId = null;
+            string? dtoClassTitle = null;
+            DateTime? dtoSessionStart = null;
+            DateTime? dtoSessionEnd = null;
+            string? dtoRoomName = null;
+            decimal? dtoPaidAmount = null;
+            string? dtoEnrollmentStatus = null;
+
+            // --- Path 1: ClassEnrollment system ---
+            // Match this user's enrollments today at this location; pick closest to check-in time
+            var enrollment = todayEnrollments
+                .Where(e => string.Equals(e.UserId, visit.UserId, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(e => Math.Abs((e.SessionStartTime - checkInTime).TotalMinutes))
+                .FirstOrDefault();
+
+            if (enrollment != null)
+            {
+                dtoClassSessionId = enrollment.ClassSessionId;
+                dtoClassTitle = enrollment.ClassTitle;
+                dtoSessionStart = enrollment.SessionStartTime;
+                dtoSessionEnd = enrollment.SessionEndTime;
+                dtoRoomName = enrollment.RoomName;
+                dtoPaidAmount = enrollment.PaidAmount;
+                dtoEnrollmentStatus = enrollment.EnrollmentStatus;
+                resolvedTrainerId = enrollment.SessionTrainerId;
+
+                if (!string.IsNullOrEmpty(enrollment.SessionTrainerId)
+                    && teachersByIdentityId.TryGetValue(enrollment.SessionTrainerId, out var t1))
+                {
+                    trainerName = t1.Name;
+                    trainerEmail = t1.Email;
+                }
+            }
+
+            // --- Path 2: ClassSchedule system ---
+            // ClassSchedule.RoomBookingId is nullable, so we do NOT inner-join; we look it up separately.
+            if (enrollment == null && userInfo != null)
+            {
+                var schedule = todaySchedules
+                    .Where(s => s.UserId == userInfo.Id)
+                    .OrderBy(s => Math.Abs((s.ScheduledAt - checkInTime).TotalMinutes))
+                    .FirstOrDefault();
+
+                if (schedule != null)
+                {
+                    dtoClassTitle = schedule.Modality;
+                    dtoEnrollmentStatus = schedule.Status.ToString();
+                    dtoPaidAmount = schedule.PaidAmount;
+
+                    // Optional: resolve room/time from linked RoomBooking (if set)
+                    if (schedule.RoomBookingId.HasValue)
+                    {
+                        var linkedBooking = todayBookings.FirstOrDefault(b => b.BookingId == schedule.RoomBookingId.Value);
+                        if (linkedBooking != null)
+                        {
+                            dtoSessionStart = linkedBooking.StartTime;
+                            dtoSessionEnd = linkedBooking.EndTime;
+                            dtoRoomName = linkedBooking.RoomName;
+                        }
+                    }
+
+                    // Resolve trainer: ClassSchedule.TrainerId is int? (domain Teacher.Id)
+                    if (schedule.TrainerId.HasValue && teachersById.TryGetValue(schedule.TrainerId.Value, out var t2))
+                    {
+                        resolvedTrainerId = t2.IdentityUserId ?? t2.Id.ToString();
+                        trainerName = t2.Name;
+                        trainerEmail = t2.Email;
+                    }
+                }
+            }
+
+            // --- Path 3: RoomBooking fallback ---
+            // Find the closest booking today at this location (by start time to check-in).
+            // Fills in any missing fields (class title, room, trainer).
+            if (string.IsNullOrEmpty(resolvedTrainerId) || string.IsNullOrEmpty(dtoClassTitle))
+            {
+                var closestBooking = todayBookings
+                    .Where(b => !string.IsNullOrEmpty(b.TrainerId))
+                    .OrderBy(b => Math.Abs((b.StartTime - checkInTime).TotalMinutes))
+                    .FirstOrDefault();
+
+                if (closestBooking != null)
+                {
+                    resolvedTrainerId ??= closestBooking.TrainerId;
+                    dtoClassTitle ??= closestBooking.Modality;
+                    dtoSessionStart ??= closestBooking.StartTime;
+                    dtoSessionEnd ??= closestBooking.EndTime;
+                    dtoRoomName ??= closestBooking.RoomName;
+                    dtoPaidAmount ??= closestBooking.PaidAmount;
+
+                    if (string.IsNullOrEmpty(trainerName)
+                        && !string.IsNullOrEmpty(closestBooking.TrainerId)
+                        && teachersByIdentityId.TryGetValue(closestBooking.TrainerId, out var t3))
+                    {
+                        trainerName = t3.Name;
+                        trainerEmail = t3.Email;
+                    }
+                }
+            }
+
+            // --- Path 4: Broadest fallback (any recent booking at this location) ---
+            // If today's data had no matches, find the most recent non-cancelled booking
+            // at this location so the card always shows class/trainer info.
+            if (string.IsNullOrEmpty(resolvedTrainerId) && string.IsNullOrEmpty(dtoClassTitle))
+            {
+                var recentBooking = await (
+                    from rb in _db.RoomBookings
+                    join r in _db.Rooms on rb.RoomId equals r.Id
+                    where r.GymLocationId == gymLocationId
+                       && !string.IsNullOrEmpty(rb.TrainerId)
+                       && rb.Status != RoomBookingStatus.Cancelled
+                    orderby rb.StartTime descending
+                    select new
+                    {
+                        rb.TrainerId,
+                        rb.StartTime,
+                        rb.EndTime,
+                        rb.Modality,
+                        rb.PaidAmount,
+                        RoomName = r.Name
+                    }
+                ).AsNoTracking().FirstOrDefaultAsync();
+
+                if (recentBooking != null)
+                {
+                    resolvedTrainerId ??= recentBooking.TrainerId;
+                    dtoClassTitle ??= recentBooking.Modality;
+                    dtoSessionStart ??= recentBooking.StartTime;
+                    dtoSessionEnd ??= recentBooking.EndTime;
+                    dtoRoomName ??= recentBooking.RoomName;
+                    dtoPaidAmount ??= recentBooking.PaidAmount;
+
+                    if (string.IsNullOrEmpty(trainerName)
+                        && !string.IsNullOrEmpty(recentBooking.TrainerId)
+                        && teachersByIdentityId.TryGetValue(recentBooking.TrainerId, out var t4))
+                    {
+                        trainerName = t4.Name;
+                        trainerEmail = t4.Email;
+                    }
+                }
+            }
+
+            // --- Trainer name fallback: TrainerGymLinks lookup ---
+            // If we have a TrainerId but no name yet, try the pre-loaded gym link teachers
+            if (!string.IsNullOrEmpty(resolvedTrainerId) && string.IsNullOrEmpty(trainerName))
+            {
+                if (trainerLinkNames.TryGetValue(resolvedTrainerId, out var linkTeacher))
+                {
+                    trainerName = linkTeacher.Name;
+                    trainerEmail = linkTeacher.Email;
+                }
+            }
 
             result.Add(new ActiveVisitDetailDto(
                 visit.Id,
                 visit.UserId,
-                string.Empty, // UserName - will be populated in controller
-                string.Empty, // UserEmail - will be populated in controller
-                null, // UserPhone - will be populated in controller
+                userInfo?.Name ?? string.Empty,
+                userInfo?.Email ?? string.Empty,
+                userInfo?.Phone,
                 visit.CheckInTime,
-                classDetails?.ClassSessionId,
-                classDetails?.ClassTitle,
-                classDetails?.SessionStartTime,
-                classDetails?.SessionEndTime,
-                classDetails?.TrainerId,
-                string.Empty, // TrainerName - will be populated in controller
-                string.Empty, // TrainerEmail - will be populated in controller
-                classDetails?.RoomName,
-                classDetails?.PaidAmount,
-                classDetails?.EnrollmentStatus
+                dtoClassSessionId,
+                dtoClassTitle,
+                dtoSessionStart,
+                dtoSessionEnd,
+                resolvedTrainerId,
+                trainerName,
+                trainerEmail,
+                dtoRoomName,
+                dtoPaidAmount,
+                dtoEnrollmentStatus
             ));
         }
 

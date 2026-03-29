@@ -42,6 +42,18 @@ public record LocationPresenceDto(
     int ActiveCount
 );
 
+public record CheckInEligibilityDto(
+    bool HasEnrollment,
+    bool CanCheckInNow,
+    DateTime? NextClassStartTime,
+    DateTime? NextClassEndTime,
+    string? NextClassTitle,
+    bool HasPastClass = false,
+    bool CheckedInForPastClass = false,
+    DateTime? PastClassCheckInTime = null,
+    string? PastClassTitle = null
+);
+
 public record ActiveVisitDetailDto(
     int VisitId,
     string UserId,

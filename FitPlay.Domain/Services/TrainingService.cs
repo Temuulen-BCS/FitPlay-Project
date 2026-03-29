@@ -11,10 +11,12 @@ namespace FitPlay.Domain.Services;
 public class TrainingService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public TrainingService(FitPlayContext db)
+    public TrainingService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     /// <summary>
@@ -176,7 +178,7 @@ public class TrainingService
         if (request.RequiresValidation.HasValue) training.RequiresValidation = request.RequiresValidation.Value;
         if (request.IsActive.HasValue) training.IsActive = request.IsActive.Value;
 
-        training.UpdatedAt = DateTime.UtcNow;
+        training.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         return await GetTrainingAsync(trainingId);
@@ -192,7 +194,7 @@ public class TrainingService
 
         // Soft delete
         training.IsActive = false;
-        training.UpdatedAt = DateTime.UtcNow;
+        training.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         return true;

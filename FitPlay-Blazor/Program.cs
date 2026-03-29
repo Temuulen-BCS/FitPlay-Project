@@ -17,9 +17,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Railway injects PORT env var; bind to it for production
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5275";
-builder.WebHost.UseUrls($"http://+:{port}");
+// Railway injects PORT env var; bind to it for production.
+// In local development, rely on launchSettings/Kestrel defaults.
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://+:{port}");
+}
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

@@ -113,7 +113,7 @@ public class ClassSchedulesController : ControllerBase
     /// Cancels a booking. If the booking had a completed payment, issues an 85% Stripe refund.
     /// </summary>
     [HttpPost("{id:int}/unbook")]
-    public async Task<ActionResult<ClassScheduleDto>> Unbook(int id)
+    public async Task<ActionResult<ClassScheduleDto>> Unbook(int id, [FromBody] BookClassRequest request)
     {
         var entity = await _scheduleService.GetEntityByIdAsync(id);
         if (entity == null) return NotFound();
@@ -130,12 +130,12 @@ public class ClassSchedulesController : ControllerBase
                 return BadRequest(new { message = $"Refund failed: {ex.Message}" });
             }
 
-            var refunded = await _scheduleService.MarkRefundedAsync(id);
+            var refunded = await _scheduleService.MarkRefundedAsync(id, request.UserId);
             return Ok(refunded);
         }
 
-        // Free booking: just unbook
-        var result = await _scheduleService.UnbookFreeAsync(id);
+        // Free booking: just cancel enrollment
+        var result = await _scheduleService.UnbookFreeAsync(id, request.UserId);
         if (result == null) return NotFound();
         return Ok(result);
     }

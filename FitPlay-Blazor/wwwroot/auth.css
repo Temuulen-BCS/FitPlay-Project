@@ -627,7 +627,8 @@ body {
 
 /* ── Class Card Expand / Detail Panel ── */
 .class-expand-btn {
-    width: 100%;
+    width: 52.13334px;
+    margin-right: 41px;
     padding: 6px 0;
     background: rgba(255,255,255,0.04);
     border: 1px dashed rgba(255,255,255,0.15);

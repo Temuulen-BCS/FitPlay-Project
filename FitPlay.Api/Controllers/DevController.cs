@@ -18,12 +18,51 @@ public class DevController : ControllerBase
     private readonly FitPlayContext _db;
     private readonly ProgressService _progressService;
     private readonly AchievementService _achievementService;
+    private readonly IClockService _clock;
 
-    public DevController(FitPlayContext db, ProgressService progressService, AchievementService achievementService)
+    public DevController(FitPlayContext db, ProgressService progressService, AchievementService achievementService, IClockService clock)
     {
         _db = db;
         _progressService = progressService;
         _achievementService = achievementService;
+        _clock = clock;
+    }
+
+    // ── Time Travel ──
+
+    public record TimeTravelResponse(bool IsMocked, DateTime CurrentTime, string Message);
+
+    /// <summary>
+    /// Set the server clock to a specific UTC time. All DateTime.UtcNow calls across the app will use this time.
+    /// Example: GET /api/dev/set-time?time=2026-03-28T14:30:00Z
+    /// </summary>
+    [HttpGet("set-time")]
+    public ActionResult<TimeTravelResponse> SetMockTime([FromQuery] DateTime time)
+    {
+        _clock.SetMockTime(time);
+        return Ok(new TimeTravelResponse(true, _clock.UtcNow, $"Time travel enabled. Server time is now {_clock.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"));
+    }
+
+    /// <summary>
+    /// Reset the server clock to real time.
+    /// </summary>
+    [HttpGet("reset-time")]
+    public ActionResult<TimeTravelResponse> ResetMockTime()
+    {
+        _clock.Reset();
+        return Ok(new TimeTravelResponse(false, _clock.UtcNow, "Time travel disabled. Server is using real time."));
+    }
+
+    /// <summary>
+    /// Get the current server time (real or mocked).
+    /// </summary>
+    [HttpGet("time")]
+    public ActionResult<TimeTravelResponse> GetCurrentTime()
+    {
+        var message = _clock.IsMocked
+            ? $"MOCKED: Server time is {_clock.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
+            : $"REAL: Server time is {_clock.UtcNow:yyyy-MM-dd HH:mm:ss} UTC";
+        return Ok(new TimeTravelResponse(_clock.IsMocked, _clock.UtcNow, message));
     }
 
     // ── DTOs ──
@@ -197,7 +236,7 @@ public class DevController : ControllerBase
 
         // Create RoomCheckIn using the session's own start time
         const int xp = 25;
-        var checkInTime = enrollment.ClassSession?.StartTime ?? DateTime.UtcNow;
+        var checkInTime = enrollment.ClassSession?.StartTime ?? _clock.UtcNow;
         var checkIn = new RoomCheckIn
         {
             ClassEnrollmentId = enrollment.Id,
@@ -278,5 +317,77 @@ public class DevController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new DevCompleteResponse(true, $"Enrollment reset to Confirmed (was {previousStatus}).", 0));
+    }
+
+    // ── Database Cleanup ──
+
+    /// <summary>
+    /// Delete ALL booking-related data: ClassEnrollments, RoomCheckIns, ClassSessions, ClassSchedules, RoomBookings, and ClassQueues.
+    /// WARNING: This is destructive and cannot be undone!
+    /// </summary>
+    [HttpPost("cleanup-all-bookings")]
+    public async Task<ActionResult<object>> CleanupAllBookings()
+    {
+        try
+        {
+            // Order matters due to foreign key constraints
+            
+            // 1. Delete RoomCheckIns (references ClassEnrollments)
+            var checkIns = await _db.RoomCheckIns.ToListAsync();
+            _db.RoomCheckIns.RemoveRange(checkIns);
+            var checkInsCount = checkIns.Count;
+
+            // 2. Delete ClassEnrollments (references ClassSessions)
+            var enrollments = await _db.ClassEnrollments.ToListAsync();
+            _db.ClassEnrollments.RemoveRange(enrollments);
+            var enrollmentsCount = enrollments.Count;
+
+            // 3. Delete ClassQueueEntries (references ClassSchedules)
+            var queues = await _db.ClassQueueEntries.ToListAsync();
+            _db.ClassQueueEntries.RemoveRange(queues);
+            var queuesCount = queues.Count;
+
+            // 4. Delete ClassSchedules (references RoomBookings)
+            var schedules = await _db.ClassSchedules.ToListAsync();
+            _db.ClassSchedules.RemoveRange(schedules);
+            var schedulesCount = schedules.Count;
+
+            // 5. Delete ClassSessions (references RoomBookings)
+            var sessions = await _db.ClassSessions.ToListAsync();
+            _db.ClassSessions.RemoveRange(sessions);
+            var sessionsCount = sessions.Count;
+
+            // 6. Delete RoomBookings (root table)
+            var bookings = await _db.RoomBookings.ToListAsync();
+            _db.RoomBookings.RemoveRange(bookings);
+            var bookingsCount = bookings.Count;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = "All booking data has been deleted successfully",
+                deleted = new
+                {
+                    roomCheckIns = checkInsCount,
+                    classEnrollments = enrollmentsCount,
+                    classQueues = queuesCount,
+                    classSchedules = schedulesCount,
+                    classSessions = sessionsCount,
+                    roomBookings = bookingsCount,
+                    total = checkInsCount + enrollmentsCount + queuesCount + schedulesCount + sessionsCount + bookingsCount
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = $"Error during cleanup: {ex.Message}",
+                stackTrace = ex.StackTrace
+            });
+        }
     }
 }

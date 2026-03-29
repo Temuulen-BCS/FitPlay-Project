@@ -9,10 +9,12 @@ namespace FitPlay.Domain.Services;
 public class ClassQueueService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public ClassQueueService(FitPlayContext db)
+    public ClassQueueService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     /// <summary>
@@ -37,7 +39,7 @@ public class ClassQueueService
         if (schedule.Status != ClassScheduleStatus.Scheduled)
             throw new InvalidOperationException("This class is no longer available.");
 
-        if (schedule.ScheduledAt <= DateTime.UtcNow)
+        if (schedule.ScheduledAt <= _clock.UtcNow)
             throw new InvalidOperationException("This class has already started.");
 
         // The class must have a linked room booking that is Pending (unpaid)
@@ -78,7 +80,7 @@ public class ClassQueueService
             HasMembership = hasMembership,
             QueueCost = queueCost,
             PaymentStatus = hasMembership ? ClassQueuePaymentStatus.None : ClassQueuePaymentStatus.None,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = _clock.UtcNow
         };
 
         _db.ClassQueueEntries.Add(entry);
@@ -200,7 +202,7 @@ public class ClassQueueService
     /// </summary>
     public async Task<int> GetMonthlySkipCountAsync(int userId)
     {
-        var now = DateTime.UtcNow;
+        var now = _clock.UtcNow;
         var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         return await _db.ClassQueueEntries
             .CountAsync(q => q.UserId == userId
@@ -224,7 +226,7 @@ public class ClassQueueService
         if (entry.SkippedAt != null)
             return; // Idempotent — already skipped
 
-        entry.SkippedAt = DateTime.UtcNow;
+        entry.SkippedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
     }
 }

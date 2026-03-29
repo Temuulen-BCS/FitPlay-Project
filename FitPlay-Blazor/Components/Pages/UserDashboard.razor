@@ -28,85 +28,91 @@
                 <h1>Welcome back, <span class="highlight">@_welcomeTitle</span></h1>
                 <p class="welcome-sub">@_welcomeSubtitle</p>
             </div>
-            <div class="streak-badge">
-                <span class="streak-flame">@_currentStreak</span>
-                <span class="streak-label">Day Streak</span>
-            </div>
+            @if (_isActiveMember)
+            {
+                <div class="streak-badge">
+                    <span class="streak-flame">@_currentStreak</span>
+                    <span class="streak-label">Day Streak</span>
+                </div>
+            }
         </section>
 
-        <!-- STATS CARDS -->
-        <section class="stats-section">
-            <div class="stat-card glow-magenta">
-                <div class="stat-icon">XP</div>
-                <div class="stat-info">
-                    <span class="stat-value">@_totalXpDisplay</span>
-                    <span class="stat-label">Total XP</span>
+        @if (_isActiveMember)
+        {
+            <!-- STATS CARDS -->
+            <section class="stats-section">
+                <div class="stat-card glow-magenta">
+                    <div class="stat-icon">XP</div>
+                    <div class="stat-info">
+                        <span class="stat-value">@_totalXpDisplay</span>
+                        <span class="stat-label">Total XP</span>
+                    </div>
+                    <div class="stat-progress">
+                        <div class="progress-bar" style="width: @_xpProgressPercent%;"></div>
+                    </div>
+                    <span class="stat-next">@_xpToNextLevelLabel</span>
                 </div>
-                <div class="stat-progress">
-                    <div class="progress-bar" style="width: @_xpProgressPercent%;"></div>
-                </div>
-                <span class="stat-next">@_xpToNextLevelLabel</span>
-            </div>
 
-            <div class="stat-card glow-teal">
-                <div class="stat-icon">CAL</div>
-                <div class="stat-info">
-                    <span class="stat-value">@_caloriesDisplay</span>
-                    <span class="stat-label">Calories Burned</span>
+                <div class="stat-card glow-teal">
+                    <div class="stat-icon">CAL</div>
+                    <div class="stat-info">
+                        <span class="stat-value">@_caloriesDisplay</span>
+                        <span class="stat-label">Calories Burned</span>
+                    </div>
+                    <span class="stat-detail">@_caloriesPeriodLabel</span>
                 </div>
-                <span class="stat-detail">@_caloriesPeriodLabel</span>
-            </div>
 
-            <div class="stat-card glow-gold">
-                <div class="stat-icon">WO</div>
-                <div class="stat-info">
-                    <span class="stat-value">@_workoutsDisplay</span>
-                    <span class="stat-label">Workouts</span>
+                <div class="stat-card glow-gold">
+                    <div class="stat-icon">WO</div>
+                    <div class="stat-info">
+                        <span class="stat-value">@_workoutsDisplay</span>
+                        <span class="stat-label">Workouts</span>
+                    </div>
+                    <span class="stat-detail">@_workoutsLabel</span>
                 </div>
-                <span class="stat-detail">@_workoutsLabel</span>
-            </div>
 
-            <div class="stat-card glow-magenta">
-                <div class="stat-icon">HR</div>
-                <div class="stat-info">
-                    <span class="stat-value">@_hoursTrainedDisplay</span>
-                    <span class="stat-label">Hours Trained</span>
+                <div class="stat-card glow-magenta">
+                    <div class="stat-icon">HR</div>
+                    <div class="stat-info">
+                        <span class="stat-value">@_hoursTrainedDisplay</span>
+                        <span class="stat-label">Hours Trained</span>
+                    </div>
+                    <span class="stat-detail">@_hoursLabel</span>
                 </div>
-                <span class="stat-detail">@_hoursLabel</span>
-            </div>
-        </section>
+            </section>
 
-        <!-- WEEKLY PROGRESS -->
-        <section class="card progress-card">
-            <div class="card-header">
-                <h2>Weekly Progress</h2>
-            </div>
-            <div class="progress-chart">
-                <div class="chart-bars">
-                    @foreach (var bar in _weeklyBars)
-                    {
-                        <div class="chart-bar @bar.BarClass">
-                            <div class="bar-fill @bar.FillClass" style="height: @bar.HeightPercent%;"></div>
-                            <span class="bar-label">@bar.Label</span>
-                        </div>
-                    }
+            <!-- WEEKLY PROGRESS -->
+            <section class="card progress-card">
+                <div class="card-header">
+                    <h2>Weekly Progress</h2>
                 </div>
-            </div>
-            <div class="progress-stats">
-                <div class="progress-stat">
-                    <span class="ps-value">@_weekWorkouts</span>
-                    <span class="ps-label">Workouts</span>
+                <div class="progress-chart">
+                    <div class="chart-bars">
+                        @foreach (var bar in _weeklyBars)
+                        {
+                            <div class="chart-bar @bar.BarClass">
+                                <div class="bar-fill @bar.FillClass" style="height: @bar.HeightPercent%;"></div>
+                                <span class="bar-label">@bar.Label</span>
+                            </div>
+                        }
+                    </div>
                 </div>
-                <div class="progress-stat">
-                    <span class="ps-value">@_weekCaloriesDisplay</span>
-                    <span class="ps-label">Calories</span>
+                <div class="progress-stats">
+                    <div class="progress-stat">
+                        <span class="ps-value">@_weekWorkouts</span>
+                        <span class="ps-label">Workouts</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="ps-value">@_weekCaloriesDisplay</span>
+                        <span class="ps-label">Calories</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="ps-value">@_weekHoursDisplay</span>
+                        <span class="ps-label">Time</span>
+                    </div>
                 </div>
-                <div class="progress-stat">
-                    <span class="ps-value">@_weekHoursDisplay</span>
-                    <span class="ps-label">Time</span>
-                </div>
-            </div>
-        </section>
+            </section>
+        }
 
         <!-- MAIN GRID -->
         <div class="dashboard-grid">
@@ -119,7 +125,13 @@
                         <a href="/user/trainings" class="link-btn">View All</a>
                     </div>
                     <div class="schedule-list">
-                        @if (_todaySchedule.Any())
+                        @if (!_isActiveMember)
+                        {
+                            <div class="schedule-empty">
+                                <p>No trainings scheduled in the next 7 days.</p>
+                            </div>
+                        }
+                        else if (_todaySchedule.Any())
                         {
                             @foreach (var item in _todaySchedule)
                             {
@@ -152,31 +164,34 @@
 
             <!-- RIGHT COLUMN -->
             <div class="grid-right">
-                <!-- ACHIEVEMENTS -->
-                <section class="card achievements-card">
-                    <div class="card-header">
-                        <h2>Achievements</h2>
-                        <span class="achievement-count">@_achievementCountLabel</span>
-                    </div>
-                    <div class="achievements-grid">
-                        @if (_achievements.Any())
-                        {
-                            @foreach (var achievement in _achievements)
+                @if (_isActiveMember)
+                {
+                    <!-- ACHIEVEMENTS -->
+                    <section class="card achievements-card">
+                        <div class="card-header">
+                            <h2>Achievements</h2>
+                            <span class="achievement-count">@_achievementCountLabel</span>
+                        </div>
+                        <div class="achievements-grid">
+                            @if (_achievements.Any())
                             {
-                                <div class="achievement @(achievement.Earned ? "unlocked" : "locked")">
-                                    <div class="achievement-icon">@achievement.Icon</div>
-                                    <span class="achievement-name">@achievement.Name</span>
+                                @foreach (var achievement in _achievements)
+                                {
+                                    <div class="achievement @(achievement.Earned ? "unlocked" : "locked")">
+                                        <div class="achievement-icon">@achievement.Icon</div>
+                                        <span class="achievement-name">@achievement.Name</span>
+                                    </div>
+                                }
+                            }
+                            else if (!_isLoading)
+                            {
+                                <div class="achievement-empty">
+                                    <p>No achievements yet.</p>
                                 </div>
                             }
-                        }
-                        else if (!_isLoading)
-                        {
-                            <div class="achievement-empty">
-                                <p>No achievements yet.</p>
-                            </div>
-                        }
-                    </div>
-                </section>
+                        </div>
+                    </section>
+                }
 
                 <!-- RECOMMENDED -->
                 <section class="card recommended-card">
@@ -184,7 +199,13 @@
                         <h2>Recommended For You</h2>
                     </div>
                     <div class="recommended-list">
-                        @if (_recommendedTrainings.Any())
+                        @if (!_isActiveMember)
+                        {
+                            <div class="recommended-empty">
+                                <p>No recommendations right now.</p>
+                            </div>
+                        }
+                        else if (_recommendedTrainings.Any())
                         {
                             @foreach (var training in _recommendedTrainings)
                             {
@@ -697,6 +718,7 @@
     private List<AchievementItem> _achievements = new();
     private List<RecommendedItem> _recommendedTrainings = new();
     private bool _isLoading = true;
+    private bool _isActiveMember;
     private int? _currentUserId;
     private string? _userName;
 
@@ -736,6 +758,17 @@
             if (_currentUserId is null)
             {
                 _welcomeSubtitle = "Please sign in to view your stats.";
+                return;
+            }
+
+            if (!_isActiveMember)
+            {
+                await RefreshMembershipStatusAsync();
+            }
+
+            if (!_isActiveMember)
+            {
+                BuildNonMemberView();
                 return;
             }
 
@@ -782,6 +815,8 @@
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
+        _isActiveMember = HasActiveMembership(user);
+
         if (user?.Identity?.IsAuthenticated != true)
         {
             return null;
@@ -803,6 +838,39 @@
             _userName = domainUser.Name;
         }
         return domainUser?.Id;
+    }
+
+    private void BuildNonMemberView()
+    {
+        _scheduleHeader = "Today's Schedule";
+        _todaySchedule.Clear();
+        _recommendedTrainings.Clear();
+        _welcomeTitle = string.IsNullOrWhiteSpace(_userName) ? "Champion" : _userName;
+        _welcomeSubtitle = "Ready to crush your goals today?";
+    }
+
+    private static bool HasActiveMembership(ClaimsPrincipal? user)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return false;
+        }
+
+        var membershipValue = user.FindFirstValue("membership");
+        return string.Equals(membershipValue, "active", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task RefreshMembershipStatusAsync()
+    {
+        try
+        {
+            var status = await Api.GetMembershipStatus();
+            _isActiveMember = status?.IsActive == true;
+        }
+        catch
+        {
+            // Keep claims-based result if billing status call fails.
+        }
     }
 
     private void BuildDashboardView()

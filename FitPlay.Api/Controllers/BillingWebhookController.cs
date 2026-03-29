@@ -1,6 +1,7 @@
 using System.Text;
 using FitPlay.Api.Services;
 using FitPlay.Domain.Data;
+using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -15,15 +16,18 @@ public class BillingWebhookController : ControllerBase
     private readonly FitPlayContext _fitDb;
     private readonly MembershipService _membershipService;
     private readonly StripeOptions _stripeOptions;
+    private readonly IClockService _clock;
 
     public BillingWebhookController(
         FitPlayContext fitDb,
         MembershipService membershipService,
-        IOptions<StripeOptions> stripeOptions)
+        IOptions<StripeOptions> stripeOptions,
+        IClockService clock)
     {
         _fitDb = fitDb;
         _membershipService = membershipService;
         _stripeOptions = stripeOptions.Value;
+        _clock = clock;
     }
 
     [HttpPost]
@@ -99,7 +103,7 @@ public class BillingWebhookController : ControllerBase
         await _membershipService.UpsertSubscriptionAsync(
             dbSub.ClientId,
             status: "Active",
-            startDate: DateTime.UtcNow,
+            startDate: _clock.UtcNow,
             endDate: periodEnd,
             stripeCustomerId: invoice!.CustomerId,
             stripeSubscriptionId: subscriptionId);

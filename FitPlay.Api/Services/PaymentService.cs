@@ -16,11 +16,13 @@ public class PaymentService : IPaymentService
 
     private readonly FitPlayContext _db;
     private readonly StripeOptions _stripeOptions;
+    private readonly IClockService _clock;
 
-    public PaymentService(FitPlayContext db, IOptions<StripeOptions> stripeOptions)
+    public PaymentService(FitPlayContext db, IOptions<StripeOptions> stripeOptions, IClockService clock)
     {
         _db = db;
         _stripeOptions = stripeOptions.Value;
+        _clock = clock;
 
         if (!string.IsNullOrWhiteSpace(_stripeOptions.SecretKey))
         {
@@ -140,7 +142,7 @@ public class PaymentService : IPaymentService
             TrainerAmount = trainerAmount,
             PlatformAmount = platformAmount,
             StripeTransferId = $"{gymTransfer.Id};{trainerTransfer.Id}",
-            ProcessedAt = DateTime.UtcNow
+            ProcessedAt = _clock.UtcNow
         };
 
         _db.PaymentSplits.Add(split);

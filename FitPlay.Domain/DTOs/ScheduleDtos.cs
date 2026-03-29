@@ -16,7 +16,11 @@ public record ClassScheduleDto(
     int? MaxCapacity = null,
     int? BookedCount = null,
     string? RoomName = null,
-    string? GymLocationName = null
+    string? GymLocationName = null,
+    string? GymLocationAddress = null,
+    string? GymLocationCity = null,
+    string? GymLocationState = null,
+    string? GymLocationZipCode = null
 );
 
 public record CreateClassScheduleRequest(
@@ -54,8 +58,13 @@ public record ClassScheduleWithTrainerDto(
     double? DurationMinutes = null,
     int? MaxCapacity = null,
     int? BookedCount = null,
+    bool IsBooked = false,
     string? RoomName = null,
-    string? GymLocationName = null
+    string? GymLocationName = null,
+    string? GymLocationAddress = null,
+    string? GymLocationCity = null,
+    string? GymLocationState = null,
+    string? GymLocationZipCode = null
 );
 
 // Payment DTOs

@@ -143,6 +143,7 @@
 
     private ApiClient.ClassScheduleWithTrainer? _cancelBookTarget;
     private int? _cancellingBookId;
+    private int? _currentUserId;
 
     private List<ApiClient.ClassScheduleWithTrainer> _filtered
     {
@@ -178,6 +179,8 @@
                 _error = "Could not resolve user profile.";
                 return;
             }
+
+            _currentUserId = currentUserId;
 
             try { _bookedClasses = await Api.GetUserScheduleWithTrainer(currentUserId.Value); }
             catch { _bookedClassesError = true; }
@@ -229,12 +232,12 @@
 
     private async Task ExecuteCancelBooking()
     {
-        if (_cancelBookTarget is null) return;
+        if (_cancelBookTarget is null || _currentUserId is null) return;
 
         _cancellingBookId = _cancelBookTarget.Id;
         try
         {
-            await Api.UnbookClass(_cancelBookTarget.Id);
+            await Api.UnbookClass(_cancelBookTarget.Id, _currentUserId.Value);
             _bookedClasses.RemoveAll(s => s.Id == _cancelBookTarget.Id);
             _cancelBookTarget = null;
         }
