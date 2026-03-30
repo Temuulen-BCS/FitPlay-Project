@@ -20,10 +20,18 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: |
+          dotnet restore FitPlay.Domain/FitPlay.Domain.csproj
+          dotnet restore FitPlay.Api/FitPlay.Api.csproj
+          dotnet restore FitPlay-Blazor/FitPlay-Blazor.csproj
+          dotnet restore FitPlay.tests/FitPlay.tests.csproj
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: |
+          dotnet build FitPlay.Domain/FitPlay.Domain.csproj --configuration Release --no-restore
+          dotnet build FitPlay.Api/FitPlay.Api.csproj --configuration Release --no-restore
+          dotnet build FitPlay-Blazor/FitPlay-Blazor.csproj --configuration Release --no-restore
+          dotnet build FitPlay.tests/FitPlay.tests.csproj --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal
+        run: dotnet test FitPlay.tests/FitPlay.tests.csproj --no-build --configuration Release --verbosity normal
