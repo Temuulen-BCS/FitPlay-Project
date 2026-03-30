@@ -1,5 +1,6 @@
 using FitPlay.Domain.Data;
 using FitPlay.Domain.Models;
+using FitPlay.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace FitPlay.Api.Services;
@@ -7,10 +8,12 @@ namespace FitPlay.Api.Services;
 public class MembershipService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public MembershipService(FitPlayContext db)
+    public MembershipService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<Subscription?> GetActiveSubscriptionAsync(int clientId)
@@ -97,7 +100,7 @@ public class MembershipService
         if (subscription is null) return;
 
         subscription.Status = "Canceled";
-        subscription.EndDate = DateTime.UtcNow;
+        subscription.EndDate = _clock.UtcNow;
         await _db.SaveChangesAsync();
     }
 }

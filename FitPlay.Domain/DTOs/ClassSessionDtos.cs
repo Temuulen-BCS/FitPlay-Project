@@ -53,6 +53,25 @@ public record UpdateClassEnrollmentStatusRequest(
     [Required] string Status
 );
 
+public record SessionEnrollmentDto(
+    int Id,
+    string UserId,
+    string Status,
+    decimal PaidAmount,
+    DateTime EnrolledAt
+);
+
+public record SessionEnrollmentDetailDto(
+    int Id,
+    string UserId,
+    string? UserName,
+    string? UserEmail,
+    string? UserPhone,
+    string Status,
+    decimal PaidAmount,
+    DateTime EnrolledAt
+);
+
 public record UserEnrollmentWithSessionDto(
     int EnrollmentId,
     string EnrollmentStatus,

@@ -11,10 +11,12 @@ namespace FitPlay.Domain.Services;
 public class ProgressService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public ProgressService(FitPlayContext db)
+    public ProgressService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     /// <summary>
@@ -85,7 +87,7 @@ public class ProgressService
         if (userLevel.TotalXp < 0) userLevel.TotalXp = 0;
         
         userLevel.CurrentLevel = LevelDefinition.GetLevelFromXp(userLevel.TotalXp);
-        userLevel.LastUpdated = DateTime.UtcNow;
+        userLevel.LastUpdated = _clock.UtcNow;
 
         // Record transaction
         var transaction = new XpTransaction
@@ -122,7 +124,7 @@ public class ProgressService
 
         userLevel.TotalXp = targetXp;
         userLevel.CurrentLevel = LevelDefinition.GetLevelFromXp(targetXp);
-        userLevel.LastUpdated = DateTime.UtcNow;
+        userLevel.LastUpdated = _clock.UtcNow;
 
         var transaction = new XpTransaction
         {
@@ -182,7 +184,7 @@ public class ProgressService
         if (completions.Count == 0) return 0;
 
         var streak = 0;
-        var expectedDate = DateTime.UtcNow.Date;
+        var expectedDate = _clock.UtcNow.Date;
 
         // If no completion today, start from yesterday
         if (completions.FirstOrDefault() != expectedDate)

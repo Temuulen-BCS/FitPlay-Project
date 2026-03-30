@@ -2,6 +2,7 @@
 @implements IDisposable
 
 @inject NavigationManager NavigationManager
+@inject ApiClient Api
 
 <div class="ga-shell">
     <!-- LEFT SIDEBAR -->
@@ -108,14 +109,14 @@
                         var displayName = context.User.FindFirst("full_name")?.Value
                                           ?? userEmail;
                     }
-                    <div class="ga-profile-foot">
+                    <a href="Account/Manage" class="ga-profile-foot ga-profile-foot--link" data-enhanced-nav="false">
                         <span class="ga-avatar">@GetInitials(displayName)</span>
                         <div class="ga-profile-details">
-                            <span class="ga-username">@displayName</span>
+                            <span class="ga-username">@(_gymName ?? displayName)</span>
                             <span class="ga-email">@userEmail</span>
-                            <span class="ga-role-chip">Administrador</span>
+                            <span class="ga-role-chip">Gym Admin</span>
                         </div>
-                    </div>
+                    </a>
                     <form action="Account/Logout" method="post" class="ga-logout-form">
                         <AntiforgeryToken />
                         <input type="hidden" name="ReturnUrl" value="/" />
@@ -141,9 +142,28 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private string? _gymName;
+    private int _pendingTrainerCount;
+
+    protected override async Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
+
+        try
+        {
+            var gym = await Api.GetMyGym();
+            _gymName = gym?.Name;
+
+            if (gym is not null)
+            {
+                var links = await Api.GetGymTrainerLinks(gym.Id);
+                _pendingTrainerCount = links.Count(l => l.Status == "Pending");
+            }
+        }
+        catch
+        {
+            // fallback: _gymName stays null, the UI shows displayName instead
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
@@ -160,6 +180,4 @@
             ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
             : name[0].ToString().ToUpperInvariant();
     }
-
-    private readonly int _pendingTrainerCount = 3;
 }

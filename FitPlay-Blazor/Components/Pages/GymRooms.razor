@@ -408,7 +408,8 @@
 
             if (_editId.HasValue)
             {
-                var req = new ApiClient.UpdateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, _fIsActive, operatingHoursDto);
+                var req = new 
+                ApiClient.UpdateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, _fIsActive, operatingHoursDto);
                 await Api.UpdateRoom(_editId.Value, req);
             }
             else
@@ -465,7 +466,7 @@
 }
 
 <style>
-    .gym-page { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; color: #0F172A; background: #F4F7FB; border-radius: 16px; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
+    .gym-page { width: 100%; box-sizing: border-box; padding: 2.5rem 1.5rem 4rem; color: #0F172A; background: #F4F7FB; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
     .page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
     .page-eyebrow { margin: 0 0 4px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.18em; color: #3B6FE8; }
     .page-title { margin: 0 0 0.25rem; font-size: 2rem; font-weight: 700; }
@@ -518,7 +519,7 @@
     .operating-hours-header { margin-bottom: 1rem; }
     .operating-hours-row {
         display: grid;
-        grid-template-columns: 100px 100px 1fr;
+        grid-template-columns: minmax(80px, 100px) minmax(80px, 110px) 1fr;
         align-items: center;
         gap: 0.75rem;
         padding: 0.6rem 0;
@@ -584,7 +585,10 @@
         font-size: 0.85rem;
         font-family: inherit;
         transition: border-color 0.2s;
-        width: 110px;
+        min-width: 80px;
+        width: 100%;
+        max-width: 130px;
+        box-sizing: border-box;
     }
     .time-input:focus {
         outline: none;
@@ -635,7 +639,7 @@
     .no-rooms { padding: 1.5rem; text-align: center; color: #64748B; font-size: 0.85rem; background: #ffffff; border-radius: 12px; border: 1px dashed #CBD5E1; }
 
     /* Rooms grid */
-    .rooms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .rooms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
     .room-card { background: #ffffff; border: 1px solid #E8EDF5; border-radius: 14px; padding: 1.1rem; transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s; }
     .room-card:hover { border-color: #C7D9F8; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59,111,232,0.08); }
     .card-inactive { opacity: 0.6; }

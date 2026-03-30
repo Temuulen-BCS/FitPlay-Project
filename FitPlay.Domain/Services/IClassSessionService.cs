@@ -15,5 +15,7 @@ public interface IClassSessionService
     Task<ClassEnrollmentResponseDto> EnrollAsync(int sessionId, string userId, CreateClassEnrollmentRequest request);
     Task<bool> CancelEnrollmentAsync(int enrollmentId, string actorUserId, bool isAdmin);
     Task<List<UserEnrollmentWithSessionDto>> GetMyEnrollmentsAsync(string userId);
+    Task<List<SessionEnrollmentDto>> GetEnrollmentsBySessionAsync(int sessionId);
+    Task<List<SessionEnrollmentDetailDto>> GetEnrollmentDetailsBySessionAsync(int sessionId);
 }
 

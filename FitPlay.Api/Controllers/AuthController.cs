@@ -1,6 +1,7 @@
 ﻿using FitPlay.Api.Auth;
 using FitPlay.Api.Services;
 using FitPlay.Domain.Data;
+using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,17 +20,20 @@ public class AuthController : ControllerBase
     private readonly IConfiguration _config;
     private readonly FitPlayContext _fitDb;
     private readonly MembershipService _membershipService;
+    private readonly IClockService _clock;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         IConfiguration config,
         FitPlayContext fitDb,
-        MembershipService membershipService)
+        MembershipService membershipService,
+        IClockService clock)
     {
         _userManager = userManager;
         _config = config;
         _fitDb = fitDb;
         _membershipService = membershipService;
+        _clock = clock;
     }
 
     public record RegisterDto(string Email, string Password);
@@ -96,7 +100,7 @@ public class AuthController : ControllerBase
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(2),
+            expires: _clock.UtcNow.AddHours(2),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(jwt);

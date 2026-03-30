@@ -1,0 +1,251 @@
+.notifications-page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 28px 24px;
+}
+
+/* ── Header ── */
+.page-header {
+    margin-bottom: 28px;
+}
+
+.page-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #e2f4ff;
+    margin: 0 0 4px;
+}
+
+.page-header .subtitle {
+    font-size: 0.88rem;
+    color: #6b8fa8;
+    margin: 0;
+}
+
+/* ── Filter bar ── */
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.filter-btn {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(14, 240, 255, 0.18);
+    background: transparent;
+    color: #8ab0c8;
+    font-size: 0.83rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.filter-btn:hover {
+    border-color: rgba(14, 240, 255, 0.4);
+    color: #c8e8f8;
+}
+
+.filter-btn.active {
+    background: rgba(14, 240, 255, 0.12);
+    border-color: rgba(14, 240, 255, 0.5);
+    color: #0ef0ff;
+}
+
+.filter-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #0ea5e9;
+    color: #e0faff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-mark-all {
+    margin-left: auto;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(14, 240, 255, 0.25);
+    background: transparent;
+    color: #0ef0ff;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-mark-all:hover {
+    background: rgba(14, 240, 255, 0.08);
+}
+
+/* ── Loading / Empty ── */
+.loading-state {
+    color: #6b8fa8;
+    font-size: 0.9rem;
+    padding: 48px 0;
+    text-align: center;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 64px 0;
+    color: #6b8fa8;
+}
+
+.empty-icon {
+    opacity: 0.35;
+    color: #0ef0ff;
+}
+
+.empty-state p {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #8ab0c8;
+    margin: 0;
+}
+
+.empty-state span {
+    font-size: 0.82rem;
+    color: #4e7085;
+    text-align: center;
+    max-width: 300px;
+}
+
+/* ── Notification cards ── */
+.notifications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.notification-card {
+    border-radius: 12px;
+    padding: 16px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    transition: border-color 0.15s ease;
+}
+
+.notification-card.is-unread {
+    border-color: rgba(14, 240, 255, 0.22);
+    background: rgba(14, 240, 255, 0.04);
+}
+
+.notification-card.is-read {
+    opacity: 0.7;
+}
+
+.notification-card:hover {
+    border-color: rgba(14, 240, 255, 0.35);
+    opacity: 1;
+}
+
+/* ── Card top row ── */
+.card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.unread-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #0ef0ff;
+    box-shadow: 0 0 6px rgba(14, 240, 255, 0.7);
+    flex-shrink: 0;
+}
+
+.gym-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #0ef0ff;
+    letter-spacing: 0.02em;
+}
+
+.card-date {
+    font-size: 0.75rem;
+    color: #4e7085;
+}
+
+.btn-mark-read {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(14, 240, 255, 0.2);
+    background: transparent;
+    color: #0ef0ff;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-mark-read:hover {
+    background: rgba(14, 240, 255, 0.1);
+}
+
+/* ── Message ── */
+.card-message {
+    font-size: 0.9rem;
+    color: #c5dde8;
+    line-height: 1.55;
+    margin: 0 0 10px;
+    white-space: pre-wrap;
+}
+
+/* ── Subject user ── */
+.card-subject {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.76rem;
+    color: #5a8099;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Error toast ── */
+.error-toast {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+    font-size: 0.85rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+    .notifications-page {
+        padding: 16px;
+    }
+
+    .btn-mark-all {
+        display: none;
+    }
+}

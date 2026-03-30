@@ -23,9 +23,15 @@ public class ApiTokenHandler
             throw new InvalidOperationException("Missing identity user id.");
         }
 
-        var key = _configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured.");
-        var issuer = _configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer not configured.");
-        var audience = _configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt:Audience not configured.");
+        var key = (Environment.GetEnvironmentVariable("Jwt__Key")
+            ?? _configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key not configured.")).Trim();
+        var issuer = (Environment.GetEnvironmentVariable("Jwt__Issuer")
+            ?? _configuration["Jwt:Issuer"]
+            ?? throw new InvalidOperationException("Jwt:Issuer not configured.")).Trim();
+        var audience = (Environment.GetEnvironmentVariable("Jwt__Audience")
+            ?? _configuration["Jwt:Audience"]
+            ?? throw new InvalidOperationException("Jwt:Audience not configured.")).Trim();
 
         var claims = new List<Claim>
         {
@@ -56,7 +62,7 @@ public class ApiTokenHandler
             claims.Add(new Claim(ClaimTypes.Role, role));
         }
 
-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)) { KeyId = "fitplay-hmac" };
         var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
         var jwt = new JwtSecurityToken(

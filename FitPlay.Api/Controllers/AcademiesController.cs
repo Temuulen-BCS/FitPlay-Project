@@ -13,11 +13,13 @@ public class AcademiesController : ControllerBase
 {
     private readonly IAcademyService _academyService;
     private readonly IClassSessionService _classSessionService;
+    private readonly IRoomService _roomService;
 
-    public AcademiesController(IAcademyService academyService, IClassSessionService classSessionService)
+    public AcademiesController(IAcademyService academyService, IClassSessionService classSessionService, IRoomService roomService)
     {
         _academyService = academyService;
         _classSessionService = classSessionService;
+        _roomService = roomService;
     }
 
     // ── Gyms ──────────────────────────────────────────────────────────────────
@@ -128,6 +130,17 @@ public class AcademiesController : ControllerBase
 
     // ── Trainer links ─────────────────────────────────────────────────────────
 
+    [HttpGet("my-links")]
+    [Authorize(Roles = "Trainer")]
+    public async Task<ActionResult<List<TrainerGymLinkResponseDto>>> GetMyLinks()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var links = await _academyService.GetTrainerLinksAsync(userId);
+        return Ok(links);
+    }
+
     [HttpGet("{id:int}/trainers")]
     [Authorize(Roles = "Admin,GymAdmin")]
     public async Task<ActionResult<List<TrainerGymLinkResponseDto>>> GetTrainers(int id)
@@ -137,18 +150,35 @@ public class AcademiesController : ControllerBase
     }
 
     [HttpPost("{id:int}/link-trainer")]
-    [Authorize(Roles = "Admin,GymAdmin")]
+    [Authorize(Roles = "Admin,GymAdmin,Trainer")]
     public async Task<ActionResult<TrainerGymLinkResponseDto>> LinkTrainer(int id, [FromBody] CreateTrainerGymLinkRequest request)
     {
         if (id <= 0)
             return BadRequest(new { message = "Invalid gym id." });
 
-        var created = await _academyService.LinkTrainerAsync(new CreateTrainerGymLinkRequest(
-            request.TrainerId,
-            id
-        ));
+        var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(callerId))
+            return Unauthorized();
 
-        return Ok(created);
+        // Trainers can only create links for themselves
+        var trainerId = request.TrainerId;
+        if (User.IsInRole("Trainer") && !User.IsInRole("Admin") && !User.IsInRole("GymAdmin"))
+        {
+            trainerId = callerId;
+        }
+
+        try
+        {
+            var created = await _academyService.LinkTrainerAsync(new CreateTrainerGymLinkRequest(
+                trainerId,
+                id
+            ));
+            return Ok(created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpPatch("{gymId:int}/trainers/{linkId:int}/status")]
@@ -179,5 +209,18 @@ public class AcademiesController : ControllerBase
     {
         var sessions = await _classSessionService.GetSessionsByGymAsync(id, from, to);
         return Ok(sessions);
+    }
+
+    // ── Room Bookings ─────────────────────────────────────────────────────────
+
+    [HttpGet("{id:int}/bookings")]
+    [Authorize(Roles = "Admin,GymAdmin")]
+    public async Task<ActionResult<List<FitPlay.Domain.DTOs.RoomBookingResponseDto>>> GetBookings(
+        int id,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+    {
+        var bookings = await _roomService.GetGymBookingsAsync(id, from, to);
+        return Ok(bookings);
     }
 }

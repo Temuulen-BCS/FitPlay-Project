@@ -39,7 +39,7 @@ window.gymDash = (function () {
         // Colour each status bar distinctly
         const colorMap = {
             'Scheduled': '#3B6FE8',
-            'Active':    '#22C55E',
+            'Ongoing':   '#22C55E',
             'Completed': '#F59E0B',
             'Cancelled': '#94A3B8'
         };
@@ -97,7 +97,7 @@ window.gymDash = (function () {
         if (!window.Chart) return;
         dispose();
         charts.push(makeChart(document.getElementById('revenueChart'), lineRevenue(data.Revenue.Labels, data.Revenue.Data)));
-        charts.push(makeChart(document.getElementById('bookingsChart'), barBookings(data.Bookings.Labels, data.Bookings.Data)));
+        charts.push(makeChart(document.getElementById('bookingsChart'), barStatus(data.Bookings.Labels, data.Bookings.Data)));
         charts.push(makeChart(document.getElementById('occupancyChart'), doughnutOccupancy(data.Occupancy.Labels, data.Occupancy.Data)));
     }
 

@@ -20,4 +20,5 @@ public class Room
 
     public GymLocation? GymLocation { get; set; }
     public List<RoomBooking> Bookings { get; set; } = new();
+    public List<RoomOperatingHours> OperatingHours { get; set; } = new();
 }

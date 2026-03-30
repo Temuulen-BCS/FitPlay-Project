@@ -17,6 +17,7 @@ public interface IAcademyService
     Task<bool> DeleteGymLocationAsync(int gymId, int locationId);
 
     Task<List<TrainerGymLinkResponseDto>> GetGymTrainerLinksAsync(int gymId);
+    Task<List<TrainerGymLinkResponseDto>> GetTrainerLinksAsync(string trainerId);
     Task<TrainerGymLinkResponseDto> LinkTrainerAsync(CreateTrainerGymLinkRequest request);
     Task<TrainerGymLinkResponseDto?> UpdateTrainerLinkStatusAsync(int linkId, UpdateTrainerGymLinkStatusRequest request);
     Task<bool> IsTrainerLinkedToGymAsync(string trainerId, int gymId);

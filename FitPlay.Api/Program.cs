@@ -1,4 +1,4 @@
-﻿using FitPlay.Api;
+using FitPlay.Api;
 using FitPlay.Api.Data;
 //using FitPlay.Api.Endpoints;
 using FitPlay.Api.Auth;
@@ -75,6 +75,8 @@ builder.Services.AddDbContext<FitPlayContext>(options =>
         b => b.MigrationsAssembly("FitPlay.Api")
     ));
 
+builder.Services.AddSingleton<FitPlay.Domain.Services.IClockService, FitPlay.Domain.Services.ClockService>();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
@@ -92,6 +94,10 @@ builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
 builder.Services.AddScoped<ICheckInService, CheckInService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.IGymVisitService, FitPlay.Domain.Services.GymVisitService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.ClassQueueService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.ITrainerNotificationService, FitPlay.Domain.Services.TrainerNotificationService>();
+builder.Services.AddHostedService<ClassStatusAutoCompleteService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
@@ -147,7 +153,6 @@ if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-
 app.UseAuthentication();   
 app.UseAuthorization();    
 
@@ -169,6 +174,44 @@ app.MapGet("/weatherforecast", () =>
 });
 
 app.MapControllers();
+
+// Backfill Teacher.IdentityUserId for records missing the link
+using (var scope = app.Services.CreateScope())
+{
+    var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+
+    try
+    {
+        var teachersWithoutIdentity = await db2.Teachers
+            .Where(t => t.IdentityUserId == null || t.IdentityUserId == "")
+            .ToListAsync();
+
+        if (teachersWithoutIdentity.Any())
+        {
+            foreach (var teacher in teachersWithoutIdentity)
+            {
+                var identityUser = await db1.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Email != null
+                        && u.Email.ToLower() == teacher.Email.ToLower());
+
+                if (identityUser != null)
+                {
+                    teacher.IdentityUserId = identityUser.Id;
+                    app.Logger.LogInformation(
+                        "Backfilled Teacher '{Name}' (Id={Id}) with IdentityUserId={IdentityUserId}",
+                        teacher.Name, teacher.Id, identityUser.Id);
+                }
+            }
+            await db2.SaveChangesAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Teacher IdentityUserId backfill failed (non-fatal)");
+    }
+}
 
 app.Run();
 

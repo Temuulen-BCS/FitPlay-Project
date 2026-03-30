@@ -10,6 +10,7 @@
 
 @inject ApiClient Api
 @inject NavigationManager Nav
+@implements IDisposable
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
@@ -20,7 +21,7 @@
     <div class="page-header">
         <div>
             <p class="page-eyebrow">Gym Admin</p>
-            <h1 class="page-title">Class Sessions</h1>
+            <h1 class="page-title">Room Bookings</h1>
         </div>
         <div class="header-actions">
             <div class="filter-tabs">
@@ -31,11 +32,41 @@
         </div>
     </div>
 
+    @* ── LIVE Presence Section ── *@
+    @if (_gymId != null && _presenceCounts.Count > 0)
+    {
+        <div class="presence-section">
+            <div class="presence-header">
+                <span class="pulse-dot"></span>
+                <span class="live-label">LIVE</span>
+                <span class="presence-title">Clients at Gym</span>
+            </div>
+            <div class="presence-chips">
+                @foreach (var loc in _presenceCounts)
+                {
+                    <button class="presence-chip clickable" @onclick="() => OnPresenceChipClick(loc.GymLocationId, loc.LocationName)">
+                        <span class="presence-chip-name">@loc.LocationName</span>
+                        <span class="presence-chip-count">@loc.ActiveCount</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+    else if (_gymId != null && !_loading)
+    {
+        <div class="presence-section presence-empty">
+            <div class="presence-header">
+                <span class="pulse-dot off"></span>
+                <span class="presence-title" style="color:#94A3B8;">No clients checked in right now</span>
+            </div>
+        </div>
+    }
+
     @if (_loading)
     {
         <div class="gym-loading">
             <div class="loading-spinner"></div>
-            <p>Loading sessions...</p>
+            <p>Loading bookings...</p>
         </div>
     }
     else if (_gymId == null)
@@ -45,17 +76,17 @@
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
             <h2>No Gym Registered</h2>
-            <p>Register your gym first to manage sessions.</p>
+            <p>Register your gym first to manage bookings.</p>
             <a href="/gym/setup" class="btn-gym-primary btn-large">Register My Gym</a>
         </div>
     }
-    else if (_sessions.Count == 0)
+    else if (_bookings.Count == 0)
     {
         <div class="empty-state">
             <div class="empty-icon">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
             </div>
-            <p>No sessions found for the selected period.</p>
+            <p>No bookings found for the selected period.</p>
         </div>
     }
     else
@@ -63,131 +94,95 @@
         <!-- Summary chips -->
         <div class="summary-row">
             <div class="summary-chip">
-                <span class="summary-num">@_sessions.Count</span>
+                <span class="summary-num">@_bookings.Count</span>
                 <span class="summary-label">Total</span>
             </div>
             <div class="summary-chip">
-                <span class="summary-num teal">@_sessions.Count(s => s.Status == "Active" || s.Status == "Scheduled")</span>
-                <span class="summary-label">Active</span>
+                <span class="summary-num teal">@_bookings.Count(b => b.Status == "Confirmed")</span>
+                <span class="summary-label">Confirmed</span>
             </div>
             <div class="summary-chip">
-                <span class="summary-num amber">@_sessions.Count(s => s.Status == "Completed")</span>
-                <span class="summary-label">Completed</span>
+                <span class="summary-num amber">@_bookings.Count(b => b.Status == "Pending")</span>
+                <span class="summary-label">Pending</span>
             </div>
             <div class="summary-chip">
-                <span class="summary-num muted">@_sessions.Count(s => s.Status == "Cancelled")</span>
+                <span class="summary-num muted">@_bookings.Count(b => b.Status == "Cancelled")</span>
                 <span class="summary-label">Cancelled</span>
             </div>
             <div class="summary-chip">
-                <span class="summary-num magenta">@_sessions.Sum(s => s.EnrolledStudents)</span>
-                <span class="summary-label">Enrollments</span>
+                <span class="summary-num magenta">@_bookings.Where(b => b.Status != "Cancelled").Sum(b => b.TotalCost).ToString("C")</span>
+                <span class="summary-label">Revenue</span>
             </div>
         </div>
 
-        <!-- Sessions table -->
+        <!-- Bookings table -->
         <div class="panel">
             <div class="sessions-table-wrap">
                 <table class="sessions-table">
                     <thead>
                         <tr>
-                            <th>Session</th>
+                            <th>Modality</th>
                             <th>Trainer</th>
                             <th>Room</th>
                             <th>Date &amp; Time</th>
                             <th>Duration</th>
-                            <th>Students</th>
-                            <th>Price</th>
-                            <th>Booking</th>
+                            <th>Cost</th>
                             <th>Status</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var s in _sessions.OrderBy(x => x.StartTime))
+                        @foreach (var b in _bookings.OrderBy(x => x.StartTime))
                         {
-                            var duration = s.EndTime - s.StartTime;
+                            var duration = b.EndTime - b.StartTime;
                             <tr>
                                 <td>
-                                    <div class="session-title">@s.Title</div>
-                                    @if (!string.IsNullOrWhiteSpace(s.Description))
+                                    <span class="booking-modality-badge">@b.Modality</span>
+                                    @if (!string.IsNullOrWhiteSpace(b.Notes))
                                     {
-                                        <div class="session-desc">@s.Description</div>
+                                        <div class="session-desc">@b.Notes</div>
                                     }
                                 </td>
                                 <td>
                                     <div class="trainer-cell">
-                                        <div class="trainer-avatar">@GetInitials(s.TrainerName ?? s.TrainerId)</div>
-                                        <span class="trainer-id">@(s.TrainerName ?? GetShortId(s.TrainerId))</span>
+                                        <div class="trainer-avatar">@GetInitials(b.TrainerId)</div>
+                                        <span class="trainer-id">@GetShortId(b.TrainerId)</span>
                                     </div>
                                 </td>
                                 <td>
-                                    @if (!string.IsNullOrEmpty(s.RoomName))
+                                    @if (!string.IsNullOrEmpty(b.RoomName))
                                     {
-                                        <div class="room-name">@s.RoomName</div>
-                                        @if (!string.IsNullOrEmpty(s.LocationName))
+                                        <div class="room-name">@b.RoomName</div>
+                                        @if (!string.IsNullOrEmpty(b.LocationName))
                                         {
-                                            <div class="room-location">@s.LocationName</div>
+                                            <div class="room-location">@b.LocationName</div>
                                         }
                                     }
                                     else
                                     {
-                                        <span class="muted-text">—</span>
+                                        <span class="muted-text">---</span>
                                     }
                                 </td>
                                 <td>
-                                    <div class="date-primary">@s.StartTime.ToString("MMM dd, yyyy")</div>
-                                    <div class="date-time">@s.StartTime.ToString("HH:mm") – @s.EndTime.ToString("HH:mm")</div>
+                                    <div class="date-primary">@b.StartTime.ToString("MMM dd, yyyy")</div>
+                                    <div class="date-time">@b.StartTime.ToString("HH:mm") - @b.EndTime.ToString("HH:mm")</div>
                                 </td>
                                 <td>
                                     <span class="duration-chip">@FormatDuration(duration)</span>
                                 </td>
                                 <td>
-                                    <div class="enrollment-bar-wrap">
-                                        <div class="enrollment-text">
-                                            <span class="enrollment-current @(s.EnrolledStudents >= s.MaxStudents ? "full" : "")">@s.EnrolledStudents</span>
-                                            <span class="enrollment-sep">/</span>
-                                            <span class="enrollment-max">@s.MaxStudents</span>
-                                        </div>
-                                        <div class="enrollment-bar">
-                                            <div class="enrollment-fill @(s.EnrolledStudents >= s.MaxStudents ? "full" : "")"
-                                                 style="width: @Math.Min(100, s.MaxStudents > 0 ? (int)((double)s.EnrolledStudents / s.MaxStudents * 100) : 0)%">
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <span class="price-value">@b.TotalCost.ToString("C")</span>
                                 </td>
                                 <td>
-                                    <span class="price-value">@s.PricePerStudent.ToString("C")</span>
+                                    <span class="status-badge @GetStatusClass(b.Status)">@b.Status</span>
                                 </td>
                                 <td>
-                                    @if (!string.IsNullOrEmpty(s.BookingPurpose))
-                                    {
-                                        <div class="booking-info">
-                                            <span class="booking-purpose-badge">@s.BookingPurpose</span>
-                                            @if (!string.IsNullOrEmpty(s.BookingStatus))
-                                            {
-                                                <span class="booking-status-badge @GetBookingStatusClass(s.BookingStatus)">@s.BookingStatus</span>
-                                            }
-                                            @if (s.BookingCost.HasValue)
-                                            {
-                                                <div class="booking-cost">Room: @s.BookingCost.Value.ToString("C")</div>
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <span class="muted-text">—</span>
-                                    }
-                                </td>
-                                <td>
-                                    <span class="status-badge @GetStatusClass(s.Status)">@s.Status</span>
-                                </td>
-                                <td>
-                                    @if (s.Status != "Cancelled" && s.Status != "Completed")
+                                    @if (b.Status != "Cancelled" && b.Status != "Completed")
                                     {
                                         <button class="btn-cancel-session"
-                                                @onclick="() => ConfirmCancel(s)"
-                                                disabled="@(_cancellingId == s.Id)">
-                                            @(_cancellingId == s.Id ? "..." : "Cancel")
+                                                @onclick="() => ConfirmCancel(b)"
+                                                disabled="@(_cancellingId == b.Id)">
+                                            @(_cancellingId == b.Id ? "..." : "Cancel")
                                         </button>
                                     }
                                 </td>
@@ -206,12 +201,12 @@
     <div class="gym-toast error">@_error</div>
 }
 
-@if (_confirmSession != null)
+@if (_confirmBooking != null)
 {
     <div class="modal-overlay" @onclick="CloseConfirm">
         <div class="modal-box" @onclick:stopPropagation>
-            <h3 class="modal-title">Cancel Session</h3>
-            <p class="modal-body">Are you sure you want to cancel <strong>@_confirmSession.Title</strong>?<br />Enrolled students will be notified.</p>
+            <h3 class="modal-title">Cancel Booking</h3>
+            <p class="modal-body">Are you sure you want to cancel the <strong>@_confirmBooking.Modality</strong> booking for <strong>@(_confirmBooking.RoomName ?? "this room")</strong>?</p>
             <div class="modal-actions">
                 <button class="btn-modal-ghost" @onclick="CloseConfirm">Keep</button>
                 <button class="btn-modal-danger" @onclick="ExecuteCancel" disabled="@(_cancellingId.HasValue)">
@@ -222,15 +217,214 @@
     </div>
 }
 
+@* ── Visit Details Modal ── *@
+@if (_showVisitModal)
+{
+    <div class="modal-overlay" @onclick="CloseVisitModal">
+        <div class="modal-box modal-wide" @onclick:stopPropagation>
+            <div class="visit-modal-header">
+                <div>
+                    <h3 class="modal-title">Clients at @_selectedLocationName</h3>
+                    <p class="modal-subtitle">Currently checked-in clients</p>
+                </div>
+                <button class="btn-close-modal" @onclick="CloseVisitModal">&times;</button>
+            </div>
+
+            @if (_loadingVisitDetails)
+            {
+                <div class="visit-loading">
+                    <div class="loading-spinner"></div>
+                    <p>Loading client details...</p>
+                </div>
+            }
+            else if (_activeVisitDetails.Count == 0)
+            {
+                <p class="modal-body" style="text-align:center;">No clients currently checked in at this location.</p>
+            }
+            else
+            {
+                <div class="visit-cards">
+                    @foreach (var visit in _activeVisitDetails)
+                    {
+                        <div class="visit-card">
+                            <div class="visit-card-header">
+                                <div class="visit-user-avatar">@GetNameInitials(visit.UserName)</div>
+                                <div class="visit-user-info">
+                                    <div class="visit-user-name">@visit.UserName</div>
+                                    <div class="visit-user-email">@visit.UserEmail</div>
+                                    @if (!string.IsNullOrWhiteSpace(visit.UserPhone))
+                                    {
+                                        <div class="visit-user-phone">@visit.UserPhone</div>
+                                    }
+                                </div>
+                                <div class="visit-checkin-time">
+                                    <span class="visit-time-label">Checked in</span>
+                                    <span class="visit-time-value">@visit.CheckInTime.ToString("HH:mm")</span>
+                                    <span class="visit-duration-label">@FormatElapsed(visit.CheckInTime) ago</span>
+                                </div>
+                            </div>
+
+                            <div class="visit-session-info">
+                                <div class="session-info-row">
+                                    <span class="session-info-label">Class</span>
+                                    <span class="session-info-value">
+                                        @if (!string.IsNullOrWhiteSpace(visit.ClassTitle))
+                                        {
+                                            @visit.ClassTitle
+                                        }
+                                        else
+                                        {
+                                            <span class="muted-text">General visit</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="session-info-row">
+                                    <span class="session-info-label">Time</span>
+                                    <span class="session-info-value">
+                                        @if (visit.SessionStartTime != null && visit.SessionEndTime != null)
+                                        {
+                                            @visit.SessionStartTime.Value.ToString("HH:mm") @:- @visit.SessionEndTime.Value.ToString("HH:mm")
+                                        }
+                                        else
+                                        {
+                                            <span class="muted-text">@visit.CheckInTime.ToString("HH:mm") (check-in)</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="session-info-row">
+                                    <span class="session-info-label">Room</span>
+                                    <span class="session-info-value">
+                                        @if (!string.IsNullOrWhiteSpace(visit.RoomName))
+                                        {
+                                            @visit.RoomName
+                                        }
+                                        else
+                                        {
+                                            <span class="muted-text">---</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="session-info-row">
+                                    <span class="session-info-label">Trainer / Teacher</span>
+                                    <span class="session-info-value">
+                                        @if (!string.IsNullOrWhiteSpace(visit.TrainerName))
+                                        {
+                                            @visit.TrainerName
+                                            @if (!string.IsNullOrWhiteSpace(visit.TrainerEmail))
+                                            {
+                                                <span class="trainer-email-hint">(@visit.TrainerEmail)</span>
+                                            }
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(visit.TrainerId))
+                                        {
+                                            <span class="trainer-id-fallback">@GetShortId(visit.TrainerId)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted-text">Not assigned</span>
+                                        }
+                                    </span>
+                                </div>
+                                @if (visit.PaidAmount != null)
+                                {
+                                    <div class="session-info-row">
+                                        <span class="session-info-label">Paid</span>
+                                        <span class="session-info-value">@visit.PaidAmount.Value.ToString("C")</span>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(visit.EnrollmentStatus))
+                                {
+                                    <div class="session-info-row">
+                                        <span class="session-info-label">Status</span>
+                                        <span class="status-badge @GetStatusClass(visit.EnrollmentStatus)">@visit.EnrollmentStatus</span>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="visit-card-actions">
+                                @if (!string.IsNullOrWhiteSpace(visit.TrainerId))
+                                {
+                                    <button class="btn-report-problem" @onclick="() => ShowNotifyTrainerForm(visit)">
+                                        Report Problem to Trainer
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@* ── Trainer Notification Form Modal ── *@
+@if (_showNotificationForm && _selectedVisit != null)
+{
+    <div class="modal-overlay" @onclick="CloseNotificationForm">
+        <div class="modal-box" @onclick:stopPropagation>
+            <h3 class="modal-title">Report Problem to Trainer</h3>
+            <p class="modal-body">
+                Send a message to <strong>@_selectedVisit.TrainerName</strong> about
+                <strong>@_selectedVisit.UserName</strong>.
+            </p>
+
+            <div class="notification-form">
+                <textarea class="notification-textarea"
+                          @bind="_notificationMessage"
+                          placeholder="Describe the problem..."
+                          rows="4"
+                          maxlength="1000"
+                          disabled="@_sendingNotification"></textarea>
+
+                @if (!string.IsNullOrWhiteSpace(_notificationError))
+                {
+                    <div class="notification-error">@_notificationError</div>
+                }
+
+                @if (_notificationSent)
+                {
+                    <div class="notification-success">Notification sent successfully!</div>
+                }
+
+                <div class="modal-actions">
+                    <button class="btn-modal-ghost" @onclick="CloseNotificationForm" disabled="@_sendingNotification">Cancel</button>
+                    <button class="btn-modal-primary" @onclick="SendTrainerNotification" disabled="@(_sendingNotification || string.IsNullOrWhiteSpace(_notificationMessage))">
+                        @(_sendingNotification ? "Sending..." : "Send Notification")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool _loading = true;
     private string? _error;
     private int? _gymId;
     private string _rangeMode = "month";
-    private List<ApiClient.ClassSessionRead> _sessions = new();
+    private List<ApiClient.RoomBookingRead> _bookings = new();
 
-    private ApiClient.ClassSessionRead? _confirmSession;
+    private ApiClient.RoomBookingRead? _confirmBooking;
     private int? _cancellingId;
+
+    // Presence state
+    private List<ApiClient.LocationPresenceRead> _presenceCounts = new();
+    private System.Threading.Timer? _presenceTimer;
+
+    // Visit details modal state
+    private bool _showVisitModal;
+    private int _selectedLocationId;
+    private string _selectedLocationName = "";
+    private List<ApiClient.ActiveVisitDetailRead> _activeVisitDetails = new();
+    private bool _loadingVisitDetails;
+
+    // Trainer notification form state
+    private bool _showNotificationForm;
+    private ApiClient.ActiveVisitDetailRead? _selectedVisit;
+    private string _notificationMessage = "";
+    private bool _sendingNotification;
+    private string? _notificationError;
+    private bool _notificationSent;
 
     protected override async Task OnInitializedAsync()
     {
@@ -240,7 +434,9 @@
             if (gym != null)
             {
                 _gymId = gym.Id;
-                await LoadSessions();
+                await LoadBookings();
+                await LoadPresenceCounts();
+                StartPresencePolling();
             }
         }
         catch (Exception ex)
@@ -253,16 +449,45 @@
         }
     }
 
+    private void StartPresencePolling()
+    {
+        _presenceTimer = new System.Threading.Timer(async _ =>
+        {
+            try
+            {
+                await LoadPresenceCounts();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch
+            {
+                // Silently ignore polling errors
+            }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task LoadPresenceCounts()
+    {
+        if (_gymId == null) return;
+        try
+        {
+            _presenceCounts = await Api.GetActiveCountsAsync(_gymId.Value);
+        }
+        catch
+        {
+            // Don't break the page if presence fails
+        }
+    }
+
     private async Task SetRange(string mode)
     {
         _rangeMode = mode;
         _loading = true;
-        try { await LoadSessions(); }
-        catch (Exception ex) { _error = $"Could not load sessions: {ex.Message}"; }
+        try { await LoadBookings(); }
+        catch (Exception ex) { _error = $"Could not load bookings: {ex.Message}"; }
         finally { _loading = false; }
     }
 
-    private async Task LoadSessions()
+    private async Task LoadBookings()
     {
         if (_gymId == null) return;
 
@@ -281,14 +506,105 @@
             to = from.Value.AddMonths(1);
         }
 
-        _sessions = await Api.GetGymSessions(_gymId.Value, from, to);
+        _bookings = await Api.GetGymBookings(_gymId.Value, from, to);
     }
 
+    // ── Presence chip click ──
+    private async Task OnPresenceChipClick(int locationId, string locationName)
+    {
+        _selectedLocationId = locationId;
+        _selectedLocationName = locationName;
+        _showVisitModal = true;
+        _loadingVisitDetails = true;
+        _activeVisitDetails = new();
+        StateHasChanged();
+
+        try
+        {
+            _activeVisitDetails = await Api.GetActiveVisitDetailsAsync(locationId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load visit details: {ex.Message}";
+        }
+        finally
+        {
+            _loadingVisitDetails = false;
+        }
+    }
+
+    private void CloseVisitModal()
+    {
+        _showVisitModal = false;
+        _activeVisitDetails = new();
+        _selectedLocationId = 0;
+        _selectedLocationName = "";
+    }
+
+    // ── Trainer notification ──
+    private void ShowNotifyTrainerForm(ApiClient.ActiveVisitDetailRead visit)
+    {
+        _selectedVisit = visit;
+        _notificationMessage = "";
+        _notificationError = null;
+        _notificationSent = false;
+        _showNotificationForm = true;
+    }
+
+    private void CloseNotificationForm()
+    {
+        _showNotificationForm = false;
+        _selectedVisit = null;
+        _notificationMessage = "";
+        _notificationError = null;
+        _notificationSent = false;
+    }
+
+    private async Task SendTrainerNotification()
+    {
+        if (_selectedVisit == null || string.IsNullOrWhiteSpace(_notificationMessage) || string.IsNullOrWhiteSpace(_selectedVisit.TrainerId))
+            return;
+
+        _sendingNotification = true;
+        _notificationError = null;
+        _notificationSent = false;
+
+        try
+        {
+            var request = new ApiClient.CreateTrainerNotificationRequest(
+                TrainerId: _selectedVisit.TrainerId,
+                GymLocationId: _selectedLocationId,
+                SubjectUserId: _selectedVisit.UserId,
+                Message: _notificationMessage
+            );
+
+            await Api.SendTrainerNotificationAsync(request);
+            _notificationSent = true;
+            _notificationMessage = "";
+        }
+        catch (Exception ex)
+        {
+            _notificationError = $"Failed to send: {ex.Message}";
+        }
+        finally
+        {
+            _sendingNotification = false;
+        }
+    }
+
+    // ── Helpers ──
     private static string GetInitials(string trainerId)
     {
         if (string.IsNullOrWhiteSpace(trainerId)) return "?";
-        // If it looks like a GUID, just show first 2 chars uppercase
         return trainerId.Length >= 2 ? trainerId[..2].ToUpper() : trainerId.ToUpper();
+    }
+
+    private static string GetNameInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
     }
 
     private static string FormatDuration(TimeSpan span)
@@ -299,12 +615,22 @@
         return m > 0 ? $"{h}h {m}m" : $"{h}h";
     }
 
+    private static string FormatElapsed(DateTime checkInTime)
+    {
+        var elapsed = DateTime.UtcNow - checkInTime;
+        if (elapsed.TotalMinutes < 1) return "just now";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m";
+        var h = (int)elapsed.TotalHours;
+        var m = elapsed.Minutes;
+        return m > 0 ? $"{h}h {m}m" : $"{h}h";
+    }
+
     private static string GetStatusClass(string status) => status?.ToLower() switch
     {
-        "active"    => "status-active",
-        "scheduled" => "status-scheduled",
-        "completed" => "status-completed",
+        "confirmed" => "status-confirmed",
+        "pending"   => "status-pending",
         "cancelled" => "status-cancelled",
+        "completed" => "status-completed",
         _           => "status-unknown"
     };
 
@@ -314,58 +640,52 @@
         return trainerId.Length >= 8 ? trainerId[..8] : trainerId;
     }
 
-    private static string GetBookingStatusClass(string status) => status?.ToLower() switch
+    private void ConfirmCancel(ApiClient.RoomBookingRead booking)
     {
-        "confirmed" => "booking-status-confirmed",
-        "pending" => "booking-status-pending",
-        "cancelled" => "booking-status-cancelled",
-        "completed" => "booking-status-completed",
-        _ => "booking-status-unknown"
-    };
-
-    private void ConfirmCancel(ApiClient.ClassSessionRead session)
-    {
-        _confirmSession = session;
+        _confirmBooking = booking;
         _error = null;
     }
 
-    private void CloseConfirm() => _confirmSession = null;
+    private void CloseConfirm() => _confirmBooking = null;
 
     private async Task ExecuteCancel()
     {
-        if (_confirmSession is null) return;
-        _cancellingId = _confirmSession.Id;
+        if (_confirmBooking is null) return;
+        _cancellingId = _confirmBooking.Id;
         try
         {
-            await Api.CancelSession(_confirmSession.Id);
-            // optimistically update local list
-            var idx = _sessions.FindIndex(s => s.Id == _confirmSession.Id);
+            await Api.CancelRoomBooking(_confirmBooking.Id);
+            var idx = _bookings.FindIndex(b => b.Id == _confirmBooking.Id);
             if (idx >= 0)
             {
-                var s = _sessions[idx];
-                _sessions[idx] = s with { Status = "Cancelled" };
+                var b = _bookings[idx];
+                _bookings[idx] = b with { Status = "Cancelled" };
             }
-            _confirmSession = null;
+            _confirmBooking = null;
         }
         catch (Exception ex)
         {
-            _error = $"Could not cancel session: {ex.Message}";
+            _error = $"Could not cancel booking: {ex.Message}";
         }
         finally
         {
             _cancellingId = null;
         }
     }
+
+    public void Dispose()
+    {
+        _presenceTimer?.Dispose();
+    }
 }
 
 <style>
     .gym-page {
-        max-width: 1200px;
-        margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
         padding: 2.5rem 1.5rem 4rem;
         color: #0F172A;
         background: #F4F7FB;
-        border-radius: 16px;
         font-family: 'DM Sans', 'Segoe UI', sans-serif;
     }
 
@@ -477,6 +797,98 @@
     .filter-tab:hover { color: #0F172A; }
     .filter-tab.active { background: #EEF3FD; color: #3B6FE8; font-weight: 600; }
 
+    /* ── LIVE Presence Section ── */
+    .presence-section {
+        background: #ffffff;
+        border: 1px solid #E8EDF5;
+        border-radius: 14px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .presence-section.presence-empty {
+        padding: 1rem 1.5rem;
+    }
+    .presence-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .presence-section.presence-empty .presence-header {
+        margin-bottom: 0;
+    }
+
+    .pulse-dot {
+        width: 10px;
+        height: 10px;
+        background: #22C55E;
+        border-radius: 50%;
+        display: inline-block;
+        animation: pulse-glow 2s ease-in-out infinite;
+        flex-shrink: 0;
+    }
+    .pulse-dot.off {
+        background: #CBD5E1;
+        animation: none;
+    }
+    @@keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+        50% { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+    .live-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: #22C55E;
+        text-transform: uppercase;
+    }
+    .presence-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #0F172A;
+    }
+
+    .presence-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .presence-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #F8FAFC;
+        border: 1px solid #E8EDF5;
+        border-radius: 30px;
+        padding: 0.5rem 1rem;
+        font-family: inherit;
+        font-size: 0.85rem;
+        color: #0F172A;
+        transition: all 0.2s ease;
+    }
+    .presence-chip.clickable {
+        cursor: pointer;
+    }
+    .presence-chip.clickable:hover {
+        background: #EEF3FD;
+        border-color: #3B6FE8;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(59,111,232,0.15);
+    }
+    .presence-chip-name {
+        font-weight: 500;
+    }
+    .presence-chip-count {
+        background: #3B6FE8;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 20px;
+        min-width: 22px;
+        text-align: center;
+    }
+
     /* Summary chips */
     .summary-row {
         display: flex;
@@ -543,9 +955,30 @@
         vertical-align: middle;
     }
 
-    /* Session cell */
-    .session-title { font-weight: 600; color: #0F172A; }
-    .session-desc  { font-size: 0.78rem; color: #64748B; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+    /* Modality badge */
+    .booking-modality-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        background: #E0ECFF;
+        color: #1D4ED8;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: capitalize;
+        width: fit-content;
+    }
+
+    /* Session desc / notes */
+    .session-desc {
+        font-size: 0.78rem;
+        color: #64748B;
+        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 220px;
+    }
 
     /* Trainer cell */
     .trainer-cell { display: flex; align-items: center; gap: 0.625rem; }
@@ -577,29 +1010,24 @@
         white-space: nowrap;
     }
 
-    /* Enrollment */
-    .enrollment-bar-wrap { min-width: 80px; }
-    .enrollment-text { display: flex; align-items: baseline; gap: 1px; margin-bottom: 4px; font-size: 0.875rem; }
-    .enrollment-current { font-weight: 700; }
-    .enrollment-current.full { color: #ff2fb4; }
-    .enrollment-sep { color: #64748B; font-size: 0.78rem; }
-    .enrollment-max { color: #64748B; font-size: 0.78rem; }
-    .enrollment-bar {
-        height: 4px;
-        background: #E8EDF5;
-        border-radius: 4px;
-        overflow: hidden;
-    }
-    .enrollment-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #3B6FE8, #2952CC);
-        border-radius: 4px;
-        transition: width 0.3s;
-    }
-    .enrollment-fill.full { background: linear-gradient(90deg, #EF4444, #DC2626); }
-
     /* Price */
     .price-value { font-weight: 600; color: #0F172A; }
+
+    /* Room cell */
+    .room-name {
+        font-weight: 600;
+        color: #0F172A;
+        font-size: 0.875rem;
+    }
+    .room-location {
+        font-size: 0.78rem;
+        color: #64748B;
+        margin-top: 2px;
+    }
+    .muted-text {
+        color: #94A3B8;
+        font-style: italic;
+    }
 
     /* Status badges */
     .status-badge {
@@ -612,89 +1040,11 @@
         border-radius: 20px;
         white-space: nowrap;
     }
-    .status-active    { background: #EEF3FD; color: #3B6FE8; border: 1px solid #C7D9F8; }
-    .status-scheduled { background: #DBEAFE; color: #2563EB; border: 1px solid #BFDBFE; }
-    .status-completed { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
+    .status-confirmed { background: #D1FAE5; color: #059669; border: 1px solid #A7F3D0; }
+    .status-pending   { background: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; }
     .status-cancelled { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
+    .status-completed { background: #E0E7FF; color: #6366F1; border: 1px solid #C7D2FE; }
     .status-unknown   { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
-
-    /* Room cell */
-    .room-name { 
-        font-weight: 600; 
-        color: #0F172A; 
-        font-size: 0.875rem; 
-    }
-    .room-location { 
-        font-size: 0.78rem; 
-        color: #64748B; 
-        margin-top: 2px; 
-    }
-    .muted-text { 
-        color: #94A3B8; 
-        font-style: italic; 
-    }
-
-    /* Booking info */
-    .booking-info {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .booking-purpose-badge {
-        display: inline-block;
-        background: #EEF3FD;
-        color: #3B6FE8;
-        border: 1px solid #C7D9F8;
-        font-size: 0.7rem;
-        font-weight: 600;
-        padding: 3px 8px;
-        border-radius: 12px;
-        text-transform: capitalize;
-        white-space: nowrap;
-    }
-
-    .booking-status-badge {
-        display: inline-block;
-        font-size: 0.68rem;
-        font-weight: 600;
-        padding: 2px 7px;
-        border-radius: 10px;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-
-    .booking-status-confirmed { 
-        background: #D1FAE5; 
-        color: #059669; 
-        border: 1px solid #A7F3D0; 
-    }
-    .booking-status-pending { 
-        background: #FEF3C7; 
-        color: #D97706; 
-        border: 1px solid #FDE68A; 
-    }
-    .booking-status-cancelled { 
-        background: #FEE2E2; 
-        color: #DC2626; 
-        border: 1px solid #FECACA; 
-    }
-    .booking-status-completed { 
-        background: #E0E7FF; 
-        color: #6366F1; 
-        border: 1px solid #C7D2FE; 
-    }
-    .booking-status-unknown { 
-        background: #F1F5F9; 
-        color: #64748B; 
-        border: 1px solid #CBD5E1; 
-    }
-
-    .booking-cost {
-        font-size: 0.75rem;
-        color: #64748B;
-        margin-top: 2px;
-    }
 
     /* Buttons */
     .btn-gym-primary {
@@ -747,7 +1097,7 @@
     .btn-cancel-session:hover { background: #FEF2F2; border-color: #FCA5A5; }
     .btn-cancel-session:disabled { opacity: 0.5; cursor: default; }
 
-    /* Modal */
+    /* ── Modal shared ── */
     .modal-overlay {
         position: fixed; inset: 0;
         background: rgba(15,23,42,0.35);
@@ -764,10 +1114,16 @@
         width: 90%;
         box-shadow: 0 16px 40px rgba(15,23,42,0.18);
     }
+    .modal-box.modal-wide {
+        max-width: 680px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
     .modal-title { margin: 0 0 0.75rem; font-size: 1.3rem; font-weight: 700; color: #0F172A; }
+    .modal-subtitle { margin: 0; font-size: 0.85rem; color: #64748B; }
     .modal-body  { margin: 0 0 1.75rem; color: #64748B; line-height: 1.6; }
     .modal-body strong { color: #0F172A; }
-    .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+    .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem; }
     .btn-modal-ghost {
         background: transparent;
         border: 1px solid #CBD5E1;
@@ -788,10 +1144,208 @@
     }
     .btn-modal-danger:hover { transform: scale(1.03); background: #DC2626; box-shadow: 0 6px 24px rgba(239,68,68,0.38); }
     .btn-modal-danger:disabled { opacity: 0.6; cursor: default; transform: none; }
+    .btn-modal-primary {
+        background: #3B6FE8;
+        border: none;
+        color: #fff;
+        font-size: 0.9rem; font-weight: 700; font-family: inherit;
+        padding: 0.6rem 1.4rem; border-radius: 30px; cursor: pointer;
+        transition: transform 0.18s, box-shadow 0.18s;
+        box-shadow: 0 4px 16px rgba(59,111,232,0.28);
+    }
+    .btn-modal-primary:hover { transform: scale(1.03); background: #2952CC; box-shadow: 0 6px 24px rgba(59,111,232,0.38); }
+    .btn-modal-primary:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+    .btn-close-modal {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: #94A3B8;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+    .btn-close-modal:hover { color: #0F172A; }
+
+    /* ── Visit Details Modal ── */
+    .visit-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+    }
+    .visit-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 2rem;
+        color: #64748B;
+    }
+
+    .visit-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .visit-card {
+        background: #F8FAFC;
+        border: 1px solid #E8EDF5;
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+    .visit-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+    .visit-user-avatar {
+        width: 42px; height: 42px;
+        background: #EEF3FD;
+        border: 1.5px solid #C7D9F8;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #3B6FE8;
+        flex-shrink: 0;
+    }
+    .visit-user-info { flex: 1; min-width: 0; }
+    .visit-user-name { font-weight: 600; font-size: 0.95rem; color: #0F172A; }
+    .visit-user-email { font-size: 0.8rem; color: #64748B; }
+    .visit-user-phone { font-size: 0.78rem; color: #94A3B8; }
+
+    .visit-checkin-time {
+        text-align: right;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1px;
+    }
+    .visit-time-label { font-size: 0.7rem; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.08em; }
+    .visit-time-value { font-size: 1.1rem; font-weight: 700; color: #0F172A; }
+    .visit-duration-label { font-size: 0.72rem; color: #64748B; }
+
+    .visit-session-info {
+        background: #ffffff;
+        border: 1px solid #E8EDF5;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-top: 0.5rem;
+    }
+    .session-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 3px 0;
+    }
+    .session-info-label {
+        font-size: 0.78rem;
+        color: #94A3B8;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .session-info-value {
+        font-size: 0.85rem;
+        color: #0F172A;
+        font-weight: 500;
+    }
+
+    .trainer-email-hint {
+        font-size: 0.78rem;
+        color: #64748B;
+        margin-left: 4px;
+    }
+    .trainer-id-fallback {
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #94A3B8;
+    }
+
+    .visit-no-session {
+        padding: 0.5rem 0;
+        font-size: 0.82rem;
+        color: #94A3B8;
+        font-style: italic;
+    }
+
+    .visit-card-actions {
+        margin-top: 0.875rem;
+        display: flex;
+        justify-content: flex-end;
+    }
+    .btn-report-problem {
+        background: #FEF3C7;
+        border: 1px solid #FDE68A;
+        color: #D97706;
+        font-size: 0.8rem;
+        font-weight: 600;
+        font-family: inherit;
+        padding: 0.4rem 1rem;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background 0.18s, border-color 0.18s, transform 0.18s;
+    }
+    .btn-report-problem:hover {
+        background: #FDE68A;
+        border-color: #F59E0B;
+        transform: translateY(-1px);
+    }
+
+    /* ── Notification Form ── */
+    .notification-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .notification-textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.875rem 1rem;
+        border: 1px solid #E8EDF5;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 0.9rem;
+        resize: vertical;
+        min-height: 80px;
+        color: #0F172A;
+        outline: none;
+        transition: border-color 0.18s;
+    }
+    .notification-textarea:focus {
+        border-color: #3B6FE8;
+        box-shadow: 0 0 0 3px rgba(59,111,232,0.1);
+    }
+    .notification-textarea:disabled {
+        background: #F8FAFC;
+        color: #94A3B8;
+    }
+    .notification-error {
+        font-size: 0.82rem;
+        color: #EF4444;
+        padding: 0.5rem;
+        background: #FEF2F2;
+        border: 1px solid #FECACA;
+        border-radius: 8px;
+    }
+    .notification-success {
+        font-size: 0.82rem;
+        color: #059669;
+        padding: 0.5rem;
+        background: #ECFDF5;
+        border: 1px solid #A7F3D0;
+        border-radius: 8px;
+    }
 
     @@media (max-width: 768px) {
         .summary-row { gap: 0.5rem; }
         .summary-chip { min-width: 64px; padding: 0.625rem 0.875rem; }
         .sessions-table th, .sessions-table td { padding: 0.75rem 0.875rem; }
+        .visit-card-header { flex-direction: column; gap: 0.5rem; }
+        .visit-checkin-time { align-items: flex-start; text-align: left; }
+        .modal-box.modal-wide { max-height: 90vh; }
     }
 </style>

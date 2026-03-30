@@ -12,15 +12,18 @@ public class CheckInService : ICheckInService
     private readonly FitPlayContext _db;
     private readonly ProgressService _progressService;
     private readonly AchievementService _achievementService;
+    private readonly IClockService _clock;
 
     public CheckInService(
         FitPlayContext db,
         ProgressService progressService,
-        AchievementService achievementService)
+        AchievementService achievementService,
+        IClockService clock)
     {
         _db = db;
         _progressService = progressService;
         _achievementService = achievementService;
+        _clock = clock;
     }
 
     public async Task<RoomCheckInResponseDto> CheckInAsync(int enrollmentId, string userId, CreateRoomCheckInRequest request)
@@ -44,7 +47,7 @@ public class CheckInService : ICheckInService
         if (session is null)
             throw new InvalidOperationException("Session not found for enrollment.");
 
-        var now = DateTime.UtcNow;
+        var now = _clock.UtcNow;
         if (now < session.StartTime || now > session.EndTime)
             throw new InvalidOperationException("Check-in is only allowed during class time.");
 

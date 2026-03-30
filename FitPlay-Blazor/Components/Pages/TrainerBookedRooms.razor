@@ -9,6 +9,7 @@
 @inject ApiClient Api
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>Booked Rooms - FitPlay</PageTitle>
 
@@ -112,21 +113,10 @@
                                 <div class="info-row">
                                     <span class="label">
                                         <span class="icon">🎯</span>
-                                        Purpose
+                                        Modality
                                     </span>
-                                    <span class="value">@booking.Purpose</span>
+                                    <span class="value">@booking.Modality</span>
                                 </div>
-                                
-                                @if (!string.IsNullOrWhiteSpace(booking.PurposeDescription))
-                                {
-                                    <div class="info-row">
-                                        <span class="label">
-                                            <span class="icon">📝</span>
-                                            Description
-                                        </span>
-                                        <span class="value">@booking.PurposeDescription</span>
-                                    </div>
-                                }
                                 
                                 <div class="info-row">
                                     <span class="label">
@@ -134,6 +124,23 @@
                                         Cost
                                     </span>
                                     <span class="value cost">@booking.TotalCost.ToString("C")</span>
+                                </div>
+                                
+                                <div class="info-row @(booking.QueuedClientsCount > 0 ? "queued-highlight" : "")">
+                                    <span class="label">
+                                        <span class="icon">👥</span>
+                                        Interested
+                                    </span>
+                                    <span class="value @(booking.QueuedClientsCount > 0 ? "interested-count" : "")">
+                                        @if (booking.QueuedClientsCount > 0)
+                                        {
+                                            <text>@booking.QueuedClientsCount client@(booking.QueuedClientsCount == 1 ? "" : "s") in queue</text>
+                                        }
+                                        else
+                                        {
+                                            <text>No one yet</text>
+                                        }
+                                    </span>
                                 </div>
                                 
                                 @if (!string.IsNullOrWhiteSpace(booking.Notes))
@@ -153,13 +160,121 @@
                                 </div>
                             </div>
                             
-                            @if (isCancellable)
+                            @* Pay and Confirm button for Pending bookings *@
+                            @if (isUpcoming && booking.Status == "Pending")
+                            {
+                                @if (_showPaymentUI && _paymentBookingId == booking.Id && !string.IsNullOrWhiteSpace(_paymentClientSecret))
+                                {
+                                    <div class="card-actions payment-section">
+                                        <div class="payment-container">
+                                            <p class="payment-label">Enter your payment details</p>
+                                            <div id="payment-element-@booking.Id"></div>
+                                            <div class="payment-buttons">
+                                                <button class="btn-confirm" 
+                                                        @onclick="() => ConfirmPayment(booking.Id)"
+                                                        disabled="@(_confirmingBookingId == booking.Id)">
+                                                    @if (_confirmingBookingId == booking.Id)
+                                                    {
+                                                        <text>Processing...</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="icon">✓</span>
+                                                        <text>Confirm Payment</text>
+                                                    }
+                                                </button>
+                                                <button class="btn-cancel-payment" 
+                                                        @onclick="CancelPaymentForm"
+                                                        disabled="@(_confirmingBookingId == booking.Id)">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(_paymentError))
+                                            {
+                                                <div class="payment-error">@_paymentError</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="card-actions">
+                                        <button class="btn-confirm" 
+                                                @onclick="() => InitiatePayment(booking.Id)"
+                                                disabled="@(_confirmingBookingId == booking.Id)">
+                                            @if (_confirmingBookingId == booking.Id)
+                                            {
+                                                <text>Loading payment...</text>
+                                            }
+                                            else
+                                            {
+                                                <span class="icon">✓</span>
+                                                <text>Pay and Confirm</text>
+                                            }
+                                        </button>
+                                    </div>
+                                }
+                            }
+                            
+                            @* Success message after confirmation *@
+                            @if (_confirmedBookingId == booking.Id && !string.IsNullOrEmpty(_confirmSuccessMessage))
+                            {
+                                <div class="success-message">
+                                    @_confirmSuccessMessage
+                                </div>
+                            }
+                            
+                            @* Cancel button with fee preview for Confirmed bookings *@
+                            @if (isCancellable && booking.Status == "Confirmed")
+                            {
+                                @if (_cancelPreviewBookingId == booking.Id && _cancelPreview != null)
+                                {
+                                    <div class="cancel-preview">
+                                        <p class="fee-warning">
+                                            ⚠️ Cancellation fee: @(_cancelPreview.CancelFeeRate.ToString("P0")) = @(_cancelPreview.FeeAmount.ToString("C"))
+                                        </p>
+                                        <div class="card-actions">
+                                            <button class="btn-cancel-confirm" 
+                                                    @onclick="() => ExecuteCancel(booking.Id)"
+                                                    disabled="@_cancelling">
+                                                @if (_cancelling)
+                                                {
+                                                    <text>Cancelling...</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Confirm Cancel</text>
+                                                }
+                                            </button>
+                                            <button class="btn-keep" 
+                                                    @onclick="ClosePreview"
+                                                    disabled="@_cancelling">
+                                                Keep Booking
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="card-actions">
+                                        <button class="btn-cancel" 
+                                                @onclick="() => ShowCancelPreview(booking.Id)"
+                                                disabled="@_cancelling">
+                                            <span class="icon">✕</span>
+                                            <text>Cancel Booking</text>
+                                        </button>
+                                    </div>
+                                }
+                            }
+                            
+                            @* Cancel button for Pending bookings (no fee) *@
+                            @if (isCancellable && booking.Status == "Pending")
                             {
                                 <div class="card-actions">
                                     <button class="btn-cancel" 
                                             @onclick="() => CancelBooking(booking.Id)"
                                             disabled="@_cancelling">
-                                        @if (_cancelling)
+                                        @if (_cancelling && _cancelPreviewBookingId == booking.Id)
                                         {
                                             <text>Cancelling...</text>
                                         }
@@ -515,6 +630,18 @@
         opacity: 0.7;
     }
 
+    .info-row.queued-highlight {
+        background: rgba(255,215,0,0.06);
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,215,0,0.2);
+    }
+
+    .interested-count {
+        color: var(--accent-gold, #ffd700) !important;
+        font-weight: 700 !important;
+    }
+
     .card-actions {
         padding: 14px 18px;
         background: rgba(255,255,255,0.02);
@@ -552,6 +679,200 @@
     .btn-cancel .icon {
         font-size: 16px;
         font-weight: 700;
+    }
+
+    /* Pay and Confirm button */
+    .btn-confirm {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px;
+        background: rgba(0,230,180,0.15);
+        border: 1px solid rgba(0,230,180,0.4);
+        border-radius: 9px;
+        color: #00e6b4;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-confirm:hover:not(:disabled) {
+        background: rgba(0,230,180,0.25);
+        border-color: rgba(0,230,180,0.6);
+        transform: translateY(-1px);
+    }
+
+    .btn-confirm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-confirm .icon {
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    /* Payment section */
+    .payment-section {
+        padding: 18px !important;
+    }
+
+    .payment-container {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .payment-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .payment-container [id^="payment-element-"] {
+        background: #fff;
+        padding: 16px;
+        border-radius: 12px;
+        min-height: 50px;
+    }
+
+    .payment-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .payment-buttons .btn-confirm {
+        flex: 2;
+    }
+
+    .btn-cancel-payment {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 9px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel-payment:hover:not(:disabled) {
+        background: rgba(255,255,255,0.12);
+        border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-cancel-payment:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .payment-error {
+        padding: 10px 14px;
+        background: rgba(255,77,109,0.1);
+        border: 1px solid rgba(255,77,109,0.3);
+        border-radius: 8px;
+        color: #ff9aa2;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    /* Success message */
+    .success-message {
+        padding: 10px 18px;
+        background: rgba(0,230,180,0.1);
+        border: 1px solid rgba(0,230,180,0.3);
+        border-radius: 8px;
+        color: #00e6b4;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 8px 18px 14px;
+        text-align: center;
+    }
+
+    /* Cancel preview */
+    .cancel-preview {
+        padding: 14px 18px;
+        background: rgba(255,77,109,0.08);
+        border-top: 1px solid rgba(255,77,109,0.2);
+    }
+
+    .fee-warning {
+        color: #ffb347;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 12px;
+        text-align: center;
+    }
+
+    .cancel-preview .card-actions {
+        display: flex;
+        gap: 10px;
+        padding: 0;
+        background: transparent;
+        border-top: none;
+    }
+
+    .btn-cancel-confirm {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px;
+        background: rgba(255,77,109,0.25);
+        border: 1px solid rgba(255,77,109,0.5);
+        border-radius: 9px;
+        color: #ff6b7a;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel-confirm:hover:not(:disabled) {
+        background: rgba(255,77,109,0.4);
+        border-color: rgba(255,77,109,0.7);
+    }
+
+    .btn-cancel-confirm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-keep {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 9px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-keep:hover:not(:disabled) {
+        background: rgba(255,255,255,0.12);
+        border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-keep:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 
     /* Responsive */
@@ -610,13 +931,63 @@
     private Dictionary<DateOnly, List<ApiClient.RoomBookingRead>> _groupedBookings = new();
     private bool _loading = true;
     private bool _cancelling = false;
+    private int? _confirmingBookingId;
+    private int? _confirmedBookingId;
+    private string? _confirmSuccessMessage;
+    private int? _cancelPreviewBookingId;
+    private ApiClient.CancellationPreview? _cancelPreview;
     private string? _error;
     private DateTime? _fromDate;
     private DateTime? _toDate;
 
+    // ── Stripe payment state ──
+    private int? _paymentBookingId;
+    private string? _paymentClientSecret;
+    private bool _paymentElementMounted;
+    private bool _isMountingPayment;
+    private bool _showPaymentUI;
+    private string? _paymentError;
+
     protected override async Task OnInitializedAsync()
     {
         await Load();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isMountingPayment || _paymentElementMounted
+            || !_showPaymentUI
+            || string.IsNullOrWhiteSpace(_paymentClientSecret)
+            || _paymentBookingId is null)
+            return;
+
+        _isMountingPayment = true;
+        _paymentElementMounted = true;
+
+        try
+        {
+            var error = await JS.InvokeAsync<string?>(
+                "fitplayStripe.mount",
+                _paymentClientSecret,
+                $"#payment-element-{_paymentBookingId}");
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                _paymentElementMounted = false;
+                _paymentError = error;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _paymentElementMounted = false;
+            _paymentError = $"Failed to load payment form: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            _isMountingPayment = false;
+        }
     }
 
     private async Task Load()
@@ -625,6 +996,11 @@
         _error = null;
         _bookings.Clear();
         _groupedBookings.Clear();
+        _confirmedBookingId = null;
+        _confirmSuccessMessage = null;
+        _cancelPreviewBookingId = null;
+        _cancelPreview = null;
+        _showPaymentUI = false;
 
         try
         {
@@ -649,16 +1025,135 @@
         }
     }
 
-    private async Task CancelBooking(int bookingId)
-    {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this booking?");
-        if (!confirmed) return;
+    // ── Stripe Payment Flow ──
 
+    private async Task InitiatePayment(int bookingId)
+    {
+        _confirmingBookingId = bookingId;
+        _paymentError = null;
+        _error = null;
+
+        try
+        {
+            var response = await Api.CreateBookingPaymentIntent(bookingId);
+            _paymentClientSecret = response?.ClientSecret;
+
+            if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+            {
+                _paymentError = "Failed to initialize payment.";
+                _confirmingBookingId = null;
+                return;
+            }
+
+            _paymentBookingId = bookingId;
+            _paymentElementMounted = false;
+            _confirmingBookingId = null;
+            _showPaymentUI = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Failed to initialize payment: {ex.Message}";
+            _error = _paymentError;
+            _confirmingBookingId = null;
+        }
+    }
+
+    private async Task ConfirmPayment(int bookingId)
+    {
+        if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+        {
+            _paymentError = "Payment not initialized.";
+            return;
+        }
+
+        _confirmingBookingId = bookingId;
+        _paymentError = null;
+
+        try
+        {
+            var successUrl = Navigation.ToAbsoluteUri("/trainer/rooms/booked").ToString();
+            var stripeError = await JS.InvokeAsync<string?>("fitplayStripe.confirm", successUrl);
+
+            if (!string.IsNullOrWhiteSpace(stripeError))
+            {
+                _paymentError = stripeError;
+                return;
+            }
+
+            // Payment succeeded at Stripe - extract PI id from the client secret
+            // Client secret format: pi_xxx_secret_yyy → PI id is pi_xxx
+            var paymentIntentId = _paymentClientSecret.Split("_secret_")[0];
+
+            // Confirm booking on our backend
+            await Api.ConfirmBookingPayment(bookingId, paymentIntentId);
+
+            // Reset payment state
+            _paymentBookingId = null;
+            _paymentClientSecret = null;
+            _paymentElementMounted = false;
+            _showPaymentUI = false;
+            _paymentError = null;
+
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Payment successful! Booking confirmed.";
+            await Load();
+            // Re-set the success message after reload
+            _confirmedBookingId = bookingId;
+            _confirmSuccessMessage = "Payment successful! Booking confirmed.";
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Payment failed: {ex.Message}";
+        }
+        finally
+        {
+            _confirmingBookingId = null;
+        }
+    }
+
+    private void CancelPaymentForm()
+    {
+        _paymentBookingId = null;
+        _paymentClientSecret = null;
+        _paymentElementMounted = false;
+        _showPaymentUI = false;
+        _paymentError = null;
+        _confirmingBookingId = null;
+    }
+
+    private async Task ShowCancelPreview(int bookingId)
+    {
+        _cancelPreviewBookingId = bookingId;
+        _cancelPreview = null;
+        _error = null;
+
+        try
+        {
+            _cancelPreview = await Api.GetCancellationPreview(bookingId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load cancellation info: {ex.Message}";
+            _cancelPreviewBookingId = null;
+        }
+    }
+
+    private void ClosePreview()
+    {
+        _cancelPreviewBookingId = null;
+        _cancelPreview = null;
+    }
+
+    private async Task ExecuteCancel(int bookingId)
+    {
         _cancelling = true;
         try
         {
             await Api.CancelRoomBooking(bookingId);
-            await Load(); // Reload the list
+            _cancelPreviewBookingId = null;
+            _cancelPreview = null;
+            await Load();
         }
         catch (Exception ex)
         {
@@ -667,6 +1162,29 @@
         finally
         {
             _cancelling = false;
+        }
+    }
+
+    private async Task CancelBooking(int bookingId)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this booking?");
+        if (!confirmed) return;
+
+        _cancelling = true;
+        _cancelPreviewBookingId = bookingId;
+        try
+        {
+            await Api.CancelRoomBooking(bookingId);
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to cancel booking: {ex.Message}";
+        }
+        finally
+        {
+            _cancelling = false;
+            _cancelPreviewBookingId = null;
         }
     }
 

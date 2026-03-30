@@ -19,7 +19,9 @@
             var decoded = Uri.UnescapeDataString(ReturnUrl);
 
             if (decoded.StartsWith("/user/trainings", StringComparison.OrdinalIgnoreCase) ||
-                decoded.Equals("/user/book-class", StringComparison.OrdinalIgnoreCase))
+                decoded.Equals("/user/book-class", StringComparison.OrdinalIgnoreCase) ||
+                decoded.Equals("/user/progress", StringComparison.OrdinalIgnoreCase) ||
+                decoded.Equals("/user/achievements", StringComparison.OrdinalIgnoreCase))
             {
                 NavigationManager.NavigateTo("/membership", replace: true);
             }

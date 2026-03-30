@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using FitPlay.Domain.Data;
+using FitPlay.Domain.Services;
 
 namespace FitPlay.Api.Controllers;
 
@@ -9,16 +10,17 @@ namespace FitPlay.Api.Controllers;
 public class LeaderboardsController : ControllerBase
 {
     private readonly FitPlayContext _db;
-    public LeaderboardsController(FitPlayContext db) => _db = db;
+    private readonly IClockService _clock;
+    public LeaderboardsController(FitPlayContext db, IClockService clock) { _db = db; _clock = clock; }
 
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string period = "week", [FromQuery] int? teacherId = null)
     {
         DateTime from = period.ToLower() switch
         {
-            "month" => DateTime.UtcNow.AddDays(-30),
+            "month" => _clock.UtcNow.AddDays(-30),
             "all" => DateTime.MinValue,
-            _ => DateTime.UtcNow.AddDays(-7)
+            _ => _clock.UtcNow.AddDays(-7)
         };
 
         var query = _db.ExerciseLogs.AsNoTracking().Where(l => l.PerformedAt >= from);

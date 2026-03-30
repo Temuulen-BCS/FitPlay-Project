@@ -1,6 +1,7 @@
 using FitPlay.Api.Auth;
 using FitPlay.Api.Services;
 using FitPlay.Domain.Data;
+using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -19,17 +20,20 @@ public class BillingController : ControllerBase
     private readonly MembershipService _membershipService;
     private readonly StripeOptions _stripeOptions;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IClockService _clock;
 
     public BillingController(
         FitPlayContext fitDb,
         MembershipService membershipService,
         IOptions<StripeOptions> stripeOptions,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IClockService clock)
     {
         _fitDb = fitDb;
         _membershipService = membershipService;
         _stripeOptions = stripeOptions.Value;
         _userManager = userManager;
+        _clock = clock;
     }
 
     public record MembershipStatusDto(bool IsActive, string Status, DateTime? CurrentPeriodEnd);
@@ -137,7 +141,7 @@ public class BillingController : ControllerBase
         await _membershipService.UpsertSubscriptionAsync(
             domainUser.Id,
             status: "Pending",
-            startDate: DateTime.UtcNow,
+            startDate: _clock.UtcNow,
             endDate: null,
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscription.Id);

@@ -3,19 +3,143 @@
 @layout UserLayout
 @using FitPlay.Blazor.Services
 @using System.Security.Claims
+@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Policy = "ActiveMembership")]
+@attribute [Authorize]
 @inject ApiClient Api
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
 
 <PageTitle>Book a Class - FitPlay</PageTitle>
 
 <div class="book-class-page">
     <div class="page-header">
-        <h1>Book a Class</h1>
+        <h1>
+            Class's Line-Up
+        </h1>
         <p class="subtitle">Find and book classes with our trainers!</p>
     </div>
+
+    @if (!string.IsNullOrWhiteSpace(_paymentError))
+    {
+        <div class="error-banner">
+            <div class="error-header">
+                <span>⚠️ Booking Error</span>
+                <button @onclick="() => _paymentError = null" class="btn-close-error">×</button>
+            </div>
+            <p>@_paymentError</p>
+        </div>
+    }
+
+    @{
+        var notifiedClasses = _userQueueEntries
+            .Where(e => e.IsNotified && !e.IsSkipped)
+            .Select(e => _publicClasses.FirstOrDefault(c => c.Id == e.ClassScheduleId))
+            .Where(c => c != null)
+            .ToList();
+    }
+    @if (notifiedClasses.Any())
+    {
+        <div class="notification-banner">
+            <div class="notification-banner-header">
+                <span class="notification-icon">🎉</span>
+                <span>Classes now available — the trainer has confirmed the Class!</span>
+                @if (_monthlySkipCount > 0)
+                {
+                    <span class="skip-counter @(_monthlySkipCount >= 5 ? "skip-counter-limit" : "")">s
+                        @_monthlySkipCount / 5 skips this month
+                    </span>
+                }
+            </div>
+            @if (_monthlySkipCount >= 5)
+            {
+                <div class="skip-limit-warning">
+                    You have reached the 5-skip limit for this month. Joining new queues requires a 5% deposit.
+                </div>
+            }
+            @foreach (var c in notifiedClasses)
+            {
+                <div class="notification-item">
+                    <div class="notification-info">
+                        <strong>@c!.Modality</strong>
+                        <span class="notification-time">@c.ScheduledAt.ToLocalTime().ToString("ddd, MMM dd 'at' HH:mm")</span>
+                    </div>
+                    <div class="notification-actions">
+                        <button class="btn-book-now"
+                                @onclick="() => bookClass(c.Id)"
+                                disabled="@(isBooking || _isInitiatingPayment)">
+                            @(isBooking || _isInitiatingPayment ? "Please wait..." : "Book Now")
+                        </button>
+                        <button class="btn-not-interested"
+                                @onclick="() => OpenSkipConfirm(c.Id)"
+                                disabled="@(isBooking || _isInitiatingPayment)">
+                            Not interested
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Skip confirmation modal ── *@
+    @if (_skipConfirmScheduleId.HasValue)
+    {
+        var skipsLeft = 5 - _monthlySkipCount;
+        var isLastFree  = skipsLeft == 1;
+        var alreadyOver = skipsLeft <= 0;
+
+        <div class="payment-overlay" @onclick="CancelSkipConfirm">
+            <div class="skip-confirm-modal" @onclick:stopPropagation="true">
+                <div class="payment-header">
+                    <div class="skip-confirm-header-left">
+                        <span class="skip-confirm-icon">@(alreadyOver ? "🚫" : isLastFree ? "⚠️" : "ℹ️")</span>
+                        <h3 class="skip-confirm-title">
+                            @if (alreadyOver)      { <text>Skip limit reached</text> }
+                            else if (isLastFree)   { <text>Last free skip this month</text> }
+                            else                   { <text>Not interested?</text> }
+                        </h3>
+                    </div>
+                    <button class="btn-close-modal" @onclick="CancelSkipConfirm">&#x2715;</button>
+                </div>
+
+                <hr class="payment-divider" />
+
+                @if (alreadyOver)
+                {
+                    <p class="skip-confirm-body">
+                        You have used all <strong>5 free skips</strong> for this month.<br />
+                        Skipping again will still remove this notification, but joining future queues will require a <strong>5% deposit</strong>.
+                    </p>
+                }
+                else if (isLastFree)
+                {
+                    <p class="skip-confirm-body">
+                        This is your <strong>last free skip</strong> for @_nowUtc.ToString("MMMM").<br />
+                        After this, joining any new queue will require a <strong>5% deposit</strong>.<br /><br />
+                        Are you sure you're not interested?
+                    </p>
+                }
+                else
+                {
+                    <p class="skip-confirm-body">
+                        You can skip up to <strong>5 times per month</strong> for free.<br />
+                        You have <strong>@skipsLeft skip@(skipsLeft == 1 ? "" : "s")</strong> remaining for @_nowUtc.ToString("MMMM").<br /><br />
+                        Are you sure you want to skip this class?
+                    </p>
+                }
+
+                <div class="skip-confirm-actions">
+                    <button class="btn-skip-cancel" @onclick="CancelSkipConfirm">
+                        Keep it
+                    </button>
+                    <button class="btn-skip-confirm" @onclick="DismissQueueNotification">
+                        Yes, skip it
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
 
     @if (_isLoading)
     {
@@ -33,23 +157,128 @@
         {
           
             <section class="section classes-section" id="classes">
-                <h2 class="section-title">Class's Line-Up</h2>
-                <p class="section-sub">From HIIT to Yoga — experience workouts that push limits.</p>
+               
                 <div class="classes-grid">
                     @foreach (var classItem in _publicClasses)
                     {
                         var intensity = GetIntensity(classItem.Modality, classItem.Notes);
                         <div class="class-card">
                             <div class="class-header">
-                                <span class="class-time">@classItem.ScheduledAt.ToString("HH:mm")</span>
+                                <span class="class-time">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
                                 <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
                             <h3 class="class-name">@classItem.Modality</h3>
                             <p class="class-meta">@GetClassMeta(classItem)</p>
-                            <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
-                            <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@isBooking">
-                                @(isBooking ? "Booking..." : "Book Now")
+                            <div class="class-tags">
+                                <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
+                                <span class="price-tag">@GetPriceLabel(classItem.Notes)</span>
+                                @if (classItem.MaxCapacity.HasValue)
+                                {
+                                    <span class="capacity-tag">Capacity: @FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
+                                }
+                            </div>
+                            <button class="class-expand-btn" @onclick="() => ToggleClassDetails(classItem.Id)">
+                                @(_expandedClassIds.Contains(classItem.Id) ? "−" : "+")
                             </button>
+                            @if (_expandedClassIds.Contains(classItem.Id))
+                            {
+                                <div class="class-details">
+                                    <div class="detail-row">
+                                        <span class="detail-label">Day</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("dddd, MMMM dd, yyyy")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time Start</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time End</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.AddMinutes(classItem.DurationMinutes ?? 0).ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Capacity</span>
+                                        <span class="detail-value">@FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
+                                    </div>
+                                    @if (classItem.MaxCapacity.HasValue)
+                                    {
+                                        <div class="capacity-bar">
+                                            <div class="capacity-fill" style="width: @(GetCapacityPercent(classItem.BookedCount, classItem.MaxCapacity))%"></div>
+                                        </div>
+                                    }
+                                    @{
+                                        var expandDuration = FormatDuration(classItem.DurationMinutes);
+                                    }
+                                    @if (!string.IsNullOrEmpty(expandDuration))
+                                    {
+                                        <div class="detail-row">
+                                            <span class="detail-label">Duration</span>
+                                            <span class="detail-value">@expandDuration</span>
+                                        </div>
+                                    }
+                                    <div class="detail-row">
+                                        <span class="detail-label">Trainer</span>
+                                        <span class="detail-value">@classItem.TrainerName</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Room Status</span>
+                                        <span class="detail-value">@(classItem.RoomBookingStatus ?? "N/A")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Location</span>
+                                        <span class="detail-value">@FormatFullLocation(classItem.GymLocationName, classItem.GymLocationAddress, classItem.GymLocationCity, classItem.GymLocationState, classItem.GymLocationZipCode)</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(classItem.RoomName))
+                                    {
+                                        <div class="detail-row">
+                                            <span class="detail-label">Room</span>
+                                            <span class="detail-value">@classItem.RoomName</span>
+                                        </div>
+                                    }
+                                    <a href="/user/gym-checkin" class="checkin-link">Check In / Check Out</a>
+                                </div>
+                            }
+                            @if (classItem.RoomBookingStatus == "Pending")
+                            {
+                                @* Queue flow: trainer hasn't paid for the room yet *@
+                                if (_queuedClassIds.Contains(classItem.Id))
+                                {
+                                    <div class="queue-badge">You're in the queue</div>
+                                }
+                                else
+                                {
+                                    <div class="queue-info">
+                                        <span class="queue-cost">@GetQueueCostLabel(classItem.Notes)</span>
+                                        @if (classItem.QueueCount > 0)
+                                        {
+                                            <span class="queue-count">@classItem.QueueCount interested</span>
+                                        }
+                                    </div>
+                                    <button class="btn-queue" @onclick="() => JoinQueue(classItem.Id, classItem.Modality, classItem.Notes)" disabled="@(_isJoiningQueue || _isInitiatingPayment)">
+                                        @(_isJoiningQueue ? "Joining..." : "Join the Queue")
+                                    </button>
+                                    @if (_monthlySkipCount >= 5)
+                                    {
+                                        <p class="queue-skip-warning">Skip limit reached — a 5% deposit is required this month.</p>
+                                    }
+                                    else if (_monthlySkipCount == 4)
+                                    {
+                                        <p class="queue-skip-warning queue-skip-caution">1 skip remaining this month before a deposit is required.</p>
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                @if (classItem.IsBooked)
+                                {
+                                    <button class="btn-fully-booked" disabled>Fully Booked</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-book" @onclick="() => bookClass(classItem.Id)" disabled="@(isBooking || _isInitiatingPayment)">
+                                        @(isBooking || _isInitiatingPayment ? "Please wait..." : "Book Now")
+                                    </button>
+                                }
+                            }
                         </div>
                     }
                 </div>
@@ -67,12 +296,75 @@
                         var intensity = GetIntensity(classItem.Modality, classItem.Notes);
                         <div class="class-card booked">
                             <div class="class-header">
-                                <span class="class-time">@classItem.ScheduledAt.ToString("ddd, MMM dd")</span>
+                                <span class="class-time">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
                                 <span class="intensity @intensity.CssClass">@intensity.Label</span>
                             </div>
                             <h3 class="class-name">@classItem.Modality</h3>
                             <p class="class-meta">Status: @classItem.Status</p>
-                            <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
+                            <div class="class-tags">
+                                <span class="slots">@GetSlotsLabel(classItem.Notes)</span>
+                                <span class="price-tag">@GetPriceLabel(classItem.Notes)</span>
+                                @if (classItem.MaxCapacity.HasValue)
+                                {
+                                    <span class="capacity-tag">Capacity: @FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
+                                }
+                            </div>
+                            <button class="class-expand-btn" @onclick="() => ToggleClassDetails(classItem.Id)">
+                                @(_expandedClassIds.Contains(classItem.Id) ? "−" : "+")
+                            </button>
+                            @if (_expandedClassIds.Contains(classItem.Id))
+                            {
+                                <div class="class-details">
+                                    <div class="detail-row">
+                                        <span class="detail-label">Day</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("dddd, MMMM dd, yyyy")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time Start</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time End</span>
+                                        <span class="detail-value">@classItem.ScheduledAt.AddMinutes(classItem.DurationMinutes ?? 0).ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Capacity</span>
+                                        <span class="detail-value">@FormatCapacity(classItem.BookedCount, classItem.MaxCapacity)</span>
+                                    </div>
+                                    @if (classItem.MaxCapacity.HasValue)
+                                    {
+                                        <div class="capacity-bar">
+                                            <div class="capacity-fill" style="width: @(GetCapacityPercent(classItem.BookedCount, classItem.MaxCapacity))%"></div>
+                                        </div>
+                                    }
+                                    @{
+                                        var bookedExpandDuration = FormatDuration(classItem.DurationMinutes);
+                                    }
+                                    @if (!string.IsNullOrEmpty(bookedExpandDuration))
+                                    {
+                                        <div class="detail-row">
+                                            <span class="detail-label">Duration</span>
+                                            <span class="detail-value">@bookedExpandDuration</span>
+                                        </div>
+                                    }
+                                    <div class="detail-row">
+                                        <span class="detail-label">Location</span>
+                                        <span class="detail-value">@FormatFullLocation(classItem.GymLocationName, classItem.GymLocationAddress, classItem.GymLocationCity, classItem.GymLocationState, classItem.GymLocationZipCode)</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(classItem.RoomName))
+                                    {
+                                        <div class="detail-row">
+                                            <span class="detail-label">Room</span>
+                                            <span class="detail-value">@classItem.RoomName</span>
+                                        </div>
+                                    }
+                                    <a href="/user/gym-checkin" class="checkin-link">Check In / Check Out</a>
+                                </div>
+                            }
+                            @if (classItem.PaymentStatus == "Completed")
+                            {
+                                <span class="payment-badge paid">Paid @(classItem.PaidAmount?.ToString("C") ?? "")</span>
+                            }
                             <button class="btn-cancel" @onclick="() => PromptCancel(classItem)">Cancel Booking</button>
                         </div>
                     }
@@ -207,7 +499,50 @@
         gap: 6px;
         font-size: 12px;
         color: var(--text-muted);
+    }
+
+    .class-tags {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
         margin-bottom: 14px;
+    }
+
+    .price-tag {
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        color: var(--accent-teal);
+        border: 1px solid rgba(14,240,255,0.35);
+        background: rgba(14,240,255,0.08);
+        border-radius: 999px;
+        padding: 2px 8px;
+    }
+
+    .capacity-tag {
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        color: var(--text-muted);
+        border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.05);
+        border-radius: 999px;
+        padding: 2px 8px;
+    }
+
+    .payment-badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 999px;
+        margin-bottom: 10px;
+    }
+
+    .payment-badge.paid {
+        background: rgba(14,240,255,0.15);
+        color: var(--accent-teal);
+        border: 1px solid rgba(14,240,255,0.4);
     }
 
     .btn-book {
@@ -234,6 +569,364 @@
         opacity: 0.6;
         cursor: not-allowed;
         box-shadow: none;
+    }
+
+    .btn-fully-booked {
+        width: 100%;
+        padding: 12px 14px;
+        background: rgba(255,255,255,0.04);
+        border: 2px solid rgba(255,255,255,0.12);
+        color: var(--text-muted);
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
+    /* ── Queue styles ── */
+    .queue-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 12px;
+    }
+
+    .queue-cost {
+        color: var(--accent-gold, #ffd700);
+        font-weight: 600;
+    }
+
+    .queue-count {
+        color: var(--text-muted);
+        font-style: italic;
+    }
+
+    .queue-badge {
+        text-align: center;
+        padding: 10px 14px;
+        background: rgba(255,215,0,0.12);
+        border: 1px solid rgba(255,215,0,0.35);
+        border-radius: 10px;
+        color: var(--accent-gold, #ffd700);
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.3px;
+    }
+
+    .btn-queue {
+        width: 100%;
+        padding: 12px 14px;
+        background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,165,0,0.08));
+        border: 2px solid rgba(255,215,0,0.4);
+        box-shadow: 0 0 20px rgba(255,215,0,0.15);
+        color: white;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .btn-queue:hover:not(:disabled) {
+        transform: translateY(-2px);
+        border-color: rgba(255,215,0,0.7);
+        box-shadow: 0 0 28px rgba(255,215,0,0.3);
+        background: linear-gradient(135deg, rgba(255,215,0,0.14), rgba(255,165,0,0.14));
+    }
+
+    .btn-queue:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    /* ── Notification Banner ── */
+    .error-banner {
+        background: linear-gradient(135deg, rgba(255,107,107,0.12), rgba(255,71,71,0.08));
+        border: 1px solid rgba(255,107,107,0.4);
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 24px rgba(255,107,107,0.15);
+        animation: bannerIn 0.4s ease;
+    }
+
+    .error-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+        font-weight: 700;
+        color: #ff6b6b;
+        margin-bottom: 8px;
+        letter-spacing: 0.2px;
+    }
+
+    .error-banner p {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    .btn-close-error {
+        background: transparent;
+        border: none;
+        color: #ff6b6b;
+        font-size: 24px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+
+    .btn-close-error:hover {
+        opacity: 1;
+    }
+
+    .notification-banner {
+        background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,165,0,0.06));
+        border: 1px solid rgba(255,215,0,0.35);
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 28px;
+        box-shadow: 0 0 24px rgba(255,215,0,0.1);
+        animation: bannerIn 0.4s ease;
+    }
+
+    @@keyframes bannerIn {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .notification-banner-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--accent-gold, #ffd700);
+        margin-bottom: 14px;
+        letter-spacing: 0.2px;
+    }
+
+    .notification-icon {
+        font-size: 20px;
+    }
+
+    .notification-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 14px;
+        background: rgba(255,215,0,0.06);
+        border: 1px solid rgba(255,215,0,0.18);
+        border-radius: 10px;
+        margin-top: 8px;
+    }
+
+    .notification-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .notification-info strong {
+        font-size: 15px;
+        color: var(--text-primary);
+    }
+
+    .notification-time {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .btn-book-now {
+        flex-shrink: 0;
+        padding: 9px 20px;
+        background: linear-gradient(135deg, rgba(255,215,0,0.18), rgba(255,165,0,0.18));
+        border: 2px solid rgba(255,215,0,0.55);
+        box-shadow: 0 0 16px rgba(255,215,0,0.2);
+        color: #fff;
+        border-radius: 9px;
+        font-weight: 700;
+        font-size: 13px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
+        white-space: nowrap;
+    }
+
+    .btn-book-now:hover:not(:disabled) {
+        transform: translateY(-2px);
+        border-color: rgba(255,215,0,0.85);
+        box-shadow: 0 0 26px rgba(255,215,0,0.35);
+        background: linear-gradient(135deg, rgba(255,215,0,0.26), rgba(255,165,0,0.26));
+    }
+
+    .btn-book-now:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .notification-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .btn-not-interested {
+        padding: 9px 16px;
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.15);
+        color: var(--text-muted);
+        border-radius: 9px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: color 0.2s, border-color 0.2s;
+        white-space: nowrap;
+    }
+
+    .btn-not-interested:hover:not(:disabled) {
+        color: var(--text-primary);
+        border-color: rgba(255,255,255,0.3);
+    }
+
+    .btn-not-interested:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .skip-counter {
+        margin-left: auto;
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(255,215,0,0.65);
+        background: rgba(255,215,0,0.08);
+        border: 1px solid rgba(255,215,0,0.2);
+        border-radius: 20px;
+        padding: 2px 10px;
+    }
+
+    .skip-counter-limit {
+        color: #ff6b6b;
+        background: rgba(255,107,107,0.1);
+        border-color: rgba(255,107,107,0.3);
+    }
+
+    .skip-limit-warning {
+        font-size: 12px;
+        color: #ff6b6b;
+        background: rgba(255,107,107,0.08);
+        border: 1px solid rgba(255,107,107,0.25);
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-bottom: 10px;
+    }
+
+    .queue-skip-warning {
+        font-size: 11px;
+        color: #ff6b6b;
+        margin-top: 6px;
+        text-align: center;
+    }
+
+    .queue-skip-caution {
+        color: #ffa94d;
+    }
+
+    /* ── Skip confirmation modal ── */
+    .skip-confirm-modal {
+        width: min(420px, 100%);
+        background:
+            radial-gradient(120% 140% at 10% 15%, rgba(16, 255, 224, 0.15), transparent 60%),
+            radial-gradient(120% 140% at 90% 20%, rgba(255, 71, 246, 0.13), transparent 55%),
+            rgba(18, 18, 28, 0.96);
+        border: 1px solid rgba(14,240,255,0.25);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow:
+            0 24px 64px rgba(0,0,0,0.45),
+            0 0 40px rgba(14,240,255,0.12);
+        text-align: center;
+    }
+
+    .skip-confirm-header-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .skip-confirm-icon {
+        font-size: 22px;
+        line-height: 1;
+    }
+
+    .skip-confirm-title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .skip-confirm-body {
+        font-size: 14px;
+        color: var(--text-muted);
+        line-height: 1.6;
+        margin: 0 0 20px;
+        text-align: left;
+    }
+
+    .skip-confirm-body strong {
+        color: var(--text-primary);
+    }
+
+    .skip-confirm-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 4px;
+    }
+
+    .btn-skip-confirm {
+        flex: 1;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, rgba(14,240,255,0.2), rgba(255,77,250,0.2));
+        border: 2px solid rgba(14,240,255,0.5);
+        box-shadow: 0 0 24px rgba(14,240,255,0.2);
+        border-radius: 12px;
+        color: white;
+        font-weight: 700;
+        font-size: 15px;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn-skip-confirm:hover {
+        transform: translateY(-2px);
+        border-color: rgba(14,240,255,0.8);
+        box-shadow: 0 0 36px rgba(14,240,255,0.35);
+    }
+
+    .btn-skip-cancel {
+        flex: 1;
+        padding: 14px 20px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: var(--text-primary);
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    .btn-skip-cancel:hover {
+        background: rgba(255,255,255,0.1);
+        border-color: rgba(255,255,255,0.3);
     }
 
     .btn-cancel {
@@ -367,6 +1060,245 @@
     .btn-danger:hover {
         opacity: 0.9;
     }
+
+    /* ── Payment Modal ── */
+    .payment-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 6, 10, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 3000;
+        padding: 16px;
+        backdrop-filter: blur(4px);
+    }
+
+    .payment-card {
+        width: min(500px, 100%);
+        background:
+            radial-gradient(120% 140% at 10% 15%, rgba(16, 255, 224, 0.15), transparent 60%),
+            radial-gradient(120% 140% at 90% 20%, rgba(255, 71, 246, 0.13), transparent 55%),
+            rgba(18, 18, 28, 0.96);
+        border: 1px solid rgba(14,240,255,0.25);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow:
+            0 24px 64px rgba(0,0,0,0.45),
+            0 0 40px rgba(14,240,255,0.12);
+    }
+
+    .payment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+
+    .payment-header h3 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .btn-close-modal {
+        background: transparent;
+        border: none;
+        font-size: 20px;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 4px 8px;
+        line-height: 1;
+        border-radius: 6px;
+        transition: color 0.2s, background 0.2s;
+    }
+
+    .btn-close-modal:hover {
+        color: var(--text-primary);
+        background: rgba(255,255,255,0.08);
+    }
+
+    .payment-class-name {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+
+    .payment-amount {
+        font-size: 32px;
+        font-weight: 800;
+        color: var(--accent-teal);
+        margin: 0 0 20px 0;
+        letter-spacing: -0.5px;
+    }
+
+    .payment-divider {
+        border: none;
+        border-top: 1px solid var(--glass-border);
+        margin: 0 0 20px 0;
+    }
+
+    .payment-error {
+        background: rgba(255,47,180,0.12);
+        border: 1px solid rgba(255,47,180,0.4);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        color: #ff6eb0;
+        font-size: 14px;
+    }
+
+    .payment-element-container {
+        margin-bottom: 20px;
+        min-height: 200px;
+    }
+
+    .payment-element-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 200px;
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    .payment-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 4px;
+    }
+
+    .btn-pay {
+        flex: 1;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, rgba(14,240,255,0.2), rgba(255,77,250,0.2));
+        border: 2px solid rgba(14,240,255,0.5);
+        box-shadow: 0 0 24px rgba(14,240,255,0.2);
+        border-radius: 12px;
+        color: white;
+        font-weight: 700;
+        font-size: 15px;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn-pay:hover:not(:disabled) {
+        transform: translateY(-2px);
+        border-color: rgba(14,240,255,0.8);
+        box-shadow: 0 0 36px rgba(14,240,255,0.35);
+    }
+
+    .btn-pay:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .payment-notice {
+        margin: 16px 0 0 0;
+        font-size: 11px;
+        color: var(--text-muted);
+        text-align: center;
+        line-height: 1.5;
+    }
+
+    /* ── Expand / Detail Panel ── */
+    .class-expand-btn {
+        width: 52.13334px;
+        margin-right: 41px;
+        padding: 6px 0;
+        background: rgba(255,255,255,0.04);
+        border: 1px dashed rgba(255,255,255,0.15);
+        border-radius: 8px;
+        color: var(--text-muted);
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s, color 0.2s;
+        margin-bottom: 12px;
+        line-height: 1;
+    }
+
+    .class-expand-btn:hover {
+        background: rgba(14,240,255,0.08);
+        border-color: rgba(14,240,255,0.35);
+        color: var(--accent-teal);
+    }
+
+    .class-details {
+        background: rgba(0,0,0,0.2);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 14px;
+        animation: detailSlideIn 0.25s ease;
+    }
+
+    @@keyframes detailSlideIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+    }
+
+    .detail-row + .detail-row {
+        border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .detail-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+
+    .detail-value {
+        font-size: 12px;
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .capacity-bar {
+        width: 100%;
+        height: 6px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 4px 0 6px;
+    }
+
+    .capacity-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent-teal), var(--accent-magenta));
+        border-radius: 3px;
+        transition: width 0.4s ease;
+    }
+
+    .checkin-link {
+        display: block;
+        text-align: center;
+        margin-top: 10px;
+        padding: 8px 14px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent-teal);
+        border: 1px solid rgba(14,240,255,0.3);
+        border-radius: 8px;
+        background: rgba(14,240,255,0.06);
+        text-decoration: none;
+        transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .checkin-link:hover {
+        background: rgba(14,240,255,0.12);
+        border-color: rgba(14,240,255,0.55);
+        box-shadow: 0 0 14px rgba(14,240,255,0.15);
+    }
 </style>
 
 @if (_showCancelConfirm && _pendingCancel != null)
@@ -376,8 +1308,12 @@
             <h3 class="confirm-title">Cancel booking?</h3>
             <p class="confirm-text">
                 Are you sure you want to cancel <strong>@_pendingCancel.Modality</strong>
-                on @_pendingCancel.ScheduledAt.ToString("ddd, MMM dd 'at' HH:mm")?
-            
+                on @_pendingCancel.ScheduledAt.ToLocalTime().ToString("ddd, MMM dd 'at' HH:mm")?
+                @if (_pendingCancel.PaymentStatus == "Completed" && _pendingCancel.PaidAmount.HasValue)
+                {
+                    <br /><br />
+                    <span>You will receive an <strong>85% refund</strong> of @((_pendingCancel.PaidAmount.Value * 0.85m).ToString("C")) back to your original payment method.</span>
+                }
             </p>
             <div class="confirm-actions">
                 <button class="btn-secondary" @onclick="CloseCancelConfirm">Keep Booking</button>
@@ -385,6 +1321,114 @@
                     @(_isCanceling ? "Canceling..." : "Cancel Booking")
                 </button>
             </div>
+        </div>
+    </div>
+}
+
+@if (_showPaymentModal && _paymentScheduleId.HasValue)
+{
+    <div class="payment-overlay" @onclick="ClosePaymentModal">
+        <div class="payment-card" @onclick:stopPropagation="true">
+            <div class="payment-header">
+                <h3>Complete Your Booking</h3>
+                <button class="btn-close-modal" @onclick="ClosePaymentModal">&#x2715;</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_paymentClassName))
+            {
+                <p class="payment-class-name">@_paymentClassName</p>
+            }
+
+            @if (_paymentAmount.HasValue)
+            {
+                <p class="payment-amount">@_paymentAmount.Value.ToString("C")</p>
+            }
+
+            <hr class="payment-divider" />
+
+            @if (!string.IsNullOrWhiteSpace(_paymentError))
+            {
+                <div class="payment-error">@_paymentError</div>
+            }
+
+            <div class="payment-element-container">
+                @if (!_paymentElementMounted)
+                {
+                    <div class="payment-element-loading">Loading payment form...</div>
+                }
+                <div id="payment-element-@_paymentScheduleId"></div>
+            </div>
+
+            <div class="payment-actions">
+                <button class="btn-secondary" @onclick="ClosePaymentModal" style="flex:0 0 auto; width:110px;">Cancel</button>
+                <button
+                    class="btn-pay"
+                    @onclick="ConfirmPayment"
+                    disabled="@(!_paymentElementMounted || _isProcessingPayment)">
+                    @(_isProcessingPayment ? "Processing..." : $"Pay & Book")
+                </button>
+            </div>
+
+            <p class="payment-notice">
+                Secured by Stripe. By completing payment you agree to our booking policy.<br />
+                Cancellations receive an 85% refund.
+            </p>
+        </div>
+    </div>
+}
+
+@* ── Queue Deposit Payment Modal ── *@
+@if (_showQueuePaymentModal && _queuePaymentScheduleId.HasValue)
+{
+    <div class="payment-overlay" @onclick="CloseQueuePaymentModal">
+        <div class="payment-card" @onclick:stopPropagation="true">
+            <div class="payment-header">
+                <h3>Queue Deposit</h3>
+                <button class="btn-close-modal" @onclick="CloseQueuePaymentModal">&#x2715;</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_queuePaymentClassName))
+            {
+                <p class="payment-class-name">@_queuePaymentClassName</p>
+            }
+
+            @if (_queuePaymentAmount.HasValue)
+            {
+                <p class="payment-amount">@_queuePaymentAmount.Value.ToString("C")</p>
+            }
+
+            <p class="payment-class-name" style="margin-top: -14px;">
+                5% deposit to reserve your spot. The remainder is due after the trainer confirms the room.
+            </p>
+
+            <hr class="payment-divider" />
+
+            @if (!string.IsNullOrWhiteSpace(_queuePaymentError))
+            {
+                <div class="payment-error">@_queuePaymentError</div>
+            }
+
+            <div class="payment-element-container">
+                @if (!_queuePaymentElementMounted)
+                {
+                    <div class="payment-element-loading">Loading payment form...</div>
+                }
+                <div id="queue-payment-element-@_queuePaymentScheduleId"></div>
+            </div>
+
+            <div class="payment-actions">
+                <button class="btn-secondary" @onclick="CloseQueuePaymentModal" style="flex:0 0 auto; width:110px;">Cancel</button>
+                <button
+                    class="btn-pay"
+                    @onclick="ConfirmQueuePayment"
+                    disabled="@(!_queuePaymentElementMounted || _isProcessingQueuePayment)">
+                    @(_isProcessingQueuePayment ? "Processing..." : "Pay Deposit & Join Queue")
+                </button>
+            </div>
+
+            <p class="payment-notice">
+                Secured by Stripe. This 5% deposit reserves your spot in the queue.
+            </p>
         </div>
     </div>
 }
@@ -400,8 +1444,48 @@
 
     private int? _currentUserId;
 
+    // ── Queue state ──
+    private List<ApiClient.UserQueueEntry> _userQueueEntries = new();
+    private HashSet<int> _queuedClassIds = new();
+    private HashSet<int> _enrolledScheduleIds = new();
+    private bool _isJoiningQueue;
+    private int _monthlySkipCount = 0;
+    private int? _skipConfirmScheduleId;
+
+    // ── Expand details state ──
+    private HashSet<int> _expandedClassIds = new();
+
+    // ── Queue payment state ──
+    private int? _queuePaymentScheduleId;
+    private string? _queuePaymentClientSecret;
+    private decimal? _queuePaymentAmount;
+    private string? _queuePaymentClassName;
+    private bool _queuePaymentElementMounted;
+    private bool _isMountingQueuePayment;
+    private bool _showQueuePaymentModal;
+    private string? _queuePaymentError;
+    private bool _isProcessingQueuePayment;
+
+    // ── User membership state ──
+    private bool _hasActiveMembership;
+
+    // ── Stripe payment state ──
+    private int? _paymentScheduleId;
+    private string? _paymentClientSecret;
+    private decimal? _paymentAmount;
+    private string? _paymentClassName;
+    private bool _paymentElementMounted;
+    private bool _isMountingPayment;
+    private bool _showPaymentModal;
+    private string? _paymentError;
+    private bool _isProcessingPayment;
+    private bool _isInitiatingPayment;
+    private DateTime _nowUtc = DateTime.UtcNow;
+
     protected override async Task OnInitializedAsync()
     {
+        await RefreshNowAsync();
+
         _currentUserId = await ResolveCurrentUserIdAsync();
         if (_currentUserId is null)
         {
@@ -409,7 +1493,100 @@
             return;
         }
 
+        // Check user membership status
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _hasActiveMembership = user.HasClaim("membership", "active");
+
         await LoadClasses();
+    }
+
+    private async Task RefreshNowAsync()
+    {
+        try
+        {
+            var serverTime = await Api.GetDevTime();
+            _nowUtc = serverTime?.CurrentTime ?? DateTime.UtcNow;
+        }
+        catch
+        {
+            _nowUtc = DateTime.UtcNow;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Mount Stripe for class booking payment
+        if (!_isMountingPayment && !_paymentElementMounted
+            && _showPaymentModal
+            && !string.IsNullOrWhiteSpace(_paymentClientSecret)
+            && _paymentScheduleId is not null)
+        {
+            _isMountingPayment = true;
+            _paymentElementMounted = true;
+
+            try
+            {
+                var error = await JS.InvokeAsync<string?>(
+                    "fitplayStripe.mount",
+                    _paymentClientSecret,
+                    $"#payment-element-{_paymentScheduleId}");
+
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    _paymentElementMounted = false;
+                    _paymentError = error;
+                }
+
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                _paymentElementMounted = false;
+                _paymentError = $"Failed to load payment form: {ex.Message}";
+                StateHasChanged();
+            }
+            finally
+            {
+                _isMountingPayment = false;
+            }
+        }
+
+        // Mount Stripe for queue deposit payment
+        if (!_isMountingQueuePayment && !_queuePaymentElementMounted
+            && _showQueuePaymentModal
+            && !string.IsNullOrWhiteSpace(_queuePaymentClientSecret)
+            && _queuePaymentScheduleId is not null)
+        {
+            _isMountingQueuePayment = true;
+            _queuePaymentElementMounted = true;
+
+            try
+            {
+                var error = await JS.InvokeAsync<string?>(
+                    "fitplayStripe.mount",
+                    _queuePaymentClientSecret,
+                    $"#queue-payment-element-{_queuePaymentScheduleId}");
+
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    _queuePaymentElementMounted = false;
+                    _queuePaymentError = error;
+                }
+
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                _queuePaymentElementMounted = false;
+                _queuePaymentError = $"Failed to load payment form: {ex.Message}";
+                StateHasChanged();
+            }
+            finally
+            {
+                _isMountingQueuePayment = false;
+            }
+        }
     }
 
     private async Task LoadClasses()
@@ -424,7 +1601,32 @@
         try
         {
             _publicClasses = await Api.GetPublicClassSchedules();
-            _userClasses = await Api.GetUserSchedule(_currentUserId.Value);
+            Console.WriteLine($"[BookClass] Loaded {_publicClasses.Count} public classes");
+            
+            var allUserClasses = await Api.GetUserSchedule(_currentUserId.Value);
+            _userClasses = allUserClasses
+                .Where(c => string.Equals(c.Status, "Scheduled", StringComparison.OrdinalIgnoreCase)
+                    && (c.DurationMinutes.HasValue
+                        ? c.ScheduledAt.AddMinutes(c.DurationMinutes.Value)
+                        : c.ScheduledAt) > DateTime.UtcNow)
+                .ToList();
+            Console.WriteLine($"[BookClass] User has {_userClasses.Count} booked classes");
+
+            // Build HashSet of enrolled schedule IDs
+            _enrolledScheduleIds = new HashSet<int>(_userClasses.Select(c => c.Id));
+            Console.WriteLine($"[BookClass] Enrolled IDs: {string.Join(", ", _enrolledScheduleIds)}");
+
+            // Filter out already-booked classes from public list
+            var beforeFilterCount = _publicClasses.Count;
+            _publicClasses = _publicClasses
+                .Where(c => !_enrolledScheduleIds.Contains(c.Id))
+                .ToList();
+            Console.WriteLine($"[BookClass] Filtered public classes: {beforeFilterCount} -> {_publicClasses.Count} (removed {beforeFilterCount - _publicClasses.Count})");
+
+            // Fetch which classes the user is already queued for (includes IsNotified)
+            _userQueueEntries = await Api.GetUserQueueEntries(_currentUserId.Value);
+            _queuedClassIds = new HashSet<int>(_userQueueEntries.Select(e => e.ClassScheduleId));
+            _monthlySkipCount = await Api.GetMonthlySkipCount(_currentUserId.Value);
         }
         catch (Exception ex)
         {
@@ -438,15 +1640,47 @@
 
     private async Task bookClass(int scheduleId)
     {
+        Console.WriteLine($"bookClass called for scheduleId: {scheduleId}");
+        
         if (_currentUserId is null)
         {
+            Console.WriteLine("ERROR: _currentUserId is null");
             return;
         }
 
+        Console.WriteLine($"_currentUserId: {_currentUserId}");
+
+        var classItem = _publicClasses.FirstOrDefault(c => c.Id == scheduleId);
+        if (classItem == null)
+        {
+            Console.WriteLine($"ERROR: No class found with scheduleId: {scheduleId}");
+            return;
+        }
+
+        Console.WriteLine($"Found class: {classItem.Modality}, Notes: {classItem.Notes}");
+
+        var price = TryExtractPricePerStudent(classItem.Notes);
+        Console.WriteLine($"Extracted price: {price}");
+
+        // Free class — book directly without payment
+        if (!price.HasValue || price.Value == 0)
+        {
+            Console.WriteLine("Booking as free class");
+            await BookFreeClass(scheduleId);
+            return;
+        }
+
+        // Paid class — open Stripe payment modal
+        Console.WriteLine($"Initiating payment for ${price.Value}");
+        await InitiatePayment(scheduleId, classItem.Modality, price.Value);
+    }
+
+    private async Task BookFreeClass(int scheduleId)
+    {
         isBooking = true;
         try
         {
-            await Api.BookClass(scheduleId, _currentUserId.Value);
+            await Api.BookClass(scheduleId, _currentUserId!.Value);
             await LoadClasses();
         }
         catch (Exception ex)
@@ -458,6 +1692,243 @@
             isBooking = false;
         }
     }
+
+    // ── Stripe Payment Flow ──
+
+    private async Task InitiatePayment(int scheduleId, string className, decimal price)
+    {
+        Console.WriteLine($"InitiatePayment called: scheduleId={scheduleId}, className={className}, price={price}");
+        
+        _isInitiatingPayment = true;
+        _paymentError = null;
+
+        try
+        {
+            Console.WriteLine($"Calling CreateClassBookingPaymentIntent for user {_currentUserId}");
+            var response = await Api.CreateClassBookingPaymentIntent(scheduleId, _currentUserId!.Value);
+            _paymentClientSecret = response?.ClientSecret;
+
+            Console.WriteLine($"Payment intent response: ClientSecret={(response?.ClientSecret != null ? "exists" : "null")}, Amount={response?.Amount}");
+
+            if (string.IsNullOrWhiteSpace(_paymentClientSecret))
+            {
+                _paymentError = "Failed to initialize payment.";
+                Console.WriteLine("ERROR: Payment client secret is null or empty");
+                return;
+            }
+
+            _paymentScheduleId = scheduleId;
+            _paymentAmount = response!.Amount;
+            _paymentClassName = className;
+            _paymentElementMounted = false;
+            _showPaymentModal = true;
+            
+            Console.WriteLine($"Payment modal state set: _showPaymentModal={_showPaymentModal}");
+            
+            await InvokeAsync(StateHasChanged);
+            Console.WriteLine("StateHasChanged invoked");
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Failed to initialize payment: {ex.Message}";
+            Console.WriteLine($"ERROR in InitiatePayment: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+        finally
+        {
+            _isInitiatingPayment = false;
+        }
+    }
+
+    private async Task ConfirmPayment()
+    {
+        if (string.IsNullOrWhiteSpace(_paymentClientSecret) || _paymentScheduleId is null || _currentUserId is null)
+        {
+            _paymentError = "Payment not initialized.";
+            return;
+        }
+
+        _isProcessingPayment = true;
+        _paymentError = null;
+
+        try
+        {
+            var returnUrl = Navigation.ToAbsoluteUri("/user/book-class").ToString();
+            var stripeError = await JS.InvokeAsync<string?>("fitplayStripe.confirm", returnUrl);
+
+            if (!string.IsNullOrWhiteSpace(stripeError))
+            {
+                _paymentError = stripeError;
+                return;
+            }
+
+            // Extract PI id from client secret (format: pi_xxx_secret_yyy → pi_xxx)
+            var paymentIntentId = _paymentClientSecret.Split("_secret_")[0];
+
+            await Api.ConfirmClassBookingPayment(_paymentScheduleId.Value, _currentUserId.Value, paymentIntentId);
+
+            // Reset payment state and reload
+            ClosePaymentModal();
+            await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            _paymentError = $"Payment failed: {ex.Message}";
+        }
+        finally
+        {
+            _isProcessingPayment = false;
+        }
+    }
+
+    private void ClosePaymentModal()
+    {
+        _showPaymentModal = false;
+        _paymentScheduleId = null;
+        _paymentClientSecret = null;
+        _paymentAmount = null;
+        _paymentClassName = null;
+        _paymentElementMounted = false;
+        _isMountingPayment = false;
+        _paymentError = null;
+        _isProcessingPayment = false;
+    }
+
+    // ── Queue Flow ──
+
+    private async Task JoinQueue(int scheduleId, string className, string? notes)
+    {
+        if (_currentUserId is null) return;
+
+        _isJoiningQueue = true;
+        try
+        {
+            var response = await Api.JoinClassQueue(scheduleId, _currentUserId.Value);
+
+            if (response is null)
+            {
+                Console.WriteLine("Failed to join queue.");
+                return;
+            }
+
+            if (response.HasMembership && response.QueueCost == 0)
+            {
+                // Member within skip limit — joins for free
+                _queuedClassIds.Add(scheduleId);
+                _monthlySkipCount = response.MonthlySkipCount;
+                await LoadClasses();
+            }
+            else if (!string.IsNullOrWhiteSpace(response.ClientSecret))
+            {
+                // Payment required: non-member OR member who exceeded skip limit (5% deposit)
+                _queuePaymentScheduleId = scheduleId;
+                _queuePaymentClientSecret = response.ClientSecret;
+                _queuePaymentAmount = response.QueueCost;
+                _queuePaymentClassName = className;
+                _queuePaymentElementMounted = false;
+                _showQueuePaymentModal = true;
+                _monthlySkipCount = response.MonthlySkipCount;
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                // No payment needed (free class), mark queued
+                _queuedClassIds.Add(scheduleId);
+                _monthlySkipCount = response.MonthlySkipCount;
+                await LoadClasses();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error joining queue: {ex.Message}");
+        }
+        finally
+        {
+            _isJoiningQueue = false;
+        }
+    }
+
+    private void OpenSkipConfirm(int scheduleId)
+    {
+        _skipConfirmScheduleId = scheduleId;
+    }
+
+    private void CancelSkipConfirm()
+    {
+        _skipConfirmScheduleId = null;
+    }
+
+    private async Task DismissQueueNotification()
+    {
+        if (_currentUserId is null || _skipConfirmScheduleId is null) return;
+        var scheduleId = _skipConfirmScheduleId.Value;
+        _skipConfirmScheduleId = null;
+        try
+        {
+            await Api.SkipQueueEntry(scheduleId, _currentUserId.Value);
+            await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error dismissing queue notification: {ex.Message}");
+        }
+    }
+
+    private async Task ConfirmQueuePayment()    {
+        if (string.IsNullOrWhiteSpace(_queuePaymentClientSecret) || _queuePaymentScheduleId is null)
+        {
+            _queuePaymentError = "Payment not initialized.";
+            return;
+        }
+
+        _isProcessingQueuePayment = true;
+        _queuePaymentError = null;
+
+        try
+        {
+            var returnUrl = Navigation.ToAbsoluteUri("/user/book-class").ToString();
+            var stripeError = await JS.InvokeAsync<string?>("fitplayStripe.confirm", returnUrl);
+
+            if (!string.IsNullOrWhiteSpace(stripeError))
+            {
+                _queuePaymentError = stripeError;
+                return;
+            }
+
+            // Extract PI id from client secret
+            var paymentIntentId = _queuePaymentClientSecret.Split("_secret_")[0];
+
+            await Api.ConfirmQueuePayment(_queuePaymentScheduleId.Value, paymentIntentId);
+
+            _queuedClassIds.Add(_queuePaymentScheduleId.Value);
+
+            CloseQueuePaymentModal();
+            await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            _queuePaymentError = $"Payment failed: {ex.Message}";
+        }
+        finally
+        {
+            _isProcessingQueuePayment = false;
+        }
+    }
+
+    private void CloseQueuePaymentModal()
+    {
+        _showQueuePaymentModal = false;
+        _queuePaymentScheduleId = null;
+        _queuePaymentClientSecret = null;
+        _queuePaymentAmount = null;
+        _queuePaymentClassName = null;
+        _queuePaymentElementMounted = false;
+        _isMountingQueuePayment = false;
+        _queuePaymentError = null;
+        _isProcessingQueuePayment = false;
+    }
+
+    // ── Cancel / Unbook ──
 
     private void PromptCancel(ApiClient.ClassSchedule classItem)
     {
@@ -473,17 +1944,15 @@
 
     private async Task ConfirmCancelBooking()
     {
-        if (_pendingCancel is null || _currentUserId is null)
-        {
-            return;
-        }
+        if (_pendingCancel == null || _currentUserId == null) return;
 
         _isCanceling = true;
         try
         {
-            await Api.UnbookClass(_pendingCancel.Id);
+            await Api.UnbookClass(_pendingCancel.Id, _currentUserId.Value);
             await LoadClasses();
-            CloseCancelConfirm();
+            _showCancelConfirm = false;
+            _pendingCancel = null;
         }
         catch (Exception ex)
         {
@@ -545,6 +2014,56 @@
         return "Limited slots";
     }
 
+    private static string GetPriceLabel(string? notes)
+    {
+        var price = TryExtractPricePerStudent(notes);
+        return price.HasValue
+            ? $"{price.Value.ToString("C")}/student"
+            : "Free";
+    }
+
+    private string GetQueueCostLabel(string? notes)
+    {
+        if (_hasActiveMembership)
+        {
+            return "Free for members";
+        }
+        else
+        {
+            // Non-members pay 5% of class cost
+            var price = TryExtractPricePerStudent(notes);
+            if (price.HasValue)
+            {
+                var queueCost = price.Value * 0.05m;
+                return $"{queueCost:C} queue cost (5% of class price)";
+            }
+            return "5% queue cost";
+        }
+    }
+
+    private static decimal? TryExtractPricePerStudent(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes)) return null;
+
+        var parts = notes.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            const string marker = "PricePerStudent=";
+            if (!part.StartsWith(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var raw = part[marker.Length..].Trim();
+            if (decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) && parsed > 0)
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
     private static string GetClassMeta(ApiClient.ClassScheduleWithTrainer classItem)
     {
         if (!string.IsNullOrWhiteSpace(classItem.TrainerName))
@@ -552,5 +2071,88 @@
             return $"Coach: {classItem.TrainerName}";
         }
         return "Coach: TBA";
+    }
+
+    private static string? FormatDuration(double? durationMinutes)
+    {
+        if (!durationMinutes.HasValue || durationMinutes.Value <= 0)
+        {
+            return null;
+        }
+
+        var minutes = (int)Math.Round(durationMinutes.Value);
+        var hours = minutes / 60;
+        var remainingMinutes = minutes % 60;
+
+        if (hours > 0 && remainingMinutes > 0)
+        {
+            return $"{hours}h {remainingMinutes}min";
+        }
+        else if (hours > 0)
+        {
+            return $"{hours}h";
+        }
+        else
+        {
+            return $"{remainingMinutes}min";
+        }
+    }
+
+    private static string FormatFullLocation(string? name, string? address, string? city, string? state, string? zipCode)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            parts.Add(name);
+        }
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            parts.Add(address);
+        }
+
+        var cityStateZipParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            cityStateZipParts.Add(city);
+        }
+        if (!string.IsNullOrWhiteSpace(state))
+        {
+            cityStateZipParts.Add(state);
+        }
+
+        var cityStatePart = string.Join(", ", cityStateZipParts);
+        if (!string.IsNullOrWhiteSpace(zipCode))
+        {
+            cityStatePart = string.IsNullOrWhiteSpace(cityStatePart)
+                ? zipCode
+                : $"{cityStatePart} {zipCode}";
+        }
+        if (!string.IsNullOrWhiteSpace(cityStatePart))
+        {
+            parts.Add(cityStatePart);
+        }
+
+        return parts.Count > 0 ? string.Join(",", parts) : "N/A";
+    }
+
+    private void ToggleClassDetails(int classId)
+    {
+        if (!_expandedClassIds.Remove(classId))
+        {
+            _expandedClassIds.Add(classId);
+        }
+    }
+
+    private static int GetCapacityPercent(int? booked, int? max)
+    {
+        if (!max.HasValue || max.Value <= 0 || !booked.HasValue) return 0;
+        return (int)Math.Round((double)booked.Value / max.Value * 100);
+    }
+
+    private static string FormatCapacity(int? booked, int? max)
+    {
+        if (!max.HasValue) return "N/A";
+        return $"{booked ?? 0}/{max.Value} clients";
     }
 }
