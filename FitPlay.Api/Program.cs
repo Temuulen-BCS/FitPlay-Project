@@ -156,23 +156,6 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();   
 app.UseAuthorization();    
 
-app.MapGet("/weatherforecast", () =>
-{
-    var summaries = new[]
-    {
-        "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm",
-        "Balmy", "Hot", "Sweltering", "Scorching"
-    };
-
-    return Enumerable.Range(1, 5).Select(index =>
-        new
-        {
-            Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            TemperatureC = Random.Shared.Next(-20, 55),
-            Summary = summaries[Random.Shared.Next(summaries.Length)]
-        });
-});
-
 app.MapControllers();
 
 // Backfill Teacher.IdentityUserId for records missing the link
