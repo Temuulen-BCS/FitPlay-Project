@@ -1,0 +1,240 @@
+name: Build, Test, Deploy & Review
+
+# ─────────────────────────────────────────────
+# TRIGGERS
+# ─────────────────────────────────────────────
+on:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+      - 'fix/**'
+      - 'hotfix/**'
+  pull_request:
+    branches:
+      - master
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# ─────────────────────────────────────────────
+# REQUIRED GITHUB SECRETS (Settings → Secrets → Actions):
+#
+#   RAILWAY_TOKEN          — Railway API token (deploy API service)
+#   RAILWAY_SERVICE_API    — Railway service ID for FitPlay.Api
+#   RAILWAY_SERVICE_BLAZOR — Railway service ID for FitPlay-Blazor
+#   JWT_KEY                — JWT signing key (injected into appsettings at runtime)
+#   STRIPE_SECRET_KEY      — Stripe server-side secret key
+#   STRIPE_PUBLISHABLE_KEY — Stripe publishable key
+#   STRIPE_WEBHOOK_SECRET  — Stripe webhook signing secret
+#   STRIPE_PRICE_ID        — Stripe price ID for subscriptions
+# ─────────────────────────────────────────────
+
+jobs:
+
+  # ───────────────────────────────────────────
+  # JOB 1 — BRANCH NAME ENFORCEMENT
+  # Runs on every push; rejects branches that
+  # don't follow the naming convention.
+  # ───────────────────────────────────────────
+  branch-check:
+    name: Branch Name Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Validate branch name
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "Branch: $BRANCH"
+          # Allow: master, feature/*, fix/*, hotfix/*, release/*
+          if [[ "$BRANCH" =~ ^(master|feature/.+|fix/.+|hotfix/.+|release/.+)$ ]]; then
+            echo "Branch name is valid."
+          else
+            echo "ERROR: Branch '$BRANCH' does not follow the naming convention."
+            echo "Allowed patterns: master | feature/<name> | fix/<name> | hotfix/<name> | release/<name>"
+            exit 1
+          fi
+
+  # ───────────────────────────────────────────
+  # JOB 2 — BUILD & TEST
+  # Builds all .NET projects and runs tests.
+  # Skips draft PRs.
+  # ───────────────────────────────────────────
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore dependencies
+        run: |
+          dotnet restore FitPlay.Domain/FitPlay.Domain.csproj
+          dotnet restore FitPlay.Api/FitPlay.Api.csproj
+          dotnet restore FitPlay-Blazor/FitPlay-Blazor.csproj
+          dotnet restore FitPlay.tests/FitPlay.tests.csproj
+
+      - name: Build
+        run: |
+          dotnet build FitPlay.Domain/FitPlay.Domain.csproj   --configuration Release --no-restore
+          dotnet build FitPlay.Api/FitPlay.Api.csproj         --configuration Release --no-restore
+          dotnet build FitPlay-Blazor/FitPlay-Blazor.csproj   --configuration Release --no-restore
+          dotnet build FitPlay.tests/FitPlay.tests.csproj     --configuration Release --no-restore
+
+      - name: Test
+        run: |
+          dotnet test FitPlay.tests/FitPlay.tests.csproj \
+            --no-build \
+            --configuration Release \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: ./coverage
+
+  # ───────────────────────────────────────────
+  # JOB 3 — DOCKER BUILD CHECK
+  # Verifies both Dockerfiles build successfully
+  # without pushing to a registry.
+  # ───────────────────────────────────────────
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build API Docker image
+        run: |
+          docker build \
+            -f FitPlay.Api/Dockerfile \
+            -t fitplay-api:pr-${{ github.event.pull_request.number }} \
+            .
+
+      - name: Build Blazor Docker image
+        run: |
+          docker build \
+            -f FitPlay-Blazor/Dockerfile \
+            -t fitplay-blazor:pr-${{ github.event.pull_request.number }} \
+            .
+
+  # ───────────────────────────────────────────
+  # JOB 4 — CODE REVIEW AUTOMATION
+  # Adds labels and requests reviewers on PRs.
+  # ───────────────────────────────────────────
+  code-review:
+    name: Code Review Setup
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Label PR by changed paths
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+        continue-on-error: true
+
+      - name: Add PR size label
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_max_size: 10
+          s_max_size: 50
+          m_max_size: 200
+          l_max_size: 500
+          fail_if_xl: false
+        continue-on-error: true
+
+      - name: Comment build status on PR
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const status = '${{ needs.build-and-test.result }}' === 'success'
+              ? '✅ Build & tests passed — ready for review.'
+              : '❌ Build or tests failed — please fix before review.';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### CI Status\n${status}`
+            });
+
+  # ───────────────────────────────────────────
+  # JOB 5 — DEPLOY TO RAILWAY
+  # Only runs on push to master after all checks
+  # pass. Deploys API and Blazor independently.
+  # ───────────────────────────────────────────
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy API service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway up \
+            --service ${{ secrets.RAILWAY_SERVICE_API }} \
+            --detach
+
+      - name: Deploy Blazor service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway up \
+            --service ${{ secrets.RAILWAY_SERVICE_BLAZOR }} \
+            --detach
+
+      - name: Notify deployment success
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'success',
+              description: 'Deployed to Railway (production)',
+              context: 'deployment/railway'
+            });
