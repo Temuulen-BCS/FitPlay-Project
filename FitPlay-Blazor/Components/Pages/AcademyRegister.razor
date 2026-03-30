@@ -165,14 +165,15 @@
 
         if (UserManager.Options.SignIn.RequireConfirmedAccount)
         {
-            RedirectManager.RedirectTo(
+            var confirmUrl = NavigationManager.GetUriWithQueryParameters(
                 "Account/RegisterConfirmation",
-                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+                new Dictionary<string, object?> { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+            NavigationManager.NavigateTo(confirmUrl, forceLoad: true);
             return;
         }
 
         await SignInManager.SignInAsync(user, isPersistent: false);
-        RedirectManager.RedirectTo(ReturnUrl ?? "/gym/dashboard");
+        NavigationManager.NavigateTo(ReturnUrl ?? "/gym/dashboard", forceLoad: true);
     }
 
     private ApplicationUser CreateUser()
