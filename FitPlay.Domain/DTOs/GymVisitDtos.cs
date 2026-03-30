@@ -54,6 +54,17 @@ public record CheckInEligibilityDto(
     string? PastClassTitle = null
 );
 
+public record PastClassDto(
+    string Title,
+    DateTime ClassStartTime,
+    DateTime ClassEndTime,
+    DateTime? CheckInTime,
+    DateTime? CheckOutTime,
+    int? DurationMinutes,
+    string BookingSource,
+    string? RoomName
+);
+
 public record ActiveVisitDetailDto(
     int VisitId,
     string UserId,

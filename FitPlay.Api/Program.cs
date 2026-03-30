@@ -82,6 +82,7 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<FitPlay.Domain.Services.IGymVisitService, FitPlay.Domain.Services.GymVisitService>();
 builder.Services.AddScoped<FitPlay.Domain.Services.ClassQueueService>();
 builder.Services.AddScoped<FitPlay.Domain.Services.ITrainerNotificationService, FitPlay.Domain.Services.TrainerNotificationService>();
+builder.Services.AddHostedService<ClassStatusAutoCompleteService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()

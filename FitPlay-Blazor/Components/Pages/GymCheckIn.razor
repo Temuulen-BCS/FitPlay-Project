@@ -104,87 +104,123 @@
 
                     <div class="gym-locations">
                         <h3>Available Gyms</h3>
-                        @if (nearbyGyms.Any())
+                        @{
+                            var eligibleGyms = nearbyGyms
+                                .Where(g =>
+                                {
+                                    var eligibility = gymEnrollmentStatus.TryGetValue(g.Id, out var elig) ? elig : null;
+                                    return eligibility?.HasEnrollment == true || eligibility?.HasPastClass == true;
+                                })
+                                .ToList();
+                        }
+                        @if (eligibleGyms.Any())
                         {
-                            foreach (var gym in nearbyGyms)
+                            foreach (var gym in eligibleGyms)
                             {
                                 var distance = CalculateDistance(userLocation.Latitude, userLocation.Longitude, gym.Latitude!.Value, gym.Longitude!.Value);
                                 var inRange = distance <= 200;
                                 var eligibility = gymEnrollmentStatus.TryGetValue(gym.Id, out var elig) ? elig : null;
                                 var hasEnrollment = eligibility?.HasEnrollment ?? false;
-                                var canCheckIn = inRange && (eligibility?.CanCheckInNow ?? false);
-                                var hasFutureClass = hasEnrollment && !canCheckIn;
+                                    var canCheckInNow = eligibility?.CanCheckInNow ?? false;
+                                var canCheckIn = inRange && canCheckInNow;
+                                var tooFar = !inRange && canCheckInNow;
+                                var hasFutureClass = hasEnrollment && !canCheckInNow;
                                 var hasPastClass = eligibility?.HasPastClass ?? false;
-                                
-                                <div class="gym-card @(hasPastClass ? "has-past-class" : (inRange ? (canCheckIn ? "can-checkin" : (hasFutureClass ? "has-upcoming" : "no-enrollment")) : "too-far"))">
-                                    <div class="gym-details">
-                                        <h4 class="gym-name">@gym.Name</h4>
-                                        <p class="gym-address">@gym.Address, @gym.City</p>
-                                        <div class="gym-distance">
-                                            <span class="distance-icon">📏</span>
-                                            <span class="distance">@FormatDistance(distance)</span>
-                                            @if (inRange)
+                                var hasPastOnly = hasPastClass && !hasEnrollment;
+                                var hasLoadedPastClasses = pastClassesByGym.TryGetValue(gym.Id, out var pastClasses);
+                                var isLoadingPastClasses = loadingPastClasses.Contains(gym.Id);
+                                var isExpanded = expandedPastClasses.Contains(gym.Id);
+
+                                <div class="gym-card @(hasPastOnly ? "has-past-class" : canCheckIn ? "can-checkin" : tooFar ? "too-far" : hasFutureClass ? "has-upcoming" : "")">
+                                    <div class="gym-card-main">
+                                        <div class="gym-details">
+                                            <h4 class="gym-name">@gym.Name</h4>
+                                            <p class="gym-address">@gym.Address, @gym.City</p>
+                                            <div class="gym-distance">
+                                                <span class="distance-icon">📏</span>
+                                                <span class="distance">@FormatDistance(distance)</span>
+                                                @if (inRange)
+                                                {
+                                                    <span class="status-badge in-range">In Range</span>
+                                                }
+                                                @if (hasPastClass)
+                                                {
+                                                    <button class="past-toggle-btn @(isExpanded ? "expanded" : "")" @onclick="() => ToggleAndLoadPastClasses(gym.Id)" title="@(isExpanded ? "Hide past classes" : "Show past classes")">
+                                                        @(isExpanded ? "−" : "+")
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
+
+                                        <div class="gym-action">
+                                            @if (canCheckIn)
                                             {
-                                                <span class="status-badge in-range">In Range</span>
+                                                <button class="checkin-btn" @onclick="() => CheckIn(gym)" disabled="@isProcessing">
+                                                    @if (isProcessing)
+                                                    {
+                                                        <span class="spinner"></span>
+                                                    }
+                                                    Check In
+                                                </button>
                                             }
-                                            
+                                            else if (tooFar)
+                                            {
+                                                <button class="btn btn-secondary" disabled>
+                                                    Too Far
+                                                </button>
+                                            }
+                                            else if (hasFutureClass)
+                                            {
+                                                <div class="upcoming-class-info">
+                                                    <p class="upcoming-class-title">@eligibility!.NextClassTitle</p>
+                                                    <p class="upcoming-class-time">Class starts in @FormatTimeUntil(eligibility.NextClassStartTime!.Value)</p>
+                                                </div>
+                                            }
                                         </div>
                                     </div>
-                                    
-                                    <div class="gym-action">
-                                        @if (hasPastClass)
-                                        {
-                                            <div class="past-class-info">
-                                                <p class="past-class-title">@eligibility!.PastClassTitle</p>
-                                                @if (eligibility.CheckedInForPastClass)
+
+                                    @if (isExpanded)
+                                    {
+                                        <div class="past-classes-section">
+                                            @if (isLoadingPastClasses)
+                                            {
+                                                <div class="past-classes-loading">
+                                                    <span class="spinner"></span> Loading...
+                                                </div>
+                                            }
+                                            else if (hasLoadedPastClasses && pastClasses!.Any())
+                                            {
+                                                @foreach (var pastClass in pastClasses!)
                                                 {
-                                                    <p class="past-class-status checked-in">Check-in at @eligibility.PastClassCheckInTime!.Value.ToLocalTime().ToString("HH:mm")</p>
+                                                    <div class="past-class-item">
+                                                        <p class="past-class-title">@pastClass.Title</p>
+                                                        <p class="past-class-time">Class: @pastClass.ClassStartTime.ToLocalTime().ToString("dd MMM yyyy, HH:mm") - @pastClass.ClassEndTime.ToLocalTime().ToString("HH:mm")</p>
+                                                        @if (pastClass.CheckInTime.HasValue && pastClass.CheckOutTime.HasValue)
+                                                        {
+                                                            <p class="past-class-status checked-in">Visit: @pastClass.CheckInTime.Value.ToLocalTime().ToString("HH:mm") - @pastClass.CheckOutTime.Value.ToLocalTime().ToString("HH:mm") (@pastClass.DurationMinutes min)</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <p class="past-class-status missed">Visit: Missed</p>
+                                                        }
+                                                        <p class="past-class-time">@pastClass.BookingSource@(string.IsNullOrWhiteSpace(pastClass.RoomName) ? string.Empty : $" • {pastClass.RoomName}")</p>
+                                                    </div>
                                                 }
-                                                else
-                                                {
-                                                    <p class="past-class-status not-checked-in">No check-in registred</p>
-                                                }
-                                            </div>
-                                        }
-                                        else if (inRange && canCheckIn)
-                                        {
-                                            <button class="checkin-btn" @onclick="() => CheckIn(gym)" disabled="@isProcessing">
-                                                @if (isProcessing)
-                                                {
-                                                    <span class="spinner"></span>
-                                                }
-                                                Check In
-                                            </button>
-                                        }
-                                        else if (inRange && hasFutureClass)
-                                        {
-                                            <div class="upcoming-class-info">
-                                                <p class="upcoming-class-title">@eligibility!.NextClassTitle</p>
-                                                <p class="upcoming-class-time">Class starts in @FormatTimeUntil(eligibility.NextClassStartTime!.Value)</p>
-                                            </div>
-                                        }
-                                        else if (inRange && !hasEnrollment)
-                                        {
-                                            <div class="no-enrollment-info">
-                                                <p class="no-enrollment-text">No confirmed class booking at this location</p>
-                                                <a href="/user/book-class" class="btn btn-primary book-class-btn">Book a Class</a>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <button class="btn btn-secondary" disabled>
-                                                Too Far
-                                            </button>
-                                        }
-                                    </div>
+                                            }
+                                            else if (hasLoadedPastClasses)
+                                            {
+                                                <p class="past-class-empty">No past classes found.</p>
+                                            }
+                                        </div>
+                                    }
                                 </div>
                             }
                         }
                         else
                         {
                             <div class="no-gyms">
-                                <p>No gyms found near your current location.</p>
-                                <button class="btn btn-outline-primary" @onclick="RefreshPage">Refresh Location</button>
+                                <p>No classes available for check-in at your current location.</p>
+                                <a href="/user/book-class" class="btn btn-primary">Book a class to check in</a>
                             </div>
                         }
                     </div>
@@ -219,13 +255,17 @@
     private string? errorMessage;
     private string? successMessage;
     private bool showBookClassLink = false;
-    
+
+    private DateTime _nowUtc = DateTime.UtcNow;
     private UserLocation? userLocation;
     private List<ApiClient.GymLocationForCheckInRead> gymLocations = new();
     private List<ApiClient.GymLocationForCheckInRead> nearbyGyms = new();
     private ApiClient.GymVisitRead? activeVisit;
     private Timer? _durationTimer;
     private Dictionary<int, ApiClient.CanCheckInResponse> gymEnrollmentStatus = new();
+    private Dictionary<int, List<ApiClient.PastClassRead>> pastClassesByGym = new();
+    private HashSet<int> loadingPastClasses = new();
+    private HashSet<int> expandedPastClasses = new();
 
     public class UserLocation
     {
@@ -260,14 +300,16 @@
             showBookClassLink = false;
             StateHasChanged();
 
-            // Load gym locations and active visit in parallel
+            // Load gym locations and active visit in parallel; also fetch server clock
             var gymTask = Api.GetAllGymLocations();
             var activeVisitTask = Api.GetActiveGymVisit();
-            
-            await Task.WhenAll(gymTask, activeVisitTask);
-            
+            var serverTimeTask = Api.GetDevTime();
+
+            await Task.WhenAll(gymTask, activeVisitTask, serverTimeTask);
+
             gymLocations = gymTask.Result;
             activeVisit = activeVisitTask.Result;
+            _nowUtc = serverTimeTask.Result?.CurrentTime ?? DateTime.UtcNow;
 
             if (activeVisit != null)
             {
@@ -316,12 +358,19 @@
             gymEnrollmentStatus.Clear();
             var checkTasks = nearbyGyms.Select(async g =>
             {
-                var eligibility = await Api.CanCheckInToGym(g.Id);
-                return (g.Id, eligibility);
+                try
+                {
+                    var eligibility = await Api.CanCheckInToGym(g.Id);
+                    return (g.Id, eligibility);
+                }
+                catch
+                {
+                    return (g.Id, new ApiClient.CanCheckInResponse(false, false, null, null, null));
+                }
             });
             foreach (var result in await Task.WhenAll(checkTasks))
             {
-                gymEnrollmentStatus[result.Id] = result.eligibility;
+                gymEnrollmentStatus[result.Id] = result.Item2;
             }
 
         }
@@ -431,6 +480,47 @@
         await LoadData();
     }
 
+    private async Task LoadPastClasses(int gymLocationId)
+    {
+        if (pastClassesByGym.ContainsKey(gymLocationId) || loadingPastClasses.Contains(gymLocationId))
+            return;
+
+        try
+        {
+            loadingPastClasses.Add(gymLocationId);
+            StateHasChanged();
+
+            var classes = await Api.GetPastClassesByGym(gymLocationId);
+            pastClassesByGym[gymLocationId] = classes;
+        }
+        catch
+        {
+            pastClassesByGym[gymLocationId] = new List<ApiClient.PastClassRead>();
+        }
+        finally
+        {
+            loadingPastClasses.Remove(gymLocationId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleAndLoadPastClasses(int gymLocationId)
+    {
+        if (expandedPastClasses.Contains(gymLocationId))
+        {
+            expandedPastClasses.Remove(gymLocationId);
+            StateHasChanged();
+            return;
+        }
+
+        // Load on first expand
+        if (!pastClassesByGym.ContainsKey(gymLocationId))
+            await LoadPastClasses(gymLocationId);
+
+        expandedPastClasses.Add(gymLocationId);
+        StateHasChanged();
+    }
+
     private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
     {
         const double R = 6371e3; // Earth's radius in meters
@@ -456,7 +546,7 @@
 
     private string FormatTimeUntil(DateTime utcTime)
     {
-        var diff = utcTime - DateTime.UtcNow;
+        var diff = utcTime - _nowUtc;
         if (diff.TotalSeconds <= 0) return "now";
         if (diff.TotalMinutes < 1) return "less than a minute";
         if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min";
@@ -470,7 +560,7 @@
     {
         if (activeVisit == null) return "";
         
-        var duration = DateTime.UtcNow - activeVisit.CheckInTime;
+        var duration = _nowUtc - activeVisit.CheckInTime;
         if (duration.TotalMinutes < 60)
             return $"{(int)duration.TotalMinutes}m";
         return $"{(int)duration.TotalHours}h {(int)duration.TotalMinutes % 60}m";
@@ -481,6 +571,8 @@
         StopDurationTimer(); // Stop any existing timer first
         
         _durationTimer = new Timer(async _ => {
+            // Advance _nowUtc by the tick interval so duration display stays accurate
+            _nowUtc = _nowUtc.AddSeconds(60);
             await InvokeAsync(StateHasChanged);
         }, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
@@ -663,8 +755,7 @@
 
     .gym-card {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        flex-direction: column;
         padding: 1.5rem;
         margin-bottom: 1rem;
         background: var(--glass-bg);
@@ -672,6 +763,12 @@
         border-radius: 12px;
         backdrop-filter: blur(20px);
         transition: all 0.3s ease;
+    }
+
+    .gym-card-main {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .gym-card.can-checkin {
@@ -730,8 +827,73 @@
         opacity: 0.85;
     }
 
+    .past-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid var(--text-muted);
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 1rem;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .past-toggle-btn:hover {
+        border-color: var(--accent-magenta);
+        color: var(--accent-magenta);
+    }
+
+    .past-toggle-btn.expanded {
+        border-color: var(--accent-magenta);
+        color: var(--accent-magenta);
+    }
+
+    .past-classes-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .past-classes-loading {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        padding: 0.5rem 0;
+    }
+
+    .past-class-empty {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        text-align: center;
+        padding: 0.5rem 0;
+    }
+
     .past-class-info {
         text-align: center;
+    }
+
+    .past-class-item {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .past-class-item:last-child {
+        border-bottom: none;
+    }
+
+    .past-class-time {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        margin-bottom: 0.25rem;
     }
 
     .past-class-title {
@@ -748,6 +910,10 @@
 
     .past-class-status.checked-in {
         color: #00e87a;
+    }
+
+    .past-class-status.missed {
+        color: #ffa502;
     }
 
     .past-class-status.not-checked-in {
@@ -896,7 +1062,7 @@
     }
 
     @@media (max-width: 768px) {
-        .gym-card {
+        .gym-card-main {
             flex-direction: column;
             gap: 1rem;
         }

@@ -53,6 +53,7 @@ public class GymVisitService : IGymVisitService
         // Check if user has a confirmed (paid) class booking at this gym location
         // Allow check-in up to 5 minutes before class starts, or while class is in progress
         // Check both ClassEnrollment system AND ClassSchedule system
+        // Also accept Completed status — auto-completer may mark a class Completed mid-session.
         var now = _clock.UtcNow;
 
         // --- Check 1: ClassEnrollment system ---
@@ -62,7 +63,7 @@ public class GymVisitService : IGymVisitService
             join rb in _db.RoomBookings on s.RoomBookingId equals rb.Id
             join r in _db.Rooms on rb.RoomId equals r.Id
             where e.UserId == normalizedUserId
-                && e.Status == ClassEnrollmentStatus.Confirmed
+                && (e.Status == ClassEnrollmentStatus.Confirmed || e.Status == ClassEnrollmentStatus.Completed)
                 && s.StartTime <= now.AddMinutes(5)
                 && s.EndTime >= now
                 && r.GymLocationId == request.GymLocationId
@@ -78,7 +79,7 @@ public class GymVisitService : IGymVisitService
                 join rb in _db.RoomBookings on cs.RoomBookingId equals rb.Id
                 join r in _db.Rooms on rb.RoomId equals r.Id
                 where u.IdentityUserId == normalizedUserId
-                    && cs.Status == ClassScheduleStatus.Scheduled
+                    && (cs.Status == ClassScheduleStatus.Scheduled || cs.Status == ClassScheduleStatus.Completed)
                     && (cs.PaymentStatus == ClassSchedulePaymentStatus.Completed
                         || cs.PaymentStatus == ClassSchedulePaymentStatus.None)
                     && rb.StartTime <= now.AddMinutes(5)
@@ -232,94 +233,109 @@ public class GymVisitService : IGymVisitService
         var now = _clock.UtcNow;
 
         // --- Check 1: ClassEnrollment system (session-based enrollments) ---
+        // Accept Confirmed OR Completed status — auto-completer may have marked a class Completed
+        // mid-session if it ran while the class was in progress.
         var nextEnrollment = await (
             from e in _db.ClassEnrollments
             join s in _db.ClassSessions on e.ClassSessionId equals s.Id
             join rb in _db.RoomBookings on s.RoomBookingId equals rb.Id
             join r in _db.Rooms on rb.RoomId equals r.Id
             where e.UserId == normalizedUserId
-                && e.Status == ClassEnrollmentStatus.Confirmed
+                && (e.Status == ClassEnrollmentStatus.Confirmed || e.Status == ClassEnrollmentStatus.Completed)
                 && s.EndTime >= now
                 && r.GymLocationId == gymLocationId
             orderby s.StartTime
-            select new
-            {
-                s.StartTime,
-                s.EndTime,
-                s.Title
-            }
+            select new { s.StartTime, s.EndTime, s.Title }
         ).FirstOrDefaultAsync();
 
-        if (nextEnrollment != null)
-        {
-            var canCheckInNow = nextEnrollment.StartTime <= now.AddMinutes(5) && nextEnrollment.EndTime >= now;
-            return new CheckInEligibilityDto(
-                true,
-                canCheckInNow,
-                nextEnrollment.StartTime,
-                nextEnrollment.EndTime,
-                nextEnrollment.Title);
-        }
+        // --- Check 2: ClassSchedule system (book-class page / my-sessions bookings) ---
+        // Accept Scheduled OR Completed status — auto-completer marks a ClassSchedule as Completed
+        // once its RoomBooking.EndTime <= now, but with mock clock the end time may still be in the
+        // future from the user's perspective even though it was already auto-completed in real time.
+        var nextSchedule = await (
+            from cs in _db.ClassSchedules
+            join u in _db.Users on cs.UserId equals u.Id
+            join rb in _db.RoomBookings on cs.RoomBookingId equals rb.Id
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where u.IdentityUserId == normalizedUserId
+                && (cs.Status == ClassScheduleStatus.Scheduled || cs.Status == ClassScheduleStatus.Completed)
+                && (cs.PaymentStatus == ClassSchedulePaymentStatus.Completed
+                    || cs.PaymentStatus == ClassSchedulePaymentStatus.None)
+                && rb.EndTime >= now
+                && r.GymLocationId == gymLocationId
+            orderby rb.StartTime
+            select new { StartTime = rb.StartTime, EndTime = rb.EndTime, Title = cs.Modality }
+        ).FirstOrDefaultAsync();
 
-        // --- Check 3: Most recently ended class at this gym for this user (no time limit) ---
-        var pastEnrollment = await (
+        // --- Check 3a: Past ClassEnrollment ---
+        var pastEnrollmentTitle = await (
             from e in _db.ClassEnrollments
             join s in _db.ClassSessions on e.ClassSessionId equals s.Id
             join rb in _db.RoomBookings on s.RoomBookingId equals rb.Id
             join r in _db.Rooms on rb.RoomId equals r.Id
             where e.UserId == normalizedUserId
-                && e.Status == ClassEnrollmentStatus.Confirmed
+                && e.Status != ClassEnrollmentStatus.Cancelled
                 && s.EndTime < now
                 && r.GymLocationId == gymLocationId
             orderby s.EndTime descending
-            select new
-            {
-                s.StartTime,
-                s.EndTime,
-                s.Title
-            }
+            select s.Title
         ).FirstOrDefaultAsync();
 
-        if (pastEnrollment == null)
+        // --- Check 3b: Past ClassSchedule (only if 3a found nothing) ---
+        string? pastClassTitle = pastEnrollmentTitle;
+        if (pastClassTitle == null)
         {
-            // Also check ClassSchedule system
-            var pastSchedule = await (
+            pastClassTitle = await (
                 from cs in _db.ClassSchedules
                 join u in _db.Users on cs.UserId equals u.Id
                 join rb in _db.RoomBookings on cs.RoomBookingId equals rb.Id
                 join r in _db.Rooms on rb.RoomId equals r.Id
                 where u.IdentityUserId == normalizedUserId
-                    && cs.Status == ClassScheduleStatus.Scheduled
+                    && cs.Status != ClassScheduleStatus.Cancelled
                     && (cs.PaymentStatus == ClassSchedulePaymentStatus.Completed
                         || cs.PaymentStatus == ClassSchedulePaymentStatus.None)
                     && rb.EndTime < now
                     && r.GymLocationId == gymLocationId
                 orderby rb.EndTime descending
-                select new
-                {
-                    rb.StartTime,
-                    rb.EndTime,
-                    Title = cs.Modality
-                }
+                select cs.Modality
             ).FirstOrDefaultAsync();
-
-            if (pastSchedule != null)
-            {
-                pastEnrollment = pastSchedule;
-            }
         }
 
-        if (pastEnrollment != null)
-        {
-            // Check if user has a gym visit at this location during the class window
-            var gymVisit = await _db.GymVisits
-                .AsNoTracking()
-                .FirstOrDefaultAsync(v =>
-                    v.UserId == normalizedUserId
-                    && v.GymLocationId == gymLocationId
-                    && v.CheckInTime >= pastEnrollment.StartTime.AddMinutes(-10)
-                    && v.CheckInTime <= pastEnrollment.EndTime);
+        var hasEnrollment = nextEnrollment != null || nextSchedule != null;
+        var hasPastClass  = pastClassTitle != null;
 
+        if (hasEnrollment)
+        {
+            // Pick the earlier of the two upcoming classes
+            DateTime startTime, endTime;
+            string? title;
+
+            if (nextEnrollment != null && (nextSchedule == null || nextEnrollment.StartTime <= nextSchedule.StartTime))
+            {
+                startTime = nextEnrollment.StartTime;
+                endTime   = nextEnrollment.EndTime;
+                title     = nextEnrollment.Title;
+            }
+            else
+            {
+                startTime = nextSchedule!.StartTime;
+                endTime   = nextSchedule.EndTime;
+                title     = nextSchedule.Title;
+            }
+
+            var canCheckInNow = startTime <= now.AddMinutes(5) && endTime >= now;
+            return new CheckInEligibilityDto(
+                HasEnrollment: true,
+                CanCheckInNow: canCheckInNow,
+                NextClassStartTime: startTime,
+                NextClassEndTime: endTime,
+                NextClassTitle: title,
+                HasPastClass: hasPastClass,
+                PastClassTitle: pastClassTitle);
+        }
+
+        if (hasPastClass)
+        {
             return new CheckInEligibilityDto(
                 HasEnrollment: false,
                 CanCheckInNow: false,
@@ -327,12 +343,103 @@ public class GymVisitService : IGymVisitService
                 NextClassEndTime: null,
                 NextClassTitle: null,
                 HasPastClass: true,
-                CheckedInForPastClass: gymVisit != null,
-                PastClassCheckInTime: gymVisit?.CheckInTime,
-                PastClassTitle: pastEnrollment.Title);
+                PastClassTitle: pastClassTitle);
         }
 
         return new CheckInEligibilityDto(false, false, null, null, null);
+    }
+
+    public async Task<List<PastClassDto>> GetPastClassesAsync(string userId, int gymLocationId)
+    {
+        var normalizedUserId = userId.Trim();
+        var now = _clock.UtcNow;
+
+        var pastEnrollments = await (
+            from e in _db.ClassEnrollments
+            join s in _db.ClassSessions on e.ClassSessionId equals s.Id
+            join rb in _db.RoomBookings on s.RoomBookingId equals rb.Id
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where e.UserId == normalizedUserId
+                && e.Status != ClassEnrollmentStatus.Cancelled
+                && s.EndTime < now
+                && r.GymLocationId == gymLocationId
+            select new
+            {
+                Title = s.Title,
+                ClassStartTime = s.StartTime,
+                ClassEndTime = s.EndTime,
+                BookingSource = "Session Enrollment",
+                RoomName = r.Name
+            }
+        ).ToListAsync();
+
+        var pastSchedules = await (
+            from cs in _db.ClassSchedules
+            join u in _db.Users on cs.UserId equals u.Id
+            join rb in _db.RoomBookings on cs.RoomBookingId equals rb.Id
+            join r in _db.Rooms on rb.RoomId equals r.Id
+            where u.IdentityUserId == normalizedUserId
+                && cs.Status != ClassScheduleStatus.Cancelled
+                && (cs.PaymentStatus == ClassSchedulePaymentStatus.Completed
+                    || cs.PaymentStatus == ClassSchedulePaymentStatus.None)
+                && rb.EndTime < now
+                && r.GymLocationId == gymLocationId
+            select new
+            {
+                Title = cs.Modality,
+                ClassStartTime = rb.StartTime,
+                ClassEndTime = rb.EndTime,
+                BookingSource = "Direct Booking",
+                RoomName = r.Name
+            }
+        ).ToListAsync();
+
+        var allClasses = pastEnrollments
+            .Concat(pastSchedules)
+            .GroupBy(c => new { c.Title, c.ClassStartTime, c.ClassEndTime, c.BookingSource, c.RoomName })
+            .Select(g => g.Key)
+            .OrderByDescending(c => c.ClassStartTime)
+            .ToList();
+
+        if (!allClasses.Any())
+            return new List<PastClassDto>();
+
+        var visits = await _db.GymVisits
+            .AsNoTracking()
+            .Where(v =>
+                v.UserId == normalizedUserId
+                && v.GymLocationId == gymLocationId
+                && v.CheckOutTime != null)
+            .Select(v => new { v.CheckInTime, v.CheckOutTime })
+            .ToListAsync();
+
+        return allClasses
+            .Select(c =>
+            {
+                var matchedVisit = visits
+                    .Where(v =>
+                        v.CheckInTime >= c.ClassStartTime.AddMinutes(-10)
+                        && v.CheckInTime <= c.ClassEndTime
+                        && v.CheckOutTime!.Value >= c.ClassStartTime)
+                    .OrderBy(v => v.CheckInTime)
+                    .FirstOrDefault();
+
+                int? durationMinutes = matchedVisit != null
+                    ? (int)Math.Max(0, (matchedVisit.CheckOutTime!.Value - matchedVisit.CheckInTime).TotalMinutes)
+                    : null;
+
+                return new PastClassDto(
+                    c.Title,
+                    c.ClassStartTime,
+                    c.ClassEndTime,
+                    matchedVisit?.CheckInTime,
+                    matchedVisit?.CheckOutTime,
+                    durationMinutes,
+                    c.BookingSource,
+                    c.RoomName);
+            })
+            .OrderByDescending(x => x.ClassStartTime)
+            .ToList();
     }
 
     /// <summary>
@@ -410,7 +517,7 @@ public class GymVisitService : IGymVisitService
         }
 
         // ── 5. Batch-load today's data (avoid N+1 per-visit queries) ──
-        var today = DateTime.UtcNow.Date;
+        var today = _clock.UtcNow.Date;
         var tomorrow = today.AddDays(1);
 
         // 5a. Today's room bookings at this location

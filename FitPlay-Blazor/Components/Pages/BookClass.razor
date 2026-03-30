@@ -115,7 +115,7 @@
                 else if (isLastFree)
                 {
                     <p class="skip-confirm-body">
-                        This is your <strong>last free skip</strong> for @DateTime.UtcNow.ToString("MMMM").<br />
+                        This is your <strong>last free skip</strong> for @_nowUtc.ToString("MMMM").<br />
                         After this, joining any new queue will require a <strong>5% deposit</strong>.<br /><br />
                         Are you sure you're not interested?
                     </p>
@@ -124,7 +124,7 @@
                 {
                     <p class="skip-confirm-body">
                         You can skip up to <strong>5 times per month</strong> for free.<br />
-                        You have <strong>@skipsLeft skip@(skipsLeft == 1 ? "" : "s")</strong> remaining for @DateTime.UtcNow.ToString("MMMM").<br /><br />
+                        You have <strong>@skipsLeft skip@(skipsLeft == 1 ? "" : "s")</strong> remaining for @_nowUtc.ToString("MMMM").<br /><br />
                         Are you sure you want to skip this class?
                     </p>
                 }
@@ -1480,9 +1480,12 @@
     private string? _paymentError;
     private bool _isProcessingPayment;
     private bool _isInitiatingPayment;
+    private DateTime _nowUtc = DateTime.UtcNow;
 
     protected override async Task OnInitializedAsync()
     {
+        await RefreshNowAsync();
+
         _currentUserId = await ResolveCurrentUserIdAsync();
         if (_currentUserId is null)
         {
@@ -1496,6 +1499,19 @@
         _hasActiveMembership = user.HasClaim("membership", "active");
 
         await LoadClasses();
+    }
+
+    private async Task RefreshNowAsync()
+    {
+        try
+        {
+            var serverTime = await Api.GetDevTime();
+            _nowUtc = serverTime?.CurrentTime ?? DateTime.UtcNow;
+        }
+        catch
+        {
+            _nowUtc = DateTime.UtcNow;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1589,7 +1605,10 @@
             
             var allUserClasses = await Api.GetUserSchedule(_currentUserId.Value);
             _userClasses = allUserClasses
-                .Where(c => string.Equals(c.Status, "Scheduled", StringComparison.OrdinalIgnoreCase))
+                .Where(c => string.Equals(c.Status, "Scheduled", StringComparison.OrdinalIgnoreCase)
+                    && (c.DurationMinutes.HasValue
+                        ? c.ScheduledAt.AddMinutes(c.DurationMinutes.Value)
+                        : c.ScheduledAt) > DateTime.UtcNow)
                 .ToList();
             Console.WriteLine($"[BookClass] User has {_userClasses.Count} booked classes");
 

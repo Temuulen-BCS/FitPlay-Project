@@ -335,6 +335,7 @@ public class ApiClient
     public record GymLocationRead(int Id, int GymId, string Name, string Address, string City, string State, string ZipCode, double? Latitude, double? Longitude, bool IsActive);
     public record GymLocationForCheckInRead(int Id, string Name, string Address, string City, string State, double? Latitude, double? Longitude);
     public record GymVisitRead(int Id, string UserId, int GymLocationId, string GymLocationName, DateTime CheckInTime, DateTime? CheckOutTime, double CheckInLatitude, double CheckInLongitude, double? CheckOutLatitude, double? CheckOutLongitude);
+    public record PastClassRead(string Title, DateTime ClassStartTime, DateTime ClassEndTime, DateTime? CheckInTime, DateTime? CheckOutTime, int? DurationMinutes, string BookingSource, string? RoomName);
     public record GymCheckInRequest(int GymLocationId, double Latitude, double Longitude);
     public record GymCheckOutRequest(double Latitude, double Longitude);
     public record LocationPresenceRead(int GymLocationId, string LocationName, int ActiveCount);
@@ -461,6 +462,7 @@ public class ApiClient
     public record DevScheduleItem(int Id, int? UserId, string? UserName, string Modality, DateTime ScheduledAt, string Status, string? TrainerName);
     public record DevEnrollmentItem(int Id, int ClassSessionId, string UserId, string? UserName, string SessionTitle, DateTime StartTime, DateTime EndTime, string Status);
     public record DevCompleteResponse(bool Success, string Message, int XpAwarded);
+    public record DevTimeResponse(bool IsMocked, DateTime CurrentTime, string Message);
 
     // Queue records
     public record JoinQueueResponse(int QueueEntryId, decimal QueueCost, bool HasMembership, string? ClientSecret, int MonthlySkipCount = 0);
@@ -1099,6 +1101,9 @@ public class ApiClient
         return result ?? new CanCheckInResponse(false, false, null, null, null);
     }
 
+    public async Task<List<PastClassRead>> GetPastClassesByGym(int gymLocationId)
+        => await GetJsonAsync<List<PastClassRead>>($"/api/gym-visits/past-classes/{gymLocationId}") ?? new();
+
     public record CanCheckInResponse(
         bool HasEnrollment,
         bool CanCheckInNow,
@@ -1162,6 +1167,9 @@ public class ApiClient
 
     public async Task<List<DevEnrollmentItem>> GetDevCompletedEnrollments()
         => await GetJsonAsync<List<DevEnrollmentItem>>($"/api/dev/completed-enrollments") ?? new();
+
+    public async Task<DevTimeResponse?> GetDevTime()
+        => await GetJsonAsync<DevTimeResponse>("/api/dev/time");
 
     public async Task<DevCompleteResponse?> DevResetEnrollment(int enrollmentId)
     {

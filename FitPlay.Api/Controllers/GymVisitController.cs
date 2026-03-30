@@ -133,6 +133,18 @@ public class GymVisitController : ControllerBase
         var eligibility = await _gymVisitService.GetCheckInEligibilityAsync(actorId, gymLocationId);
         return Ok(eligibility);
     }
+
+    [HttpGet("past-classes/{gymLocationId}")]
+    [Authorize(Roles = "Admin,User")]
+    public async Task<ActionResult<List<PastClassDto>>> GetPastClasses(int gymLocationId)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
+        var pastClasses = await _gymVisitService.GetPastClassesAsync(actorId, gymLocationId);
+        return Ok(pastClasses);
+    }
 }
 
 [ApiController]

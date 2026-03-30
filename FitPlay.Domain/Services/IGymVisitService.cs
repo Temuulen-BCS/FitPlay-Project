@@ -13,4 +13,5 @@ public interface IGymVisitService
     Task<List<ActiveVisitDetailDto>> GetActiveVisitDetailsByLocationAsync(int gymLocationId);
     Task<int?> GetGymIdFromLocationIdAsync(int gymLocationId);
     Task<CheckInEligibilityDto> GetCheckInEligibilityAsync(string userId, int gymLocationId);
+    Task<List<PastClassDto>> GetPastClassesAsync(string userId, int gymLocationId);
 }

@@ -4,6 +4,7 @@ using FitPlay_Blazor.Data;
 using FitPlay_Blazor.Auth;
 using FitPlay.Blazor.Services;
 using FitPlay.Domain.Data;
+using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.Facebook;
@@ -44,6 +45,7 @@ builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<ApiTokenHandler>();
+builder.Services.AddSingleton<IClockService, ClockService>();
 builder.Services.AddHttpContextAccessor();
 
 // Register HttpClient and ApiClient for API calls

@@ -65,7 +65,7 @@
         <div class="ms-cards">
             @foreach (var b in _filtered)
             {
-                var isPast = b.ScheduledAt < DateTime.UtcNow;
+                var isPast = b.ScheduledAt < _nowUtc;
                 var isCancelled = string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
                 var isCompleted = string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase);
                 var canCancelBooking = !isPast && !isCancelled && !isCompleted;
@@ -144,12 +144,13 @@
     private ApiClient.ClassScheduleWithTrainer? _cancelBookTarget;
     private int? _cancellingBookId;
     private int? _currentUserId;
+    private DateTime _nowUtc = DateTime.UtcNow;
 
     private List<ApiClient.ClassScheduleWithTrainer> _filtered
     {
         get
         {
-            var now = DateTime.UtcNow;
+            var now = _nowUtc;
 
             var filtered = _tab switch
             {
@@ -173,6 +174,8 @@
     {
         try
         {
+            await RefreshNowAsync();
+
             var currentUserId = await ResolveCurrentUserIdAsync();
             if (currentUserId is null)
             {
@@ -192,6 +195,19 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task RefreshNowAsync()
+    {
+        try
+        {
+            var serverTime = await Api.GetDevTime();
+            _nowUtc = serverTime?.CurrentTime ?? DateTime.UtcNow;
+        }
+        catch
+        {
+            _nowUtc = DateTime.UtcNow;
         }
     }
 
