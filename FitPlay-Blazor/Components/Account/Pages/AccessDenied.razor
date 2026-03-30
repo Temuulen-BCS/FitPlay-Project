@@ -23,7 +23,7 @@
                 decoded.Equals("/user/progress", StringComparison.OrdinalIgnoreCase) ||
                 decoded.Equals("/user/achievements", StringComparison.OrdinalIgnoreCase))
             {
-                NavigationManager.NavigateTo("/membership", replace: true);
+                NavigationManager.NavigateTo("/membership", forceLoad: true);
             }
         }
     }
