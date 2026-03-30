@@ -131,23 +131,16 @@ static string BuildConnectionString(IConfiguration config)
 }
 
 var connectionString = BuildConnectionString(builder.Configuration);
-var isPostgres = Environment.GetEnvironmentVariable("PGHOST") != null;
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    if (isPostgres)
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString);
+    options.UseNpgsql(connectionString);
 });
 
 // FitPlayContext for domain queries (membership checks, etc.)
 builder.Services.AddDbContext<FitPlayContext>(options =>
 {
-    if (isPostgres)
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString);
+    options.UseNpgsql(connectionString);
 });
 
 // Inject membership claim into the Blazor Identity principal at request time

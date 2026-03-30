@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;       
 using Microsoft.OpenApi.Models;
 using System.Text;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -137,11 +138,12 @@ var app = builder.Build();
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
 // Ensure database schema is up-to-date on startup.
-// EnsureCreatedAsync is a no-op when the DB already exists, so we first check
-// whether a key new table (GymVisits) is missing and, if so, wipe + recreate.
+// Both DbContexts share the same physical database, so EnsureDeletedAsync on
+// either one drops ALL tables.  We must delete once, then create both.
 using (var scope = app.Services.CreateScope())
 {
     var fitPlayDb = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+    var identityDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
     // Detect stale schema: if GymVisits table is missing, the DB predates the merge
     bool needsRecreate = false;
@@ -156,16 +158,25 @@ using (var scope = app.Services.CreateScope())
 
     if (needsRecreate)
     {
+        // Drop once — both contexts share the same database
         await fitPlayDb.Database.EnsureDeletedAsync();
     }
+
+    // Create tables for both contexts.
+    // EnsureCreatedAsync is a no-op once the DB exists, so only the first context's
+    // tables get created.  For the second context we fall back to CreateTables().
     await fitPlayDb.Database.EnsureCreatedAsync();
 
-    var identityDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    if (needsRecreate)
+    try
     {
-        await identityDb.Database.EnsureDeletedAsync();
+        // This will throw if tables already exist, which is fine.
+        var creator = identityDb.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
+        await creator.CreateTablesAsync();
     }
-    await identityDb.Database.EnsureCreatedAsync();
+    catch
+    {
+        // Tables already exist — safe to ignore
+    }
 }
 
 if (app.Environment.IsDevelopment())
