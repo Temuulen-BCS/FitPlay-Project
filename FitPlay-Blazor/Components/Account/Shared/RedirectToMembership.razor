@@ -1,8 +1,14 @@
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        NavigationManager.NavigateTo("/membership", forceLoad: true);
+        if (firstRender)
+        {
+            // Use JS to force a full navigation — NavigationManager.NavigateTo with forceLoad
+            // can fail silently when the interactive circuit isn't fully established yet.
+            await JS.InvokeVoidAsync("location.replace", "/membership");
+        }
     }
 }
