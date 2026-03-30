@@ -135,7 +135,18 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
+var stripeSecretKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
+if (string.IsNullOrWhiteSpace(stripeSecretKey))
+{
+    if (!app.Environment.IsDevelopment())
+        throw new InvalidOperationException("Stripe:SecretKey is not configured. Set it via environment variable or user-secrets.");
+
+    app.Logger.LogWarning("Stripe:SecretKey is not configured. Payment endpoints will fail.");
+}
+else
+{
+    StripeConfiguration.ApiKey = stripeSecretKey;
+}
 
 // Ensure database schema is up-to-date on startup.
 // Both DbContexts share the same physical database, so EnsureDeletedAsync on
