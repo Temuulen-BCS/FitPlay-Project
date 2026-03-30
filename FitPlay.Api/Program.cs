@@ -137,39 +137,20 @@ var app = builder.Build();
 
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
-// Ensure database schema is up-to-date on startup.
-// Both DbContexts share the same physical database, so EnsureDeletedAsync on
-// either one drops ALL tables.  We must delete once, then create both.
+// Ensure database tables exist on startup (non-destructive).
+// NEVER drop/recreate — that wipes all user data.
 using (var scope = app.Services.CreateScope())
 {
     var fitPlayDb = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
     var identityDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    // Detect stale schema: if GymVisits table is missing, the DB predates the merge
-    bool needsRecreate = false;
-    try
-    {
-        _ = await fitPlayDb.Database.ExecuteSqlRawAsync("SELECT 1 FROM \"GymVisits\" LIMIT 1");
-    }
-    catch
-    {
-        needsRecreate = true;
-    }
-
-    if (needsRecreate)
-    {
-        // Drop once — both contexts share the same database
-        await fitPlayDb.Database.EnsureDeletedAsync();
-    }
-
-    // Create tables for both contexts.
-    // EnsureCreatedAsync is a no-op once the DB exists, so only the first context's
-    // tables get created.  For the second context we fall back to CreateTables().
+    // EnsureCreatedAsync creates the DB + tables if they don't exist yet.
+    // It is a no-op when the DB already has tables.
     await fitPlayDb.Database.EnsureCreatedAsync();
 
     try
     {
-        // This will throw if tables already exist, which is fine.
+        // Create Identity tables if missing (throws if they already exist — safe to ignore).
         var creator = identityDb.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
         await creator.CreateTablesAsync();
     }

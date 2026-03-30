@@ -646,8 +646,21 @@ public class ApiClient
     #endregion
 
     #region Users/Teachers API
-    public async Task<DomainUserRead?> GetUserByIdentity(string identityUserId) => await GetJsonAsync<DomainUserRead>($"/api/users/by-identity/{identityUserId}");
-    public async Task<TrainerRead?> GetTrainerByIdentity(string identityUserId) => await GetJsonAsync<TrainerRead>($"/api/teachers/by-identity/{identityUserId}");
+    public async Task<DomainUserRead?> GetUserByIdentity(string identityUserId)
+    {
+        var res = await GetAsync($"/api/users/by-identity/{identityUserId}");
+        if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<DomainUserRead>();
+    }
+
+    public async Task<TrainerRead?> GetTrainerByIdentity(string identityUserId)
+    {
+        var res = await GetAsync($"/api/teachers/by-identity/{identityUserId}");
+        if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<TrainerRead>();
+    }
     public async Task<List<DomainUserRead>> GetUsers() => await GetJsonAsync<List<DomainUserRead>>($"/api/users") ?? new();
     public async Task<List<TrainerRead>> GetTeachers() => await GetJsonAsync<List<TrainerRead>>($"/api/teachers") ?? new();
     #endregion
