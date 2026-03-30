@@ -110,8 +110,7 @@ namespace FitPlay.Api.Migrations.FitPlay
                         .Annotation("SqlServer:Identity", "1, 1"),
                     RoomId = table.Column<int>(type: "int", nullable: false),
                     TrainerId = table.Column<string>(type: "nvarchar(450)", maxLength: 450, nullable: false),
-                    Purpose = table.Column<int>(type: "int", nullable: false),
-                    PurposeDescription = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+             
                     StartTime = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndTime = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),

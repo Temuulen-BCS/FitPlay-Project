@@ -9,7 +9,15 @@ public record RoomResponseDto(
     string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive
+    bool IsActive,
+    List<RoomOperatingHoursDto> OperatingHours
+);
+
+public record RoomOperatingHoursDto(
+    DayOfWeek DayOfWeek,
+    TimeOnly? OpenTime,
+    TimeOnly? CloseTime,
+    bool IsClosed
 );
 
 public record CreateRoomRequest(
@@ -18,7 +26,8 @@ public record CreateRoomRequest(
     [MaxLength(500)] string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive = true
+    bool IsActive = true,
+    List<RoomOperatingHoursDto>? OperatingHours = null
 );
 
 public record UpdateRoomRequest(
@@ -26,15 +35,15 @@ public record UpdateRoomRequest(
     [MaxLength(500)] string? Description,
     int Capacity,
     decimal PricePerHour,
-    bool IsActive
+    bool IsActive,
+    List<RoomOperatingHoursDto>? OperatingHours = null
 );
 
 public record RoomBookingResponseDto(
     int Id,
     int RoomId,
     string TrainerId,
-    string Purpose,
-    string? PurposeDescription,
+    string Modality,
     DateTime StartTime,
     DateTime EndTime,
     string Status,
@@ -44,20 +53,19 @@ public record RoomBookingResponseDto(
     DateTime UpdatedAt,
     string? RoomName = null,
     string? GymName = null,
-    string? LocationName = null
+    string? LocationName = null,
+    int QueuedClientsCount = 0
 );
 
 public record CreateRoomBookingRequest(
-    [Required] string Purpose,
-    string? PurposeDescription,
+    [Required][MaxLength(100)] string Modality,
     DateTime StartTime,
     DateTime EndTime,
     string? Notes
 );
 
 public record UpdateRoomBookingRequest(
-    [Required] string Purpose,
-    string? PurposeDescription,
+    [Required][MaxLength(100)] string Modality,
     DateTime StartTime,
     DateTime EndTime,
     [Required] string Status,
@@ -81,11 +89,4 @@ public record AvailableRoomsQueryDto(
     int GymLocationId,
     DateTime StartTime,
     DateTime EndTime
-);
-
-public record CancellationPreviewDto(
-    int BookingId,
-    decimal TotalCost,
-    decimal CancelFeeRate,
-    decimal FeeAmount
 );

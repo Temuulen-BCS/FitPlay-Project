@@ -14,15 +14,17 @@ public class RoomService : IRoomService
     };
 
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public RoomService(FitPlayContext db)
+    public RoomService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<List<RoomResponseDto>> GetRoomsByLocationAsync(int locationId, bool? isActive = null)
     {
-        var query = _db.Rooms.AsNoTracking().Where(r => r.GymLocationId == locationId).AsQueryable();
+        var query = _db.Rooms.AsNoTracking().Include(r => r.OperatingHours).Where(r => r.GymLocationId == locationId).AsQueryable();
         if (isActive.HasValue)
         {
             query = query.Where(r => r.IsActive == isActive.Value);
@@ -34,7 +36,7 @@ public class RoomService : IRoomService
 
     public async Task<RoomResponseDto?> GetRoomByIdAsync(int roomId)
     {
-        var room = await _db.Rooms.AsNoTracking().FirstOrDefaultAsync(r => r.Id == roomId);
+        var room = await _db.Rooms.AsNoTracking().Include(r => r.OperatingHours).FirstOrDefaultAsync(r => r.Id == roomId);
         return room is null ? null : ToDto(room);
     }
 
@@ -53,6 +55,15 @@ public class RoomService : IRoomService
         _db.Rooms.Add(room);
         await _db.SaveChangesAsync();
 
+        if (request.OperatingHours is not null)
+        {
+            await ReplaceOperatingHoursAsync(room.Id, request.OperatingHours);
+        }
+        else
+        {
+            await SeedDefaultOperatingHoursAsync(room.Id);
+        }
+
         return ToDto(room);
     }
 
@@ -68,6 +79,16 @@ public class RoomService : IRoomService
         room.IsActive = request.IsActive;
 
         await _db.SaveChangesAsync();
+
+        if (request.OperatingHours is not null)
+        {
+            await ReplaceOperatingHoursAsync(room.Id, request.OperatingHours);
+        }
+        else
+        {
+            await SeedDefaultOperatingHoursAsync(room.Id);
+        }
+
         return ToDto(room);
     }
 
@@ -155,7 +176,6 @@ public class RoomService : IRoomService
         if (!isLinked)
             throw new InvalidOperationException("Trainer is not approved for this gym.");
 
-        var purpose = ParsePurpose(request.Purpose);
         ValidateTimeRange(request.StartTime, request.EndTime);
 
         await EnsureNoConflictAsync(roomId, request.StartTime, request.EndTime);
@@ -164,15 +184,14 @@ public class RoomService : IRoomService
         {
             RoomId = roomId,
             TrainerId = normalizedTrainerId,
-            Purpose = purpose,
-            PurposeDescription = request.PurposeDescription?.Trim(),
+            Modality = request.Modality.Trim(),
             StartTime = DateTime.SpecifyKind(request.StartTime, DateTimeKind.Utc),
             EndTime = DateTime.SpecifyKind(request.EndTime, DateTimeKind.Utc),
             Status = RoomBookingStatus.Pending,
             TotalCost = CalculateCost(room.PricePerHour, request.StartTime, request.EndTime),
             Notes = request.Notes?.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = _clock.UtcNow,
+            UpdatedAt = _clock.UtcNow
         };
 
         _db.RoomBookings.Add(booking);
@@ -201,14 +220,13 @@ public class RoomService : IRoomService
             await EnsureNoConflictAsync(booking.RoomId, request.StartTime, request.EndTime, bookingId);
         }
 
-        booking.Purpose = ParsePurpose(request.Purpose);
-        booking.PurposeDescription = request.PurposeDescription?.Trim();
+        booking.Modality = request.Modality.Trim();
         booking.StartTime = DateTime.SpecifyKind(request.StartTime, DateTimeKind.Utc);
         booking.EndTime = DateTime.SpecifyKind(request.EndTime, DateTimeKind.Utc);
         booking.Status = newStatus;
         booking.Notes = request.Notes?.Trim();
         booking.TotalCost = CalculateCost(booking.Room?.PricePerHour ?? booking.TotalCost, request.StartTime, request.EndTime);
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
 
         await _db.SaveChangesAsync();
         return ToDto(booking);
@@ -224,7 +242,7 @@ public class RoomService : IRoomService
             throw new UnauthorizedAccessException("You can only cancel your own bookings.");
 
         booking.Status = RoomBookingStatus.Cancelled;
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         return true;
@@ -235,6 +253,7 @@ public class RoomService : IRoomService
         ValidateTimeRange(query.StartTime, query.EndTime);
 
         var rooms = await _db.Rooms.AsNoTracking()
+            .Include(r => r.OperatingHours)
             .Where(r => r.GymLocationId == query.GymLocationId && r.IsActive)
             .Where(r => !_db.RoomBookings.Any(b =>
                 b.RoomId == r.Id &&
@@ -245,63 +264,6 @@ public class RoomService : IRoomService
             .ToListAsync();
 
         return rooms.Select(ToDto).ToList();
-    }
-
-    public async Task<List<RoomBookingResponseDto>> GetTrainerBookingsAsync(string trainerId, DateTime? from = null, DateTime? to = null)
-    {
-        var normalizedId = trainerId.Trim();
-        var query = _db.RoomBookings.AsNoTracking()
-            .Include(b => b.Room)
-                .ThenInclude(r => r!.GymLocation)
-                    .ThenInclude(gl => gl!.Gym)
-            .Where(b => b.TrainerId == normalizedId)
-            .AsQueryable();
-
-        if (from.HasValue)
-            query = query.Where(b => b.EndTime >= from.Value);
-
-        if (to.HasValue)
-            query = query.Where(b => b.StartTime <= to.Value);
-
-        var bookings = await query.OrderByDescending(b => b.StartTime).ToListAsync();
-        return bookings.Select(ToDto).ToList();
-    }
-
-    public async Task<RoomBookingResponseDto?> ConfirmBookingAsync(int bookingId, string actorUserId, bool isAdmin)
-    {
-        var booking = await _db.RoomBookings.FirstOrDefaultAsync(b => b.Id == bookingId);
-        if (booking is null) return null;
-
-        var normalizedActor = actorUserId.Trim();
-        if (!isAdmin && booking.TrainerId != normalizedActor)
-            throw new UnauthorizedAccessException("You can only confirm your own bookings.");
-
-        if (booking.Status != RoomBookingStatus.Pending)
-            throw new InvalidOperationException($"Only pending bookings can be confirmed. Current status: {booking.Status}.");
-
-        booking.Status = RoomBookingStatus.Confirmed;
-        booking.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
-        return ToDto(booking);
-    }
-
-    public async Task<CancellationPreviewDto?> GetCancellationPreviewAsync(int bookingId, string actorUserId)
-    {
-        var booking = await _db.RoomBookings
-            .Include(b => b.Room)
-                .ThenInclude(r => r!.GymLocation)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(b => b.Id == bookingId);
-
-        if (booking is null) return null;
-
-        var gymId = booking.Room?.GymLocation?.GymId ?? 0;
-        var gym = await _db.Gyms.AsNoTracking().FirstOrDefaultAsync(g => g.Id == gymId);
-        var cancelFeeRate = gym?.CancelFeeRate ?? 0m;
-        var feeAmount = decimal.Round(booking.TotalCost * cancelFeeRate, 2, MidpointRounding.AwayFromZero);
-
-        return new CancellationPreviewDto(booking.Id, booking.TotalCost, cancelFeeRate, feeAmount);
     }
 
     private async Task EnsureNoConflictAsync(int roomId, DateTime startTime, DateTime endTime, int? ignoreBookingId = null)
@@ -329,13 +291,6 @@ public class RoomService : IRoomService
         return decimal.Round(hours * pricePerHour, 2, MidpointRounding.AwayFromZero);
     }
 
-    private static RoomBookingPurpose ParsePurpose(string purpose)
-    {
-        if (!Enum.TryParse<RoomBookingPurpose>(purpose, true, out var parsed))
-            throw new ArgumentException("Invalid booking purpose.");
-        return parsed;
-    }
-
     private static RoomBookingStatus ParseStatus(string status)
     {
         if (!Enum.TryParse<RoomBookingStatus>(status, true, out var parsed))
@@ -350,15 +305,20 @@ public class RoomService : IRoomService
         room.Description,
         room.Capacity,
         room.PricePerHour,
-        room.IsActive
+        room.IsActive,
+        room.OperatingHours.Select(oh => new RoomOperatingHoursDto(
+            oh.DayOfWeek,
+            oh.OpenTime,
+            oh.CloseTime,
+            oh.IsClosed
+        )).ToList()
     );
 
-    private static RoomBookingResponseDto ToDto(RoomBooking booking) => new(
+    private static RoomBookingResponseDto ToDto(RoomBooking booking, int queuedClientsCount = 0) => new(
         booking.Id,
         booking.RoomId,
         booking.TrainerId,
-        booking.Purpose.ToString(),
-        booking.PurposeDescription,
+        booking.Modality,
         booking.StartTime,
         booking.EndTime,
         booking.Status.ToString(),
@@ -368,6 +328,116 @@ public class RoomService : IRoomService
         booking.UpdatedAt,
         booking.Room?.Name,
         booking.Room?.GymLocation?.Gym?.Name,
-        booking.Room?.GymLocation?.Name
+        booking.Room?.GymLocation?.Name,
+        QueuedClientsCount: queuedClientsCount
     );
+
+    public async Task<List<RoomBookingResponseDto>> GetTrainerBookingsAsync(string trainerId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = _db.RoomBookings.AsNoTracking()
+            .Include(b => b.Room)
+                .ThenInclude(r => r!.GymLocation)
+                    .ThenInclude(gl => gl!.Gym)
+            .Where(b => b.TrainerId == trainerId)
+            .AsQueryable();
+
+        if (from.HasValue)
+            query = query.Where(b => b.EndTime >= from.Value);
+        if (to.HasValue)
+            query = query.Where(b => b.StartTime <= to.Value);
+
+        var bookings = await query.OrderByDescending(b => b.StartTime).ToListAsync();
+
+        // Batch-load queue counts for all booking IDs
+        var bookingIds = bookings.Select(b => b.Id).ToList();
+        var queueCounts = await _db.ClassQueueEntries
+            .Where(q => q.ClassSchedule != null && q.ClassSchedule.RoomBookingId != null
+                        && bookingIds.Contains(q.ClassSchedule.RoomBookingId.Value))
+            .GroupBy(q => q.ClassSchedule!.RoomBookingId!.Value)
+            .Select(g => new { BookingId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.BookingId, x => x.Count);
+
+        return bookings.Select(b => ToDto(b, queueCounts.GetValueOrDefault(b.Id, 0))).ToList();
+    }
+
+    public async Task<RoomBookingResponseDto?> ConfirmBookingAsync(int bookingId, string actorUserId, bool isAdmin)
+    {
+        var booking = await _db.RoomBookings
+            .Include(b => b.Room)
+            .FirstOrDefaultAsync(b => b.Id == bookingId);
+
+        if (booking is null) return null;
+
+        var normalizedActor = actorUserId.Trim();
+        if (!isAdmin && booking.TrainerId != normalizedActor)
+            throw new UnauthorizedAccessException("You can only confirm your own bookings.");
+
+        if (booking.Status != RoomBookingStatus.Pending)
+            throw new InvalidOperationException("Only pending bookings can be confirmed.");
+
+        booking.Status = RoomBookingStatus.Confirmed;
+        booking.UpdatedAt = _clock.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return ToDto(booking);
+    }
+
+    private async Task ReplaceOperatingHoursAsync(int roomId, List<RoomOperatingHoursDto> operatingHours)
+    {
+        var entities = operatingHours.Select(oh => new RoomOperatingHours
+        {
+            RoomId = roomId,
+            DayOfWeek = oh.DayOfWeek,
+            OpenTime = oh.IsClosed ? TimeOnly.MinValue : oh.OpenTime ?? TimeOnly.MinValue,
+            CloseTime = oh.IsClosed ? TimeOnly.MinValue : oh.CloseTime ?? TimeOnly.MinValue,
+            IsClosed = oh.IsClosed
+        }).ToList();
+
+        var existing = _db.RoomOperatingHours.Where(oh => oh.RoomId == roomId);
+        _db.RoomOperatingHours.RemoveRange(existing);
+        await _db.SaveChangesAsync();
+
+        if (entities.Count == 0)
+        {
+            return;
+        }
+
+        _db.RoomOperatingHours.AddRange(entities);
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task SeedDefaultOperatingHoursAsync(int roomId)
+    {
+        var defaultHours = Enum.GetValues<DayOfWeek>().Select(d => new RoomOperatingHours
+        {
+            RoomId = roomId,
+            DayOfWeek = d,
+            OpenTime = new TimeOnly(8, 0),
+            CloseTime = new TimeOnly(22, 0),
+            IsClosed = false
+        }).ToList();
+
+        _db.RoomOperatingHours.AddRange(defaultHours);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<List<RoomBookingResponseDto>> GetGymBookingsAsync(int gymId, DateTime? from = null, DateTime? to = null)
+    {
+        var query = _db.RoomBookings.AsNoTracking()
+            .Include(b => b.Room)
+                .ThenInclude(r => r!.GymLocation)
+                    .ThenInclude(gl => gl!.Gym)
+            .Where(b => b.Room != null
+                        && b.Room.GymLocation != null
+                        && b.Room.GymLocation.GymId == gymId)
+            .AsQueryable();
+
+        if (from.HasValue)
+            query = query.Where(b => b.EndTime >= from.Value);
+        if (to.HasValue)
+            query = query.Where(b => b.StartTime <= to.Value);
+
+        var bookings = await query.OrderByDescending(b => b.StartTime).ToListAsync();
+        return bookings.Select(ToDto).ToList();
+    }
 }

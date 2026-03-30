@@ -1,0 +1,282 @@
+@* CustomSelect.razor — fully styled dropdown that mirrors the profile dropdown design *@
+
+<div class="cs-wrapper @(IsOpen ? "cs-open" : "") @Class" @onclick:stopPropagation="true">
+
+    @* Backdrop to close on outside click *@
+    @if (IsOpen)
+    {
+        <div class="cs-backdrop" @onclick="Close"></div>
+    }
+
+    @* Trigger button *@
+    <button type="button" class="cs-trigger" id="@Id" @onclick="Toggle">
+        <span class="cs-label @(string.IsNullOrEmpty(Value) ? "cs-placeholder" : "")">
+            @(string.IsNullOrEmpty(Value) ? Placeholder : GetLabel(Value))
+        </span>
+        <svg class="cs-caret" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+
+    @* Dropdown panel *@
+    <div class="cs-menu">
+        <div class="cs-menu-inner">
+            @if (Groups is not null && Groups.Any())
+            {
+                @* Grouped options *@
+                @if (!string.IsNullOrEmpty(Placeholder))
+                {
+                    <button type="button"
+                            class="cs-item cs-item-placeholder @(string.IsNullOrEmpty(Value) ? "cs-item-active" : "")"
+                            @onclick="() => Select(string.Empty)">
+                        @Placeholder
+                    </button>
+                    <div class="cs-divider"></div>
+                }
+                bool firstGroup = true;
+                @foreach (var group in Groups)
+                {
+                    if (!firstGroup)
+                    {
+                        <div class="cs-divider"></div>
+                    }
+                    firstGroup = false;
+                    <div class="cs-group-label">@group.Label</div>
+                    @foreach (var opt in group.Options)
+                    {
+                        var optVal = opt.Value;
+                        <button type="button"
+                                class="cs-item @(Value == optVal ? "cs-item-active" : "")"
+                                @onclick="() => Select(optVal)">
+                            @opt.Label
+                        </button>
+                    }
+                }
+            }
+            else
+            {
+                @* Flat options — placeholder first *@
+                @if (!string.IsNullOrEmpty(Placeholder))
+                {
+                    <button type="button"
+                            class="cs-item cs-item-placeholder @(string.IsNullOrEmpty(Value) ? "cs-item-active" : "")"
+                            @onclick="() => Select(string.Empty)">
+                        @Placeholder
+                    </button>
+                    <div class="cs-divider"></div>
+                }
+                @foreach (var opt in Options ?? Enumerable.Empty<SelectOption>())
+                {
+                    var optVal = opt.Value;
+                    <button type="button"
+                            class="cs-item @(Value == optVal ? "cs-item-active" : "")"
+                            @onclick="() => Select(optVal)">
+                        @opt.Label
+                    </button>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Select…";
+    [Parameter] public IEnumerable<SelectOption>? Options { get; set; }
+    [Parameter] public IEnumerable<SelectOptionGroup>? Groups { get; set; }
+
+    private bool IsOpen = false;
+
+    private void Toggle() => IsOpen = !IsOpen;
+    private void Close() => IsOpen = false;
+
+    private async Task Select(string val)
+    {
+        IsOpen = false;
+        if (val != Value)
+            await ValueChanged.InvokeAsync(val);
+    }
+
+    private string GetLabel(string val)
+    {
+        if (Groups is not null)
+            return Groups.SelectMany(g => g.Options).FirstOrDefault(o => o.Value == val)?.Label ?? val;
+        return Options?.FirstOrDefault(o => o.Value == val)?.Label ?? val;
+    }
+
+    public record SelectOption(string Value, string Label);
+    public record SelectOptionGroup(string Label, IEnumerable<SelectOption> Options);
+}
+
+<style>
+    /* ── Wrapper ── */
+    .cs-wrapper {
+        position: relative;
+        width: 100%;
+        font-family: inherit;
+    }
+
+    /* ── Backdrop ── */
+    .cs-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
+    }
+
+    /* ── Trigger ── */
+    .cs-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(0, 232, 122, 0.3);
+        background: rgba(0, 232, 122, 0.08);
+        color: #e0ffe8;
+        font-size: 0.9rem;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        box-shadow: 0 0 12px rgba(0, 232, 122, 0.15);
+        transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+        text-align: left;
+    }
+
+    .cs-trigger:hover,
+    .cs-open .cs-trigger {
+        background: rgba(0, 232, 122, 0.15);
+        border-color: rgba(0, 232, 122, 0.6);
+        box-shadow: 0 0 20px rgba(0, 232, 122, 0.35);
+    }
+
+    /* ── Label inside trigger ── */
+    .cs-label {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cs-placeholder {
+        color: rgba(200, 255, 220, 0.45);
+    }
+
+    /* ── Caret ── */
+    .cs-caret {
+        color: #00e87a;
+        flex-shrink: 0;
+        transition: transform 0.2s;
+    }
+
+    .cs-open .cs-caret {
+        transform: rotate(180deg);
+    }
+
+    /* ── Dropdown panel ── */
+    .cs-menu {
+        display: block;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        min-width: 100%;
+        padding-top: 4px;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-6px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .cs-open .cs-menu {
+        opacity: 1;
+        pointer-events: all;
+        transform: translateY(0);
+    }
+
+    /* ── Panel inner ── */
+    .cs-menu-inner {
+        background: rgba(2, 18, 10, 0.97);
+        border: 1px solid rgba(0, 232, 122, 0.25);
+        border-radius: 14px;
+        box-shadow: 0 0 0 1px rgba(0, 232, 122, 0.08),
+                    0 0 30px rgba(0, 232, 122, 0.18),
+                    0 20px 50px rgba(0, 0, 0, 0.7);
+        padding: 8px;
+        max-height: 260px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 232, 122, 0.3) transparent;
+    }
+
+    .cs-menu-inner::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .cs-menu-inner::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .cs-menu-inner::-webkit-scrollbar-thumb {
+        background: rgba(0, 232, 122, 0.3);
+        border-radius: 4px;
+    }
+
+    /* ── Items ── */
+    .cs-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 9px 12px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: rgba(200, 255, 220, 0.75);
+        font-size: 0.875rem;
+        font-weight: 400;
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cs-item:hover {
+        background: rgba(0, 232, 122, 0.12);
+        color: #00e87a;
+    }
+
+    .cs-item-active {
+        color: #00e87a;
+        background: rgba(0, 232, 122, 0.08);
+    }
+
+    .cs-item-placeholder {
+        color: rgba(200, 255, 220, 0.4);
+        font-style: italic;
+    }
+
+    /* ── Divider ── */
+    .cs-divider {
+        height: 1px;
+        background: rgba(0, 232, 122, 0.15);
+        margin: 6px 4px;
+    }
+
+    /* ── Group label ── */
+    .cs-group-label {
+        padding: 4px 12px 2px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(0, 232, 122, 0.5);
+    }
+</style>

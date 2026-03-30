@@ -8,10 +8,12 @@ namespace FitPlay.Domain.Services;
 public class ClassSessionService : IClassSessionService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public ClassSessionService(FitPlayContext db)
+    public ClassSessionService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     public async Task<ClassSessionResponseDto?> GetSessionByIdAsync(int sessionId)
@@ -192,7 +194,7 @@ public class ClassSessionService : IClassSessionService
             UserId = normalizedUserId,
             Status = ClassEnrollmentStatus.Pending,
             PaidAmount = 0m,
-            EnrolledAt = DateTime.UtcNow
+            EnrolledAt = _clock.UtcNow
         };
 
         _db.ClassEnrollments.Add(enrollment);
@@ -260,6 +262,51 @@ public class ClassSessionService : IClassSessionService
     {
         if (endTime <= startTime)
             throw new ArgumentException("EndTime must be greater than StartTime.");
+    }
+
+    public async Task<List<SessionEnrollmentDto>> GetEnrollmentsBySessionAsync(int sessionId)
+    {
+        var enrollments = await _db.ClassEnrollments
+            .AsNoTracking()
+            .Where(e => e.ClassSessionId == sessionId)
+            .OrderBy(e => e.EnrolledAt)
+            .ToListAsync();
+
+        return enrollments.Select(e => new SessionEnrollmentDto(
+            e.Id, e.UserId, e.Status.ToString(), e.PaidAmount, e.EnrolledAt
+        )).ToList();
+    }
+
+    public async Task<List<SessionEnrollmentDetailDto>> GetEnrollmentDetailsBySessionAsync(int sessionId)
+    {
+        var enrollments = await _db.ClassEnrollments
+            .AsNoTracking()
+            .Where(e => e.ClassSessionId == sessionId)
+            .OrderBy(e => e.EnrolledAt)
+            .ToListAsync();
+
+        // Batch-resolve user details from domain Users table
+        var userIds = enrollments.Select(e => e.UserId).Distinct().ToList();
+        var users = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.IdentityUserId != null && userIds.Contains(u.IdentityUserId))
+            .ToListAsync();
+        var userMap = users.ToDictionary(u => u.IdentityUserId!, u => u);
+
+        return enrollments.Select(e =>
+        {
+            userMap.TryGetValue(e.UserId, out var user);
+            return new SessionEnrollmentDetailDto(
+                e.Id,
+                e.UserId,
+                user?.Name,
+                user?.Email,
+                user?.Phone,
+                e.Status.ToString(),
+                e.PaidAmount,
+                e.EnrolledAt
+            );
+        }).ToList();
     }
 
     private static ClassSessionResponseDto ToDto(ClassSession session) => new(

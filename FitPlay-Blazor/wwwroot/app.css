@@ -1,789 +1,31 @@
 /* ============================================
-   GYM ADMIN SIDEBAR — cola no final do app.css
-   e deleta o GymAdminLayout.razor.css
+   GYM ADMIN SIDEBAR
    ============================================ */
-
-/* Shell */
-.ga-shell {
-    display: flex;
-    min-height: 100vh;
-}
-/* ============================================
-   GYM ADMIN SIDEBAR — cola no final do app.css
-   e deleta o GymAdminLayout.razor.css
-   ============================================ */
-
-/* Shell */
-.ga-shell {
-    display: flex;
-    min-height: 100vh;
-}
-
-/* Sidebar */
-.ga-sidebar {
-    position: fixed !important;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 232px;
-    display: flex !important;
-    flex-direction: column !important;
-    background: rgba(5, 10, 18, 0.97);
-    border-right: 1px solid rgba(14, 240, 255, 0.1);
-    backdrop-filter: blur(12px);
-    z-index: 200;
-    overflow-y: auto;
-}
-
-/* Brand */
-.ga-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 1.5rem 1.25rem 1.25rem;
-    border-bottom: 1px solid rgba(14, 240, 255, 0.08);
-    flex-shrink: 0;
-}
-
-.ga-logo {
-    font-size: 1.3rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-decoration: none;
-    color: #f8f9fb;
-    line-height: 1;
-}
-
-    .ga-logo span {
-        color: #0ef0ff;
-    }
-
-.ga-role-badge {
-    font-size: 0.58rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    color: #0ef0ff;
-    border: 1px solid rgba(14, 240, 255, 0.4);
-    border-radius: 6px;
-    padding: 2px 6px;
-    flex-shrink: 0;
-}
-
-/* Nav */
-.ga-sidebar .ga-nav {
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 0.75rem 0.75rem 0.5rem;
-    gap: 4px;
-    flex: 1;
-}
-
-.ga-sidebar .nav-section {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 2px;
-    margin-bottom: 8px;
-}
-
-.ga-sidebar .nav-section-label {
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    color: rgba(148, 163, 184, 0.5);
-    text-transform: uppercase;
-    padding: 10px 0.9rem 4px;
-}
-
-/* Nav items */
-.ga-sidebar .ga-nav-item {
-    display: flex !important;
-    align-items: center;
-    gap: 11px;
-    padding: 0.55rem 0.9rem;
-    border-radius: 11px;
-    color: rgba(203, 213, 225, 0.78) !important;
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-decoration: none !important;
-    line-height: 1;
-    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
-}
-
-    .ga-sidebar .ga-nav-item:hover {
-        background: radial-gradient(circle at left, rgba(14, 240, 255, 0.16), transparent 55%);
-        color: #e2f7ff !important;
-    }
-
-    .ga-sidebar .ga-nav-item.active {
-        background: linear-gradient(90deg, rgba(14, 240, 255, 0.28), rgba(56, 189, 248, 0.08)) !important;
-        color: #0ef0ff !important;
-        box-shadow: inset 3px 0 0 #0ef0ff, 0 0 16px rgba(14, 240, 255, 0.35);
-    }
-
-/* Nav icon */
-.ga-sidebar .nav-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(15, 23, 42, 0.8);
-    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
-    color: rgba(148, 163, 184, 0.9);
-    flex-shrink: 0;
-}
-
-.ga-sidebar .ga-nav-item.active .nav-icon {
-    background: radial-gradient(circle at top left, #0ef0ff, #0369a1);
-    color: #00101a;
-    box-shadow: 0 0 12px rgba(14, 240, 255, 0.75);
-}
-
-.ga-sidebar .nav-label {
-    flex: 1;
-    white-space: nowrap;
-}
-
-.ga-sidebar .nav-badge {
-    min-width: 20px;
-    padding: 0 6px;
-    height: 20px;
-    border-radius: 999px;
-    background: #0ea5e9;
-    color: #e0faff;
-    font-size: 0.7rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Footer */
-.ga-bottom {
-    flex-shrink: 0;
-    padding: 0.875rem 0.875rem 1.25rem;
-    border-top: 1px solid rgba(14, 240, 255, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 0.625rem;
-}
-
-.ga-profile-foot {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0.25rem 0.35rem;
-}
-
-.ga-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #0ef0ff, #0ab8c7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #001e24;
-    flex-shrink: 0;
-    box-shadow: 0 0 10px rgba(14, 240, 255, 0.4);
-}
-
-.ga-profile-details {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-}
-
-.ga-username {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #e5f7ff;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ga-email {
-    font-size: 0.72rem;
-    color: rgba(148, 163, 184, 0.7);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ga-role-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 1px 7px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: rgba(0, 212, 255, 0.6);
-    width: fit-content;
-}
-
-/* Logout */
-.ga-logout-form {
-    margin: 0;
-}
-
-.ga-logout-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 0.5rem 0.9rem;
-    border-radius: 9px;
-    background: transparent;
-    border: none;
-    color: rgba(148, 163, 184, 0.6);
-    font-weight: 500;
-    font-size: 0.85rem;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-
-    .ga-logout-btn:hover {
-        background: rgba(255, 80, 80, 0.08);
-        color: #ff6060;
-    }
-
-/* Main content */
-.ga-content {
-    margin-left: 244px;
-    flex: 1;
-    min-height: 100vh;
-}
-/* Sidebar */
-.ga-sidebar {
-    position: fixed !important;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 232px;
-    display: flex !important;
-    flex-direction: column !important;
-    background: rgba(5, 10, 18, 0.97);
-    border-right: 1px solid rgba(14, 240, 255, 0.1);
-    backdrop-filter: blur(12px);
-    z-index: 200;
-    overflow-y: auto;
-}
-
-/* Brand */
-.ga-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 1.5rem 1.25rem 1.25rem;
-    border-bottom: 1px solid rgba(14, 240, 255, 0.08);
-    flex-shrink: 0;
-}
-
-.ga-logo {
-    font-size: 1.3rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-decoration: none;
-    color: #f8f9fb;
-    line-height: 1;
-}
-
-    .ga-logo span {
-        color: #0ef0ff;
-    }
-
-.ga-role-badge {
-    font-size: 0.58rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    color: #0ef0ff;
-    border: 1px solid rgba(14, 240, 255, 0.4);
-    border-radius: 6px;
-    padding: 2px 6px;
-    flex-shrink: 0;
-}
-
-/* Nav */
-.ga-sidebar .ga-nav {
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 0.75rem 0.75rem 0.5rem;
-    gap: 4px;
-    flex: 1;
-}
-
-.ga-sidebar .nav-section {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 2px;
-    margin-bottom: 8px;
-}
-
-.ga-sidebar .nav-section-label {
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    color: rgba(148, 163, 184, 0.5);
-    text-transform: uppercase;
-    padding: 10px 0.9rem 4px;
-}
-
-/* Nav items */
-.ga-sidebar .ga-nav-item {
-    display: flex !important;
-    align-items: center;
-    gap: 11px;
-    padding: 0.55rem 0.9rem;
-    border-radius: 11px;
-    color: rgba(203, 213, 225, 0.78) !important;
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-decoration: none !important;
-    line-height: 1;
-    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
-}
-
-    .ga-sidebar .ga-nav-item:hover {
-        background: radial-gradient(circle at left, rgba(14, 240, 255, 0.16), transparent 55%);
-        color: #e2f7ff !important;
-    }
-
-    .ga-sidebar .ga-nav-item.active {
-        background: linear-gradient(90deg, rgba(14, 240, 255, 0.28), rgba(56, 189, 248, 0.08)) !important;
-        color: #0ef0ff !important;
-        box-shadow: inset 3px 0 0 #0ef0ff, 0 0 16px rgba(14, 240, 255, 0.35);
-    }
-
-/* Nav icon */
-.ga-sidebar .nav-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(15, 23, 42, 0.8);
-    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
-    color: rgba(148, 163, 184, 0.9);
-    flex-shrink: 0;
-}
-
-.ga-sidebar .ga-nav-item.active .nav-icon {
-    background: radial-gradient(circle at top left, #0ef0ff, #0369a1);
-    color: #00101a;
-    box-shadow: 0 0 12px rgba(14, 240, 255, 0.75);
-}
-
-.ga-sidebar .nav-label {
-    flex: 1;
-    white-space: nowrap;
-}
-
-.ga-sidebar .nav-badge {
-    min-width: 20px;
-    padding: 0 6px;
-    height: 20px;
-    border-radius: 999px;
-    background: #0ea5e9;
-    color: #e0faff;
-    font-size: 0.7rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Footer */
-.ga-bottom {
-    flex-shrink: 0;
-    padding: 0.875rem 0.875rem 1.25rem;
-    border-top: 1px solid rgba(14, 240, 255, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 0.625rem;
-}
-
-.ga-profile-foot {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0.25rem 0.35rem;
-}
-
-.ga-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #0ef0ff, #0ab8c7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #001e24;
-    flex-shrink: 0;
-    box-shadow: 0 0 10px rgba(14, 240, 255, 0.4);
-}
-
-.ga-profile-details {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-}
-
-.ga-username {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #e5f7ff;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ga-email {
-    font-size: 0.72rem;
-    color: rgba(148, 163, 184, 0.7);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ga-role-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 1px 7px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: rgba(0, 212, 255, 0.6);
-    width: fit-content;
-}
-
-/* Logout */
-.ga-logout-form {
-    margin: 0;
-}
-
-.ga-logout-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 0.5rem 0.9rem;
-    border-radius: 9px;
-    background: transparent;
-    border: none;
-    color: rgba(148, 163, 184, 0.6);
-    font-weight: 500;
-    font-size: 0.85rem;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-
-    .ga-logout-btn:hover {
-        background: rgba(255, 80, 80, 0.08);
-        color: #ff6060;
-    }
-
-/* Main content */
-/* ============================================
-   GYM ADMIN SIDEBAR — cola no final do app.css
-   e deleta o GymAdminLayout.razor.css
-   ============================================ */
-
-/* Shell */
-.ga-shell {
-    display: flex;
-    min-height: 100vh;
-}
-
-/* Sidebar */
-.ga-sidebar {
-    position: fixed !important;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 232px;
-    display: flex !important;
-    flex-direction: column !important;
-    background: rgba(5, 10, 18, 0.97);
-    border-right: 1px solid rgba(14, 240, 255, 0.1);
-    backdrop-filter: blur(12px);
-    z-index: 200;
-    overflow-y: auto;
-}
-
-/* Brand */
-.ga-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 1.5rem 1.25rem 1.25rem;
-    border-bottom: 1px solid rgba(14, 240, 255, 0.08);
-    flex-shrink: 0;
-}
-
-.ga-logo {
-    font-size: 1.3rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-decoration: none;
-    color: #f8f9fb;
-    line-height: 1;
-}
-
-    .ga-logo span {
-        color: #0ef0ff;
-    }
-
-.ga-role-badge {
-    font-size: 0.58rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    color: #0ef0ff;
-    border: 1px solid rgba(14, 240, 255, 0.4);
-    border-radius: 6px;
-    padding: 2px 6px;
-    flex-shrink: 0;
-}
-
-/* Nav */
-.ga-sidebar .ga-nav {
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 0.75rem 0.75rem 0.5rem;
-    gap: 4px;
-    flex: 1;
-}
-
-.ga-sidebar .nav-section {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 2px;
-    margin-bottom: 8px;
-}
-
-.ga-sidebar .nav-section-label {
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    color: rgba(148, 163, 184, 0.5);
-    text-transform: uppercase;
-    padding: 10px 0.9rem 4px;
-}
-
-/* Nav items */
-.ga-sidebar .ga-nav-item {
-    display: flex !important;
-    align-items: center;
-    gap: 11px;
-    padding: 0.55rem 0.9rem;
-    border-radius: 11px;
-    color: rgba(203, 213, 225, 0.78) !important;
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-decoration: none !important;
-    line-height: 1;
-    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
-}
-
-    .ga-sidebar .ga-nav-item:hover {
-        background: radial-gradient(circle at left, rgba(14, 240, 255, 0.16), transparent 55%);
-        color: #e2f7ff !important;
-    }
-
-    .ga-sidebar .ga-nav-item.active {
-        background: linear-gradient(90deg, rgba(14, 240, 255, 0.28), rgba(56, 189, 248, 0.08)) !important;
-        color: #0ef0ff !important;
-        box-shadow: inset 3px 0 0 #0ef0ff, 0 0 16px rgba(14, 240, 255, 0.35);
-    }
-
-/* Nav icon */
-.ga-sidebar .nav-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(15, 23, 42, 0.8);
-    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
-    color: rgba(148, 163, 184, 0.9);
-    flex-shrink: 0;
-}
-
-.ga-sidebar .ga-nav-item.active .nav-icon {
-    background: radial-gradient(circle at top left, #0ef0ff, #0369a1);
-    color: #00101a;
-    box-shadow: 0 0 12px rgba(14, 240, 255, 0.75);
-}
-
-.ga-sidebar .nav-label {
-    flex: 1;
-    white-space: nowrap;
-}
-
-.ga-sidebar .nav-badge {
-    min-width: 20px;
-    padding: 0 6px;
-    height: 20px;
-    border-radius: 999px;
-    background: #0ea5e9;
-    color: #e0faff;
-    font-size: 0.7rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Footer */
-.ga-bottom {
-    flex-shrink: 0;
-    padding: 0.875rem 0.875rem 1.25rem;
-    border-top: 1px solid rgba(14, 240, 255, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 0.625rem;
-}
-
-.ga-profile-foot {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0.25rem 0.35rem;
-}
-
-.ga-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #0ef0ff, #0ab8c7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #001e24;
-    flex-shrink: 0;
-    box-shadow: 0 0 10px rgba(14, 240, 255, 0.4);
-}
-
-.ga-profile-details {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-}
-
-.ga-username {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #e5f7ff;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ga-email {
-    font-size: 0.72rem;
-    color: rgba(148, 163, 184, 0.7);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ga-role-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 1px 7px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: rgba(0, 212, 255, 0.6);
-    width: fit-content;
-}
-
-/* Logout */
-.ga-logout-form {
-    margin: 0;
-}
-
-.ga-logout-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 0.5rem 0.9rem;
-    border-radius: 9px;
-    background: transparent;
-    border: none;
-    color: rgba(148, 163, 184, 0.6);
-    font-weight: 500;
-    font-size: 0.85rem;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-
-    .ga-logout-btn:hover {
-        background: rgba(255, 80, 80, 0.08);
-        color: #ff6060;
-    }
-
-/* Main content */
-.ga-content {
-    margin-left: 244px;
-    flex: 1;
-    min-height: 100vh;
-}
-.ga-content {
-    margin-left: 244px;
-    flex: 1;
-    min-height: 100vh;
-}
-
-
-/* === Gym Admin Layout (moved from GymAdminLayout.razor.css) === */
 
 /* ── Shell layout ── */
 .ga-shell {
     display: flex;
     min-height: 100vh;
+    --ga-sidebar-width: 260px;
+    --ga-sidebar-gap: 0px;
 }
 
 /* ── Sidebar ── */
 .ga-sidebar {
     position: fixed;
-    top: 200px;
-    left: 12px;
-    bottom: 12px;
-    width: 232px;
+    top: var(--ga-sidebar-gap);
+    left: var(--ga-sidebar-gap);
+    bottom: var(--ga-sidebar-gap);
+    width: var(--ga-sidebar-width);
     display: flex;
     flex-direction: column;
     background: linear-gradient(180deg, rgba(8, 14, 24, 0.98), rgba(5, 10, 18, 0.97));
     border-right: 1px solid rgba(14, 240, 255, 0.1);
-    border-radius: 18px;
+    border-radius: 0;
     backdrop-filter: blur(12px);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(14, 240, 255, 0.08) inset;
     z-index: 200;
+    margin: 0;
     padding: 0;
     overflow-y: auto;
 }
@@ -1033,9 +275,21 @@
 
 /* ── Main content ── */
 .ga-content {
-    margin-left: 244px;
+    margin-left: var(--ga-sidebar-width);
+    padding-left: 0;
+    padding-top: 0;
+    padding-bottom: 0;
     flex: 1;
     min-height: 100vh;
+}
+
+/* ── Page alignment ── */
+.ga-shell .gymdash-shell,
+.ga-shell .gym-page {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    min-height: 100vh;
+    background: #F4F7FB;
 }
 
 /* ── Mobile ── */
@@ -1116,70 +370,783 @@
 }
 
 
-/* === Gym Admin Positioning (based on auth panel spacing) === */
-.ga-shell {
-    --ga-sidebar-width: 260px;
-    --ga-sidebar-gap: 0px;
+/* ============================================================
+   Global Top-Nav Shell Styles
+   (shared by UserLayout, TrainerLayout and ManageRoleLayout)
+   ============================================================ */
+
+/* ── Profile trigger ── */
+.profile-dropdown {
+    position: relative;
 }
 
-.ga-shell .ga-sidebar {
-    position: fixed;
-    top: var(--ga-sidebar-gap);
-    left: var(--ga-sidebar-gap);
-    bottom: var(--ga-sidebar-gap);
-    width: var(--ga-sidebar-width);
+.profile-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 232, 122, 0.08);
+    border: 1px solid rgba(0, 232, 122, 0.3);
+    border-radius: 40px;
+    padding: 6px 14px 6px 6px;
+    cursor: pointer;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 12px rgba(0, 232, 122, 0.15);
+}
+
+.profile-trigger:hover,
+.profile-dropdown:hover .profile-trigger,
+.profile-dropdown:focus-within .profile-trigger {
+    background: rgba(0, 232, 122, 0.15);
+    border-color: rgba(0, 232, 122, 0.6);
+    box-shadow: 0 0 20px rgba(0, 232, 122, 0.35);
+}
+
+/* ── Avatar circle ── */
+.profile-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00e87a, #00a854);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #021a0d;
+    flex-shrink: 0;
+    box-shadow: 0 0 10px rgba(0, 232, 122, 0.5);
+}
+
+/* ── Name label ── */
+.profile-name {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #e0ffe8;
+}
+
+/* ── Caret ── */
+.dropdown-caret {
+    transition: transform 0.2s;
+    color: #00e87a;
+    flex-shrink: 0;
+}
+
+.profile-dropdown:hover .dropdown-caret,
+.profile-dropdown:focus-within .dropdown-caret {
+    transform: rotate(180deg);
+}
+
+/* ── Dropdown panel ── */
+.dropdown-menu {
+    display: block;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 230px;
+    padding-top: 6px;
+    background: transparent;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.dropdown-menu-inner {
+    background: rgba(2, 18, 10, 0.97);
+    border: 1px solid rgba(0, 232, 122, 0.25);
+    border-radius: 14px;
+    box-shadow: 0 0 0 1px rgba(0, 232, 122, 0.08),
+                0 0 30px rgba(0, 232, 122, 0.18),
+                0 20px 50px rgba(0, 0, 0, 0.7);
+    padding: 8px;
+}
+
+.profile-dropdown:hover .dropdown-menu,
+.profile-dropdown:focus-within .dropdown-menu {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0);
+}
+
+/* ── Dropdown sections ── */
+.dropdown-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: rgba(0, 232, 122, 0.15);
+    margin: 6px 4px;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: rgba(200, 255, 220, 0.75);
+    font-size: 0.875rem;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+}
+
+.dropdown-item:hover {
+    background: rgba(0, 232, 122, 0.12);
+    color: #00e87a;
+}
+
+.dropdown-item svg {
+    color: #00e87a;
+    opacity: 0.5;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+}
+
+.dropdown-item:hover svg {
+    opacity: 1;
+}
+
+.dropdown-logout-section {
+    padding: 4px 2px 2px;
+}
+
+/* ── Logout button ── */
+.btn-logout-green {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    background: linear-gradient(135deg, #00e87a, #00c45f);
+    color: #021a0d;
+    border: none;
+    padding: 0.65rem 1.25rem;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.3s;
+    box-shadow: 0 4px 18px rgba(0, 232, 122, 0.45);
+    letter-spacing: 0.01em;
+}
+
+.btn-logout-green:hover {
+    transform: scale(1.03);
+    box-shadow: 0 6px 28px rgba(0, 232, 122, 0.7);
+}
+
+.btn-logout-green svg {
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+.btn-logout-green svg {
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+    .profile-name { display: none; }
+}
+
+/* ============================================================
+   Manage Page — shell, tabs, card  (BASE — shared by all roles)
+   ============================================================ */
+
+.manage-shell {
+    padding: 3rem 2.5rem 3rem;
+    min-height: 100vh;
+    color: #f8f9fb;
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+.manage-title {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #f8f9fb;
+    margin: 0 0 0.2rem;
+    letter-spacing: -0.01em;
+}
+
+.manage-subtitle {
+    font-size: 0.9rem;
+    color: rgba(154, 160, 181, 0.8);
+    margin: 0 0 1.5rem;
+}
+
+/* ── Horizontal tab bar (base / GymAdmin) ── */
+.manage-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 2.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.manage-tabs::-webkit-scrollbar { display: none; }
+
+.manage-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0.6rem 1.1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(154, 160, 181, 0.7);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.manage-tab:hover {
+    color: #e0ffe8;
+    text-decoration: none;
+}
+
+.manage-tab svg {
+    opacity: 0.55;
+    flex-shrink: 0;
+    transition: opacity 0.18s;
+}
+
+.manage-tab:hover svg { opacity: 0.85; }
+
+/* Cyan active — GymAdmin */
+.manage-cyan .manage-tab.active {
+    color: #0ef0ff;
+    border-bottom-color: #0ef0ff;
+}
+
+.manage-cyan .manage-tab.active svg {
+    opacity: 1;
+    color: #0ef0ff;
+}
+
+/* ── Form card (base / GymAdmin) ── */
+.manage-card {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    padding: 2rem 2.25rem;
+    max-width: 560px;
+}
+
+.manage-card h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #f8f9fb;
+    margin: 0 0 1.25rem;
+}
+
+.manage-card .form-control {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    color: #f8f9fb !important;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.9rem;
+}
+
+.manage-card .form-control:focus {
+    background: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.manage-card .form-floating label {
+    color: rgba(154, 160, 181, 0.7) !important;
+    font-size: 0.85rem;
+}
+
+.manage-card .form-control:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   GymAdmin — new wrapper divs are transparent (display:contents)
+   so they do NOT break the existing horizontal-tab layout.
+   ============================================================ */
+
+.manage-cyan .manage-sidebar,
+.manage-cyan .manage-content {
+    display: contents;
+}
+
+/* ============================================================
+   Manage Page — role-aware buttons: GymAdmin (cyan)
+   ============================================================ */
+
+.manage-cyan .btn-primary {
+    background: linear-gradient(135deg, #0ef0ff, #0ab8c7) !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: #001e24 !important;
+    font-weight: 700;
+    border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(14, 240, 255, 0.4);
+    transition: transform 0.2s, box-shadow 0.3s;
+}
+
+.manage-cyan .btn-primary:hover,
+.manage-cyan .btn-primary:focus,
+.manage-cyan .btn-primary:focus-visible {
+    background: linear-gradient(135deg, #30f5ff, #0dd0e0) !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    box-shadow: 0 6px 28px rgba(14, 240, 255, 0.65) !important;
+    transform: scale(1.015);
+    color: #001e24 !important;
+}
+
+.manage-cyan .btn-primary:active {
+    background: linear-gradient(135deg, #0ab8c7, #089aa8) !important;
+    background-color: transparent !important;
+    transform: scale(0.99);
+}
+
+/* ============================================================
+   Manage Page — User / Trainer redesign (.manage-green ONLY)
+   Two-column flex sidebar layout, DM Sans, flat dark UI
+   ============================================================ */
+
+/* ── Shell: flex two-column ── */
+.manage-green .manage-shell {
+    display: flex;
+    gap: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 80px 2rem 40px;
+    min-height: auto;
+    font-family: 'DM Sans', sans-serif;
+}
+
+/* ── Left sidebar ── */
+.manage-green .manage-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    margin-top: 40px;
+}
+
+.manage-green .manage-header {
+    margin-bottom: 20px;
+}
+
+.manage-green .manage-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f0f0f5;
+    margin: 0 0 4px;
+}
+
+.manage-green .manage-subtitle {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    color: rgba(154, 160, 181, 0.65);
     margin: 0;
-    padding: 0;
-    border-radius: 0;
 }
 
-
-.ga-shell .ga-content {
-    margin-left: var(--ga-sidebar-width);
-    padding-left: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    min-height: 100vh;
+/* ── Sidebar nav ── */
+.manage-green .manage-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+    overflow: visible;
 }
 
+.manage-green .manage-tab {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    margin-bottom: 2px;
+    font-size: 0.84rem;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    color: rgba(160, 165, 185, 0.8);
+    text-decoration: none;
+    border-bottom: none;
+    border-radius: 8px;
+    white-space: nowrap;
+    transition: color 0.15s, background 0.15s;
+}
 
+.manage-green .manage-tab:hover {
+    color: #d0d4e0;
+    background: rgba(255, 255, 255, 0.04);
+}
 
+.manage-green .manage-tab svg {
+    opacity: 0.5;
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+}
 
+.manage-green .manage-tab:hover svg {
+    opacity: 0.75;
+}
+
+/* Active nav item — green-tinted bg + green text */
+.manage-green .manage-tab.active {
+    color: #39ff7e;
+    background: rgba(57, 255, 126, 0.08);
+    border-bottom-color: transparent;
+    box-shadow: none;
+}
+
+.manage-green .manage-tab.active svg {
+    opacity: 1;
+    color: #39ff7e;
+}
+
+/* ── Right content area ── */
+.manage-green .manage-content {
+    flex: 1;
+    min-width: 0;
+    max-width: 600px;
+    margin-top: 40px;
+    margin-left: 40px;
+}
+
+/* ── Form card ── */
+.manage-green .manage-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: none;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.manage-green .manage-card h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #f0f0f5;
+    margin: 0 0 1.1rem;
+}
+
+/* ── Inputs: dark bg, low-opacity border, green glow on focus ── */
+.manage-green .manage-card .form-control,
+.manage-green .manage-content .form-control {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    color: #f0f0f5 !important;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    padding: 10px 14px;
+    height: auto;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.manage-green .manage-card .form-control:focus,
+.manage-green .manage-content .form-control:focus {
+    background: rgba(255, 255, 255, 0.055) !important;
+    border-color: rgba(57, 255, 126, 0.45) !important;
+    box-shadow: 0 0 0 2px rgba(57, 255, 126, 0.15) !important;
+    outline: none !important;
+}
+
+.manage-green .manage-card .form-control:disabled,
+.manage-green .manage-content .form-control:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.manage-green .manage-card .form-control::placeholder,
+.manage-green .manage-content .form-control::placeholder {
+    color: rgba(154, 160, 181, 0.4);
+}
+
+/* ── Profile header (avatar + info) ── */
+.manage-green .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.manage-green .profile-header-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(57, 255, 126, 0.12);
+    color: #39ff7e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.manage-green .profile-header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.manage-green .profile-header-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #f0f0f5;
+}
+
+.manage-green .profile-header-email {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    color: rgba(154, 160, 181, 0.65);
+}
+
+.manage-green .profile-header-change {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.76rem;
+    color: #39ff7e;
+    text-decoration: none;
+    margin-top: 2px;
+}
+
+.manage-green .profile-header-change:hover {
+    text-decoration: underline;
+}
+
+/* ── Name grid (first + last side by side) ── */
+.manage-green .manage-name-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ── Field labels ── */
+.manage-green .manage-label {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: rgba(160, 165, 185, 0.7);
+    margin-bottom: 6px;
+}
+
+.manage-green .manage-field {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Save button: solid green, no gradient ── */
+.manage-green .manage-save-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 10px 28px;
+    background: #39ff7e;
+    color: #0b0b11;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.manage-green .manage-save-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(57, 255, 126, 0.25);
+}
+
+.manage-green .manage-save-btn:active {
+    transform: translateY(0);
+}
+
+/* Override old .btn-primary used by sub-pages (Email, Password, etc.) */
+.manage-green .btn-primary {
+    background: #39ff7e !important;
+    background-color: #39ff7e !important;
+    border-color: transparent !important;
+    color: #0b0b11 !important;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    border-radius: 10px;
+    box-shadow: none;
+    transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.manage-green .btn-primary:hover,
+.manage-green .btn-primary:focus,
+.manage-green .btn-primary:focus-visible {
+    background: #39ff7e !important;
+    background-color: #39ff7e !important;
+    border-color: transparent !important;
+    box-shadow: 0 4px 14px rgba(57, 255, 126, 0.25) !important;
+    transform: translateY(-1px);
+    color: #0b0b11 !important;
+}
+
+.manage-green .btn-primary:active {
+    background: #2ee06d !important;
+    background-color: #2ee06d !important;
+    transform: translateY(0);
+}
+
+/* ── Danger zone card ── */
+.manage-green .manage-danger-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 60, 60, 0.03);
+    border: 1px solid rgba(255, 60, 60, 0.2);
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+}
+
+.manage-green .manage-danger-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.manage-green .manage-danger-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 100, 100, 0.9);
+}
+
+.manage-green .manage-danger-desc {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: rgba(255, 100, 100, 0.5);
+    max-width: 380px;
+}
+
+.manage-green .manage-danger-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 18px;
+    background: rgba(255, 60, 60, 0.1);
+    border: 1px solid rgba(255, 60, 60, 0.25);
+    border-radius: 8px;
+    color: rgba(255, 100, 100, 0.85);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.manage-green .manage-danger-btn:hover {
+    background: rgba(255, 60, 60, 0.18);
+    border-color: rgba(255, 60, 60, 0.4);
+    color: rgba(255, 100, 100, 1);
+    text-decoration: none;
+}
+
+/* ── Manage sub-page extras (status, alerts, actions) ── */
+.manage-green .manage-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.manage-green .btn-danger {
+    background: rgba(255, 60, 60, 0.12) !important;
+    border: 1px solid rgba(255, 60, 60, 0.25) !important;
+    color: rgba(255, 100, 100, 0.85) !important;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    border-radius: 10px;
+    box-shadow: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.manage-green .btn-danger:hover {
+    background: rgba(255, 60, 60, 0.2) !important;
+    border-color: rgba(255, 60, 60, 0.4) !important;
+}
+
+.manage-green .form-floating label {
+    font-family: 'DM Sans', sans-serif;
+    color: rgba(160, 165, 185, 0.7) !important;
+    font-size: 0.82rem;
+}
+
+.manage-green .text-danger {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+}
+
+.manage-green .alert {
+    font-family: 'DM Sans', sans-serif;
+    border-radius: 10px;
+    font-size: 0.85rem;
+}
+
+/* ── Mobile: collapse to single column ── */
 @media (max-width: 768px) {
-    .ga-shell .ga-content {
-        margin-left: var(--ga-sidebar-width);
-        padding-left: 0;
-        padding-top: 0;
-        padding-bottom: 0;
-        min-height: 100vh;
+    .manage-green .manage-shell {
+        flex-direction: column;
+        gap: 0;
+        padding: 80px 16px 24px;
     }
-}
 
+    .manage-green .manage-sidebar {
+        width: 100%;
+        margin-bottom: 24px;
+    }
 
+    .manage-green .manage-tabs {
+        flex-direction: row;
+        overflow-x: auto;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
 
+    .manage-green .manage-tab {
+        border-radius: 0;
+        margin-bottom: -1px;
+        border-bottom: 2px solid transparent;
+        padding: 8px 14px;
+    }
 
-/* === Gym Admin Page Alignment Override === */
-.ga-shell .gymdash-shell,
-.ga-shell .gym-page {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-}
-/* === Gym Admin Dimensions & Background === */
-.ga-shell {
-    min-height: 100vh;
-}
+    .manage-green .manage-tab.active {
+        background: transparent;
+        border-bottom-color: #39ff7e;
+    }
 
-.ga-shell .ga-content {
-    margin-left: var(--ga-sidebar-width);
-    padding-left: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    min-height: 100vh;
-}
-
-
-.ga-shell .gymdash-shell,
-.ga-shell .gym-page {
-    min-height: 100vh;
-    background: #F4F7FB;
+    .manage-green .manage-danger-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+    }
 }

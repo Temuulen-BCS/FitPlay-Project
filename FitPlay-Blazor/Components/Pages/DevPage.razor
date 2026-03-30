@@ -1,0 +1,645 @@
+@page "/dev"
+@rendermode InteractiveServer
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+
+<PageTitle>Dev Tools - FitPlay</PageTitle>
+
+<div class="dev-page">
+    <div class="page-header">
+        <h1>Dev Tools</h1>
+        <p class="subtitle">Fake class completions and control server time for testing</p>
+    </div>
+
+    <!-- Time Travel Panel -->
+    <div class="form-card time-card">
+        <h2>Time Travel</h2>
+        <p class="form-desc">
+            Override the server clock used by all services, tabs and session filters.
+            The mock time is in-memory — it resets when the API restarts.
+        </p>
+
+        <div class="time-status @(_timeIsMocked ? "status-mocked" : "status-real")">
+            <span class="time-dot"></span>
+            <span class="time-status-label">@(_timeIsMocked ? "MOCKED" : "REAL TIME")</span>
+            <span class="time-value">@_serverTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</span>
+        </div>
+
+        <div class="time-inputs">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" class="dev-input" @bind="_mockDate" />
+            </div>
+            <div class="form-group">
+                <label>Time (UTC)</label>
+                <input type="time" class="dev-input" @bind="_mockTimeOfDay" step="60" />
+            </div>
+        </div>
+
+        <div class="time-actions">
+            <button class="btn-set-time" @onclick="SetMockTime" disabled="@_isTimeBusy">
+                @(_isTimeBusy ? "..." : "Set Mock Time")
+            </button>
+            <button class="btn-reset-time" @onclick="ResetMockTime" disabled="@(_isTimeBusy || !_timeIsMocked)">
+                Reset to Real Time
+            </button>
+        </div>
+
+        @if (_timeMessage is not null)
+        {
+            <div class="time-message">@_timeMessage</div>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading">Loading booked classes...</div>
+    }
+    else
+    {
+        @if (_errorMessage is not null)
+        {
+            <div class="error-box">@_errorMessage</div>
+        }
+
+        @if (_successMessage is not null)
+        {
+            <div class="success-box">@_successMessage</div>
+        }
+
+        <!-- Mark as Done form -->
+        <div class="form-card">
+            <h2>Mark as Done</h2>
+            <p class="form-desc">Select a booked class to mark it as completed. The original scheduled date and time will be preserved, and XP will be awarded.</p>
+
+            <div class="form-group">
+                <label>Booked Class</label>
+                <CustomSelect Class="dev-select"
+                              @bind-Value="_selectedBookingKey"
+                              Groups="@GetBookingGroups()"
+                              Placeholder="-- Select a booked class --" />
+            </div>
+
+            @if (!_schedules.Any() && !_enrollments.Any())
+            {
+                <div class="empty-state">No booked classes found to complete.</div>
+            }
+
+            <button class="btn-complete" @onclick="MarkAsDone" disabled="@(_isSubmitting || string.IsNullOrEmpty(_selectedBookingKey))">
+                @if (_isSubmitting)
+                {
+                    <span>Processing...</span>
+                }
+                else
+                {
+                    <span>Mark as Done</span>
+                }
+            </button>
+        </div>
+
+        <!-- Reset a Completed Booking -->
+        <div class="form-card reset-card">
+            <h2>Reset a Completed Booking</h2>
+            <p class="form-desc">Select a completed enrollment to revert it back to Confirmed. Check-ins will be removed and the session will return to Scheduled (if no other completions remain).</p>
+
+            <div class="form-group">
+                <label>Completed Enrollment</label>
+                <CustomSelect Class="dev-select"
+                              @bind-Value="_selectedResetKey"
+                              Options="@GetCompletedEnrollmentOptions()"
+                              Placeholder="-- Select a completed enrollment --" />
+            </div>
+
+            @if (!_completedEnrollments.Any())
+            {
+                <div class="empty-state">No completed enrollments to reset.</div>
+            }
+
+            <button class="btn-reset" @onclick="ResetBooking" disabled="@(_isResetting || string.IsNullOrEmpty(_selectedResetKey))">
+                @if (_isResetting)
+                {
+                    <span>Resetting...</span>
+                }
+                else
+                {
+                    <span>Reset to Before</span>
+                }
+            </button>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-row">
+            <div class="summary-card">
+                <span class="summary-count">@_schedules.Count</span>
+                <span class="summary-label">Scheduled Classes</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-count">@_enrollments.Count</span>
+                <span class="summary-label">Confirmed Enrollments</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-count">@_completedEnrollments.Count</span>
+                <span class="summary-label">Completed Enrollments</span>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .dev-page {
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: var(--text-primary);
+    }
+
+    .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+    }
+
+    .loading {
+        text-align: center;
+        padding: 60px;
+        color: var(--text-muted);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+    }
+
+    .error-box {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+
+    .success-box {
+        background: rgba(34, 197, 94, 0.15);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        color: #86efac;
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+
+    .form-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 28px;
+        margin-bottom: 24px;
+    }
+
+    .form-card h2 {
+        margin: 0 0 8px 0;
+        font-size: 20px;
+        color: var(--text-primary);
+    }
+
+    .form-desc {
+        margin: 0 0 24px 0;
+        color: var(--text-muted);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text-primary);
+    }
+
+    .dev-select .cs-trigger {
+        padding: 10px 14px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+
+    .btn-complete {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-complete:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    .btn-complete:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .reset-card {
+        border-color: rgba(251, 191, 36, 0.3);
+    }
+
+    .btn-reset {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f59e0b 0%, #dc2626 100%);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-reset:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    .btn-reset:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .summary-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 16px;
+    }
+
+    .summary-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .summary-count {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-label {
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    /* Time travel panel */
+    .time-card {
+        border-color: rgba(14, 240, 255, 0.25);
+    }
+
+    .time-status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        font-family: monospace;
+    }
+    .status-real    { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
+    .status-mocked  { background: rgba(14,240,255,0.08);  border: 1px solid rgba(14,240,255,0.3); color: #0ef0ff; }
+
+    .time-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .status-real   .time-dot { background: #9aa0b5; }
+    .status-mocked .time-dot {
+        background: #0ef0ff;
+        box-shadow: 0 0 6px rgba(14,240,255,0.8);
+        animation: pulse-dot 1.4s ease-out infinite;
+    }
+    @@keyframes pulse-dot {
+        0%   { box-shadow: 0 0 0 0   rgba(14,240,255,0.6); }
+        70%  { box-shadow: 0 0 0 5px rgba(14,240,255,0); }
+        100% { box-shadow: 0 0 0 0   rgba(14,240,255,0); }
+    }
+
+    .time-status-label { font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .time-value        { color: inherit; opacity: 0.85; }
+
+    .time-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .dev-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 10px;
+        color: var(--text-primary, #f8f9fb);
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.18s;
+        color-scheme: dark;
+    }
+    .dev-input:focus { border-color: rgba(14,240,255,0.45); }
+
+    .time-actions {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .btn-set-time {
+        flex: 1;
+        padding: 11px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
+        color: #001e24;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .btn-set-time:hover:not(:disabled) { opacity: 0.88; }
+    .btn-set-time:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-reset-time {
+        flex: 1;
+        padding: 11px;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text-muted, #9aa0b5);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-reset-time:hover:not(:disabled) { border-color: rgba(255,255,255,0.35); color: #f8f9fb; }
+    .btn-reset-time:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .time-message {
+        font-size: 12px;
+        color: #0ef0ff;
+        opacity: 0.8;
+        font-family: monospace;
+    }
+</style>
+
+@code {
+    // ── Time travel state ──
+    private DateTime _serverTime = DateTime.UtcNow;
+    private bool _timeIsMocked;
+    private bool _isTimeBusy;
+    private string? _timeMessage;
+    private DateOnly _mockDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private TimeOnly _mockTimeOfDay = TimeOnly.FromDateTime(DateTime.UtcNow);
+
+    // ── Bookings state ──
+    private List<ApiClient.DevScheduleItem> _schedules = new();
+    private List<ApiClient.DevEnrollmentItem> _enrollments = new();
+    private List<ApiClient.DevEnrollmentItem> _completedEnrollments = new();
+    private bool _isLoading = true;
+    private bool _isSubmitting;
+    private bool _isResetting;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private string _selectedBookingKey = "";
+    private string _selectedResetKey = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadCurrentTime(), LoadBookings());
+    }
+
+    // ── Time travel methods ──
+
+    private async Task LoadCurrentTime()
+    {
+        try
+        {
+            var res = await Api.GetDevTime();
+            if (res is not null)
+            {
+                _serverTime = res.CurrentTime;
+                _timeIsMocked = res.IsMocked;
+                // Pre-fill the inputs with the current server time
+                _mockDate = DateOnly.FromDateTime(res.CurrentTime);
+                _mockTimeOfDay = TimeOnly.FromDateTime(res.CurrentTime);
+            }
+        }
+        catch { /* silent — not critical */ }
+    }
+
+    private async Task SetMockTime()
+    {
+        _isTimeBusy = true;
+        _timeMessage = null;
+        try
+        {
+            var combined = _mockDate.ToDateTime(_mockTimeOfDay, DateTimeKind.Utc);
+            var res = await Api.DevSetTime(combined);
+            if (res is not null)
+            {
+                _serverTime = res.CurrentTime;
+                _timeIsMocked = res.IsMocked;
+                _timeMessage = res.Message;
+            }
+        }
+        catch (Exception ex) { _timeMessage = $"Error: {ex.Message}"; }
+        finally { _isTimeBusy = false; }
+    }
+
+    private async Task ResetMockTime()
+    {
+        _isTimeBusy = true;
+        _timeMessage = null;
+        try
+        {
+            var res = await Api.DevResetTime();
+            if (res is not null)
+            {
+                _serverTime = res.CurrentTime;
+                _timeIsMocked = res.IsMocked;
+                _timeMessage = res.Message;
+                _mockDate = DateOnly.FromDateTime(res.CurrentTime);
+                _mockTimeOfDay = TimeOnly.FromDateTime(res.CurrentTime);
+            }
+        }
+        catch (Exception ex) { _timeMessage = $"Error: {ex.Message}"; }
+        finally { _isTimeBusy = false; }
+    }
+
+    private async Task LoadBookings()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            var scheduleTask = Api.GetDevSchedules();
+            var enrollmentTask = Api.GetDevEnrollments();
+            var completedTask = Api.GetDevCompletedEnrollments();
+            await Task.WhenAll(scheduleTask, enrollmentTask, completedTask);
+
+            _schedules = scheduleTask.Result;
+            _enrollments = enrollmentTask.Result;
+            _completedEnrollments = completedTask.Result;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load bookings: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private IEnumerable<CustomSelect.SelectOptionGroup> GetBookingGroups()
+    {
+        var groups = new List<CustomSelect.SelectOptionGroup>();
+
+        if (_schedules.Any())
+        {
+            var scheduleOptions = _schedules.Select(s =>
+                new CustomSelect.SelectOption(
+                    $"schedule:{s.Id}",
+                    $"{s.Modality} - {s.ScheduledAt:dd/MM/yyyy HH:mm} {(s.UserName ?? $"User #{s.UserId}")} {(s.TrainerName != null ? $"(Trainer: {s.TrainerName})" : string.Empty)}".Trim()
+                )).ToList();
+            groups.Add(new CustomSelect.SelectOptionGroup("Class Schedules", scheduleOptions));
+        }
+
+        if (_enrollments.Any())
+        {
+            var enrollmentOptions = _enrollments.Select(e =>
+                new CustomSelect.SelectOption(
+                    $"enrollment:{e.Id}",
+                    $"{e.SessionTitle} - {e.StartTime:dd/MM/yyyy HH:mm} {(e.UserName ?? e.UserId)}"
+                )).ToList();
+            groups.Add(new CustomSelect.SelectOptionGroup("Session Enrollments", enrollmentOptions));
+        }
+
+        return groups;
+    }
+
+    private IEnumerable<CustomSelect.SelectOption> GetCompletedEnrollmentOptions()
+        => _completedEnrollments.Select(e =>
+            new CustomSelect.SelectOption(
+                e.Id.ToString(),
+                $"{e.SessionTitle} - {e.StartTime:dd/MM/yyyy HH:mm} ({(e.UserName ?? e.UserId)})"
+            ));
+
+    private async Task MarkAsDone()
+    {
+        if (string.IsNullOrEmpty(_selectedBookingKey)) return;
+
+        _isSubmitting = true;
+        _successMessage = null;
+        _errorMessage = null;
+
+        try
+        {
+            var parts = _selectedBookingKey.Split(':');
+            var type = parts[0];
+            var id = int.Parse(parts[1]);
+
+            ApiClient.DevCompleteResponse? result;
+
+            if (type == "schedule")
+            {
+                result = await Api.DevCompleteSchedule(id);
+            }
+            else
+            {
+                result = await Api.DevCompleteEnrollment(id);
+            }
+
+            if (result is not null && result.Success)
+            {
+                _successMessage = result.Message;
+                _selectedBookingKey = "";
+                await LoadBookings();
+            }
+            else
+            {
+                _errorMessage = result?.Message ?? "Unknown error.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task ResetBooking()
+    {
+        if (string.IsNullOrEmpty(_selectedResetKey)) return;
+
+        _isResetting = true;
+        _successMessage = null;
+        _errorMessage = null;
+
+        try
+        {
+            var id = int.Parse(_selectedResetKey);
+            var result = await Api.DevResetEnrollment(id);
+
+            if (result is not null && result.Success)
+            {
+                _successMessage = result.Message;
+                _selectedResetKey = "";
+                await LoadBookings();
+            }
+            else
+            {
+                _errorMessage = result?.Message ?? "Unknown error.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isResetting = false;
+        }
+    }
+}

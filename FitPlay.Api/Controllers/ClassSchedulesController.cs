@@ -1,6 +1,11 @@
 using FitPlay.Domain.DTOs;
+using FitPlay.Domain.Models;
 using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using FitPlay.Domain.Data;
+using FitPlay.Api.Services;
+using Stripe;
 
 namespace FitPlay.Api.Controllers;
 
@@ -9,10 +14,20 @@ namespace FitPlay.Api.Controllers;
 public class ClassSchedulesController : ControllerBase
 {
     private readonly ClassScheduleService _scheduleService;
+    private readonly ClassQueueService _queueService;
+    private readonly FitPlayContext _db;
+    private readonly IPaymentService _paymentService;
 
-    public ClassSchedulesController(ClassScheduleService scheduleService)
+    public ClassSchedulesController(
+        ClassScheduleService scheduleService,
+        ClassQueueService queueService,
+        FitPlayContext db,
+        IPaymentService paymentService)
     {
         _scheduleService = scheduleService;
+        _queueService = queueService;
+        _db = db;
+        _paymentService = paymentService;
     }
 
     [HttpGet("public")]
@@ -25,12 +40,12 @@ public class ClassSchedulesController : ControllerBase
     }
 
     [HttpGet("user/{userId:int}")]
-    public async Task<ActionResult<List<ClassScheduleDto>>> GetUserSchedule(
+    public async Task<ActionResult<List<ClassScheduleWithTrainerDto>>> GetUserSchedule(
         int userId,
         [FromQuery] DateTime? from = null,
         [FromQuery] DateTime? to = null)
     {
-        var result = await _scheduleService.GetUserScheduleAsync(userId, from, to);
+        var result = await _scheduleService.GetUserScheduleWithTrainerAsync(userId, from, to);
         return Ok(result);
     }
 
@@ -59,11 +74,22 @@ public class ClassSchedulesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
+    /// <summary>
+    /// Books a FREE class directly (no price set). Returns 400 if the class has a price.
+    /// </summary>
     [HttpPost("{id:int}/book")]
     public async Task<ActionResult<ClassScheduleDto>> BookClass(int id, [FromBody] BookClassRequest request)
     {
+        var entity = await _scheduleService.GetEntityByIdAsync(id);
+        if (entity == null) return NotFound("Class not found.");
+
+        // If the class has a price, force payment flow
+        var price = ClassScheduleService.ExtractPriceFromNotes(entity.Notes);
+        if (price.HasValue && price.Value > 0)
+            return BadRequest(new { message = "This class requires payment. Use the create-payment-intent endpoint." });
+
         var result = await _scheduleService.BookClassAsync(id, request.UserId);
-        if (result == null) return NotFound("Class not found or you are already booked");
+        if (result == null) return NotFound("Class not found or already booked.");
         return Ok(result);
     }
 
@@ -83,10 +109,33 @@ public class ClassSchedulesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Cancels a booking. If the booking had a completed payment, issues an 85% Stripe refund.
+    /// </summary>
     [HttpPost("{id:int}/unbook")]
-    public async Task<ActionResult<ClassScheduleDto>> Unbook(int id)
+    public async Task<ActionResult<ClassScheduleDto>> Unbook(int id, [FromBody] BookClassRequest request)
     {
-        var result = await _scheduleService.UnbookAsync(id);
+        var entity = await _scheduleService.GetEntityByIdAsync(id);
+        if (entity == null) return NotFound();
+
+        // If a payment was completed, issue the 85% refund first
+        if (entity.PaymentStatus == ClassSchedulePaymentStatus.Completed)
+        {
+            try
+            {
+                await _paymentService.RefundClassSchedulePaymentAsync(id);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = $"Refund failed: {ex.Message}" });
+            }
+
+            var refunded = await _scheduleService.MarkRefundedAsync(id, request.UserId);
+            return Ok(refunded);
+        }
+
+        // Free booking: just cancel enrollment
+        var result = await _scheduleService.UnbookFreeAsync(id, request.UserId);
         if (result == null) return NotFound();
         return Ok(result);
     }
@@ -97,6 +146,258 @@ public class ClassSchedulesController : ControllerBase
         var deleted = await _scheduleService.DeleteAsync(id);
         if (!deleted) return NotFound();
         return NoContent();
+    }
+
+    // ── Stripe Payment Endpoints ──
+
+    /// <summary>
+    /// Creates a Stripe PaymentIntent for a paid class. Returns the client secret.
+    /// </summary>
+    [HttpPost("{id:int}/create-payment-intent")]
+    public async Task<ActionResult<CreateClassPaymentIntentResponse>> CreatePaymentIntent(
+        int id,
+        [FromBody] CreateClassPaymentIntentRequest request)
+    {
+        try
+        {
+            var (schedule, price) = await _scheduleService.ValidateForPaymentAsync(id, request.UserId);
+
+            // Reuse an existing pending PaymentIntent if possible
+            if (!string.IsNullOrWhiteSpace(schedule.StripePaymentIntentId))
+            {
+                var existingService = new PaymentIntentService();
+                var existingPi = await existingService.GetAsync(schedule.StripePaymentIntentId);
+                if (existingPi.Status is "requires_payment_method" or "requires_confirmation" or "requires_action")
+                {
+                    return Ok(new CreateClassPaymentIntentResponse(existingPi.ClientSecret, price, "eur"));
+                }
+            }
+
+            var amountInCents = Convert.ToInt64(decimal.Round(price * 100m, 0, MidpointRounding.AwayFromZero));
+
+            var piService = new PaymentIntentService();
+            var options = new PaymentIntentCreateOptions
+            {
+                Amount = amountInCents,
+                Currency = "eur",
+                AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions { Enabled = true },
+                Metadata = new Dictionary<string, string>
+                {
+                    ["scheduleId"] = id.ToString(),
+                    ["userId"] = request.UserId.ToString()
+                }
+            };
+
+            var paymentIntent = await piService.CreateAsync(options);
+
+            await _scheduleService.SetPaymentIntentAsync(id, paymentIntent.Id);
+
+            return Ok(new CreateClassPaymentIntentResponse(paymentIntent.ClientSecret, price, "eur"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (StripeException ex)
+        {
+            return BadRequest(new { message = $"Payment error: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Confirms payment, books the user onto the class, and processes revenue splits.
+    /// </summary>
+    [HttpPost("{id:int}/confirm-payment")]
+    public async Task<ActionResult<ClassScheduleDto>> ConfirmPayment(
+        int id,
+        [FromBody] ConfirmClassPaymentRequest request)
+    {
+        try
+        {
+            var (schedule, price) = await _scheduleService.ValidateForPaymentAsync(id, request.UserId);
+
+            // Resolve trainer's gym for revenue split
+            string? trainerStripeAccountId = null;
+            string? gymStripeAccountId = null;
+            decimal gymCommissionRate = 0m;
+
+            if (schedule.TrainerId.HasValue)
+            {
+                var gymLink = await _db.TrainerGymLinks
+                    .Include(l => l.Gym)
+                    .Where(l => l.TrainerId == schedule.Trainer!.IdentityUserId &&
+                                l.Status == TrainerGymLinkStatus.Approved)
+                    .FirstOrDefaultAsync();
+
+                if (gymLink?.Gym != null)
+                {
+                    gymStripeAccountId = gymLink.Gym.StripeAccountId;
+                    gymCommissionRate = gymLink.Gym.CommissionRate;
+                    // Trainer Stripe account would be stored on the trainer profile if available
+                    // For now we skip the transfer if not configured
+                }
+            }
+
+            await _paymentService.ConfirmClassSchedulePaymentAsync(
+                id,
+                request.UserId,
+                request.StripePaymentIntentId,
+                price,
+                trainerStripeAccountId,
+                gymCommissionRate,
+                gymStripeAccountId);
+
+            var result = await _scheduleService.ConfirmPaidBookingAsync(id, request.UserId, request.StripePaymentIntentId, price);
+            if (result == null) return NotFound("Class not found.");
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (StripeException ex)
+        {
+            return BadRequest(new { message = $"Payment error: {ex.Message}" });
+        }
+    }
+
+    // ── Queue Endpoints (for classes with unpaid room bookings) ──
+
+    /// <summary>
+    /// Join the queue for a class whose trainer hasn't paid the room booking yet.
+    /// Members join for free; non-members pay 5% of the class price via Stripe.
+    /// </summary>
+    [HttpPost("{id:int}/join-queue")]
+    public async Task<ActionResult<JoinQueueResponse>> JoinQueue(int id, [FromBody] BookClassRequest request)
+    {
+        try
+        {
+            var (entry, queueCost, hasMembership) = await _queueService.JoinQueueAsync(id, request.UserId);
+
+            string? clientSecret = null;
+
+            // Payment required when queueCost > 0 (non-members OR members who exceeded monthly skip limit)
+            if (queueCost > 0)
+            {
+                var amountInCents = Convert.ToInt64(decimal.Round(queueCost * 100m, 0, MidpointRounding.AwayFromZero));
+
+                var piService = new PaymentIntentService();
+                var options = new PaymentIntentCreateOptions
+                {
+                    Amount = amountInCents,
+                    Currency = "eur",
+                    AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions { Enabled = true },
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["type"] = "queue_deposit",
+                        ["scheduleId"] = id.ToString(),
+                        ["userId"] = request.UserId.ToString(),
+                        ["queueEntryId"] = entry.Id.ToString()
+                    }
+                };
+
+                var paymentIntent = await piService.CreateAsync(options);
+                clientSecret = paymentIntent.ClientSecret;
+
+                await _queueService.SetQueuePaymentIntentAsync(entry.Id, paymentIntent.Id);
+            }
+
+            var monthlySkipCount = await _queueService.GetMonthlySkipCountAsync(request.UserId);
+            return Ok(new JoinQueueResponse(entry.Id, queueCost, hasMembership, clientSecret, monthlySkipCount));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (StripeException ex)
+        {
+            return BadRequest(new { message = $"Payment error: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Confirms a non-member's queue deposit payment.
+    /// </summary>
+    [HttpPost("{id:int}/confirm-queue-payment")]
+    public async Task<IActionResult> ConfirmQueuePayment(int id, [FromBody] ConfirmQueuePaymentRequest request)
+    {
+        try
+        {
+            // Extract userId from the payment intent metadata
+            var piService = new PaymentIntentService();
+            var paymentIntent = await piService.GetAsync(request.StripePaymentIntentId.Trim());
+
+            if (!string.Equals(paymentIntent.Status, "succeeded", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { message = "Payment not confirmed by Stripe." });
+
+            if (!paymentIntent.Metadata.TryGetValue("userId", out var userIdStr) || !int.TryParse(userIdStr, out var userId))
+                return BadRequest(new { message = "Invalid payment metadata." });
+
+            await _queueService.ConfirmQueuePaymentAsync(id, userId, paymentIntent.Id);
+
+            return Ok(new { message = "Queue payment confirmed." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (StripeException ex)
+        {
+            return BadRequest(new { message = $"Payment error: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Returns the number of users queued for a given class schedule.
+    /// </summary>
+    [HttpGet("{id:int}/queue-count")]
+    public async Task<ActionResult<QueueCountResponse>> GetQueueCount(int id)
+    {
+        var count = await _queueService.GetQueueCountAsync(id);
+        return Ok(new QueueCountResponse(id, count));
+    }
+
+    /// <summary>
+    /// Returns all queue entries (with IsNotified status) for the given user.
+    /// </summary>
+    [HttpGet("user/{userId:int}/queued-classes")]
+    public async Task<ActionResult<List<UserQueueEntryDto>>> GetUserQueuedClasses(int userId)
+    {
+        var entries = await _queueService.GetUserQueueEntriesAsync(userId);
+        return Ok(entries);
+    }
+
+    /// <summary>
+    /// Returns how many notified queue entries the user has skipped in the current calendar month.
+    /// </summary>
+    [HttpGet("user/{userId:int}/monthly-skip-count")]
+    public async Task<ActionResult<int>> GetMonthlySkipCount(int userId)
+    {
+        var count = await _queueService.GetMonthlySkipCountAsync(userId);
+        return Ok(count);
+    }
+
+    /// <summary>
+    /// Marks a notified queue entry as skipped ("Not interested").
+    /// Counts toward the user's monthly skip limit (5 per month for members).
+    /// </summary>
+    [HttpPost("{id:int}/skip-queue")]
+    public async Task<IActionResult> SkipQueue(int id, [FromBody] BookClassRequest request)
+    {
+        try
+        {
+            await _queueService.SkipQueueEntryAsync(id, request.UserId);
+            return Ok(new { message = "Queue entry skipped." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }
 

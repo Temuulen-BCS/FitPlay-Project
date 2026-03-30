@@ -20,10 +20,14 @@ public class FitPlayContext : DbContext
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<TrainerGymLink> TrainerGymLinks => Set<TrainerGymLink>();
     public DbSet<RoomBooking> RoomBookings => Set<RoomBooking>();
+    public DbSet<RoomOperatingHours> RoomOperatingHours => Set<RoomOperatingHours>();
     public DbSet<ClassSession> ClassSessions => Set<ClassSession>();
     public DbSet<ClassEnrollment> ClassEnrollments => Set<ClassEnrollment>();
     public DbSet<PaymentSplit> PaymentSplits => Set<PaymentSplit>();
     public DbSet<RoomCheckIn> RoomCheckIns => Set<RoomCheckIn>();
+    public DbSet<GymVisit> GymVisits => Set<GymVisit>();
+    public DbSet<ClassQueueEntry> ClassQueueEntries => Set<ClassQueueEntry>();
+    public DbSet<TrainerNotification> TrainerNotifications => Set<TrainerNotification>();
 
     // Exercise & Training
     public DbSet<Exercise> Exercises => Set<Exercise>();
@@ -130,6 +134,16 @@ public class FitPlayContext : DbContext
             .HasForeignKey(r => r.GymLocationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        b.Entity<RoomOperatingHours>()
+            .HasIndex(oh => new { oh.RoomId, oh.DayOfWeek })
+            .IsUnique();
+
+        b.Entity<RoomOperatingHours>()
+            .HasOne(oh => oh.Room)
+            .WithMany(r => r.OperatingHours)
+            .HasForeignKey(oh => oh.RoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         b.Entity<TrainerGymLink>()
             .HasIndex(tal => new { tal.TrainerId, tal.GymId })
             .IsUnique();
@@ -160,12 +174,21 @@ public class FitPlayContext : DbContext
             .IsRequired();
 
         b.Entity<RoomBooking>()
-            .Property(rb => rb.PurposeDescription)
-            .HasMaxLength(1000);
+            .Property(rb => rb.Modality)
+            .HasMaxLength(100)
+            .IsRequired();
 
         b.Entity<RoomBooking>()
             .Property(rb => rb.TotalCost)
             .HasPrecision(18, 2);
+
+        b.Entity<RoomBooking>()
+            .Property(rb => rb.PaidAmount)
+            .HasPrecision(18, 2);
+
+        b.Entity<RoomBooking>()
+            .Property(rb => rb.StripePaymentIntentId)
+            .HasMaxLength(255);
 
         b.Entity<RoomBooking>()
             .Property(rb => rb.Notes)
@@ -272,6 +295,51 @@ public class FitPlayContext : DbContext
             .HasForeignKey(ci => ci.ClassEnrollmentId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // GymVisit configuration
+        b.Entity<GymVisit>()
+            .HasIndex(gv => new { gv.UserId, gv.CheckOutTime });
+
+        b.Entity<GymVisit>()
+            .Property(gv => gv.UserId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<GymVisit>()
+            .HasOne(gv => gv.GymLocation)
+            .WithMany()
+            .HasForeignKey(gv => gv.GymLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // TrainerNotification configuration
+        b.Entity<TrainerNotification>()
+            .HasIndex(tn => new { tn.TrainerId, tn.IsRead });
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.TrainerId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.SenderGymAdminId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.SubjectUserId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .Property(tn => tn.Message)
+            .HasMaxLength(1000)
+            .IsRequired();
+
+        b.Entity<TrainerNotification>()
+            .HasOne(tn => tn.GymLocation)
+            .WithMany()
+            .HasForeignKey(tn => tn.GymLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Exercise indexes
         b.Entity<ExerciseLog>().HasIndex(x => new { x.ClientId, x.PerformedAt });
         b.Entity<ExerciseLog>()
@@ -305,6 +373,45 @@ public class FitPlayContext : DbContext
 
         b.Entity<ClassSchedule>()
             .HasIndex(ts => new { ts.TrainerId, ts.ScheduledAt });
+
+        b.Entity<ClassSchedule>()
+            .HasOne(s => s.Trainer)
+            .WithMany()
+            .HasForeignKey(s => s.TrainerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        b.Entity<ClassSchedule>()
+            .Property(s => s.StripePaymentIntentId)
+            .HasMaxLength(255);
+
+        b.Entity<ClassSchedule>()
+            .Property(s => s.PaidAmount)
+            .HasPrecision(18, 2);
+
+        b.Entity<ClassSchedule>()
+            .HasOne(s => s.RoomBooking)
+            .WithMany()
+            .HasForeignKey(s => s.RoomBookingId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // ClassQueueEntry
+        b.Entity<ClassQueueEntry>()
+            .HasIndex(q => new { q.ClassScheduleId, q.UserId })
+            .IsUnique();
+
+        b.Entity<ClassQueueEntry>()
+            .Property(q => q.QueueCost)
+            .HasPrecision(18, 2);
+
+        b.Entity<ClassQueueEntry>()
+            .Property(q => q.StripePaymentIntentId)
+            .HasMaxLength(255);
+
+        b.Entity<ClassQueueEntry>()
+            .HasOne(q => q.ClassSchedule)
+            .WithMany()
+            .HasForeignKey(q => q.ClassScheduleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Gamification indexes
         b.Entity<UserLevel>()

@@ -1,4 +1,4 @@
-﻿using FitPlay.Api;
+using FitPlay.Api;
 using FitPlay.Api.Data;
 //using FitPlay.Api.Endpoints;
 using FitPlay.Api.Auth;
@@ -75,6 +75,8 @@ builder.Services.AddDbContext<FitPlayContext>(options =>
         b => b.MigrationsAssembly("FitPlay.Api")
     ));
 
+builder.Services.AddSingleton<FitPlay.Domain.Services.IClockService, FitPlay.Domain.Services.ClockService>();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
@@ -92,6 +94,10 @@ builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
 builder.Services.AddScoped<ICheckInService, CheckInService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.IGymVisitService, FitPlay.Domain.Services.GymVisitService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.ClassQueueService>();
+builder.Services.AddScoped<FitPlay.Domain.Services.ITrainerNotificationService, FitPlay.Domain.Services.TrainerNotificationService>();
+builder.Services.AddHostedService<ClassStatusAutoCompleteService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
@@ -147,6 +153,15 @@ if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+<<<<<<< RailwalDBconfigDockerBuild
+=======
+// Exempt the Stripe webhook from HTTPS redirection so the Stripe CLI can POST
+// to http://localhost:5179/api/billing/webhook without getting a 307 redirect.
+// Also skip HTTPS in development
+app.UseWhen(
+    ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook") && !app.Environment.IsDevelopment(),
+    branch => branch.UseHttpsRedirection());
+>>>>>>> master
 
 app.UseAuthentication();   
 app.UseAuthorization();    
@@ -170,6 +185,68 @@ app.MapGet("/weatherforecast", () =>
 
 app.MapControllers();
 
+<<<<<<< RailwalDBconfigDockerBuild
+=======
+// Seed roles on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+
+    try
+    {
+        await db1.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Migration for ApplicationDbContext failed, trying EnsureCreated");
+        await db1.Database.EnsureCreatedAsync();
+    }
+
+    try
+    {
+        await db2.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Migration for FitPlayContext failed, trying EnsureCreated");
+        await db2.Database.EnsureCreatedAsync();
+    }
+
+    // Backfill Teacher.IdentityUserId for records missing the link
+    try
+    {
+        var teachersWithoutIdentity = await db2.Teachers
+            .Where(t => t.IdentityUserId == null || t.IdentityUserId == "")
+            .ToListAsync();
+
+        if (teachersWithoutIdentity.Any())
+        {
+            foreach (var teacher in teachersWithoutIdentity)
+            {
+                var identityUser = await db1.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Email != null
+                        && u.Email.ToLower() == teacher.Email.ToLower());
+
+                if (identityUser != null)
+                {
+                    teacher.IdentityUserId = identityUser.Id;
+                    app.Logger.LogInformation(
+                        "Backfilled Teacher '{Name}' (Id={Id}) with IdentityUserId={IdentityUserId}",
+                        teacher.Name, teacher.Id, identityUser.Id);
+                }
+            }
+            await db2.SaveChangesAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Teacher IdentityUserId backfill failed (non-fatal)");
+    }
+}
+
+>>>>>>> master
 app.Run();
 
 

@@ -1,0 +1,477 @@
+@page "/trainer/given-classes"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ApiClient Api
+
+<PageTitle>Given Classes - FitPlay</PageTitle>
+
+<div class="given-classes">
+    <div class="page-header">
+        <h1>Given Classes</h1>
+        <p class="subtitle">Classes you have completed</p>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading-state">Loading classes...</div>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="error-state">@_error</div>
+    }
+    else if (!_sessions.Any())
+    {
+        <div class="empty-state">No completed classes yet.</div>
+    }
+    else
+    {
+        <div class="sessions-list">
+            @foreach (var session in _sessions)
+            {
+                var isExpanded = _expandedSessionId == session.Id;
+                <div class="session-card @(isExpanded ? "expanded" : "")">
+                    <div class="session-row" @onclick="() => ToggleSession(session.Id)">
+                        <div class="session-icon">
+                            <span class="icon-text">CLS</span>
+                        </div>
+                        <div class="session-info">
+                            <p class="session-title">@session.Title</p>
+                            @if (!string.IsNullOrWhiteSpace(session.Description))
+                            {
+                                <p class="session-desc">@session.Description</p>
+                            }
+                            <div class="session-meta">
+                                @if (!string.IsNullOrWhiteSpace(session.RoomName))
+                                {
+                                    <span class="meta-tag">@session.RoomName</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(session.LocationName))
+                                {
+                                    <span class="meta-tag">@session.LocationName</span>
+                                }
+                                <span class="meta-tag students">@session.EnrolledStudents / @session.MaxStudents students</span>
+                            </div>
+                        </div>
+                        <div class="session-time">
+                            <span class="time-label">@session.StartTime.ToLocalTime().ToString("HH:mm") - @session.EndTime.ToLocalTime().ToString("HH:mm")</span>
+                            <span class="date-label">@session.StartTime.ToLocalTime().ToString("MMM dd, yyyy", System.Globalization.CultureInfo.InvariantCulture)</span>
+                        </div>
+                        <div class="session-status">
+                            <span class="status-badge @session.Status.ToLower()">@session.Status</span>
+                        </div>
+                        <div class="expand-icon">@(isExpanded ? "▲" : "▼")</div>
+                    </div>
+
+                    @if (isExpanded)
+                    {
+                        <div class="participants-panel">
+                            @if (_loadingEnrollments)
+                            {
+                                <p class="panel-loading">Loading participants...</p>
+                            }
+                            else if (_enrollmentError is not null)
+                            {
+                                <p class="panel-error">@_enrollmentError</p>
+                            }
+                            else if (!_enrollments.Any())
+                            {
+                                <p class="panel-empty">No participants enrolled in this class.</p>
+                            }
+                            else
+                            {
+                                <table class="participants-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Phone</th>
+                                            <th>Status</th>
+                                            <th>Enrolled</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var e in _enrollments)
+                                        {
+                                            <tr>
+                                                <td>@(e.UserName ?? "Unknown")</td>
+                                                <td>@(e.UserEmail ?? "—")</td>
+                                                <td>@(e.UserPhone ?? "—")</td>
+                                                <td><span class="enrollment-status @e.Status.ToLower()">@e.Status</span></td>
+                                                <td>@e.EnrolledAt.ToLocalTime().ToString("MMM dd, HH:mm", System.Globalization.CultureInfo.InvariantCulture)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .given-classes {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+
+    .page-header {
+        margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+        margin: 0 0 8px 0;
+        font-size: 28px;
+        color: var(--text-primary);
+    }
+
+    .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+    }
+
+    .sessions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .session-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+
+    .session-card.expanded {
+        border-color: var(--accent-teal);
+    }
+
+    .session-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.9rem 1rem;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .session-row:hover {
+        background: rgba(255,255,255,0.04);
+    }
+
+    .session-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.75rem;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
+        flex-shrink: 0;
+    }
+
+    .icon-text {
+        letter-spacing: 0.5px;
+    }
+
+    .session-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .session-title {
+        margin: 0 0 0.2rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .session-desc {
+        margin: 0 0 0.4rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .session-meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .meta-tag {
+        font-size: 0.72rem;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.08);
+        color: var(--text-muted);
+    }
+
+    .meta-tag.students {
+        color: var(--accent-teal);
+        background: rgba(0, 206, 209, 0.12);
+    }
+
+    .session-time {
+        text-align: right;
+        min-width: 120px;
+    }
+
+    .time-label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .date-label {
+        display: block;
+        font-size: 0.76rem;
+        color: var(--text-muted);
+    }
+
+    .session-status {
+        min-width: 80px;
+        text-align: center;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 8px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-badge.completed {
+        background: rgba(0, 206, 150, 0.15);
+        color: #00ce96;
+    }
+
+    .status-badge.cancelled {
+        background: rgba(255, 77, 109, 0.15);
+        color: #ff4d6d;
+    }
+
+    .status-badge.scheduled {
+        background: rgba(99, 102, 241, 0.15);
+        color: #818cf8;
+    }
+
+    .expand-icon {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        min-width: 20px;
+        text-align: center;
+    }
+
+    /* Participants panel */
+    .participants-panel {
+        border-top: 1px solid var(--glass-border);
+        padding: 1rem;
+        background: rgba(0,0,0,0.15);
+    }
+
+    .panel-loading,
+    .panel-empty,
+    .panel-error {
+        text-align: center;
+        padding: 1rem;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+
+    .panel-error {
+        color: #ff9aa2;
+    }
+
+    .participants-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .participants-table th {
+        text-align: left;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .participants-table td {
+        font-size: 0.85rem;
+        color: var(--text-primary);
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .participants-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .enrollment-status {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+
+    .enrollment-status.confirmed, .enrollment-status.completed {
+        background: rgba(0, 206, 150, 0.15);
+        color: #00ce96;
+    }
+
+    .enrollment-status.pending {
+        background: rgba(251, 191, 36, 0.15);
+        color: #fbbf24;
+    }
+
+    .enrollment-status.cancelled {
+        background: rgba(255, 77, 109, 0.15);
+        color: #ff4d6d;
+    }
+
+    .loading-state,
+    .empty-state,
+    .error-state {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-muted);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+    }
+
+    .error-state {
+        color: #ff9aa2;
+        border-color: rgba(255, 77, 109, 0.4);
+        background: rgba(255, 77, 109, 0.15);
+    }
+
+    @@media (max-width: 768px) {
+        .session-row {
+            flex-wrap: wrap;
+        }
+
+        .session-time {
+            text-align: left;
+            min-width: auto;
+        }
+
+        .session-status {
+            min-width: auto;
+        }
+
+        .participants-table {
+            font-size: 0.78rem;
+        }
+
+        .participants-table th,
+        .participants-table td {
+            padding: 0.4rem 0.5rem;
+        }
+    }
+</style>
+
+@code {
+    private List<ApiClient.ClassSessionRead> _sessions = new();
+    private List<ApiClient.SessionEnrollmentDetailRead> _enrollments = new();
+    private bool _isLoading = true;
+    private bool _loadingEnrollments;
+    private string? _error;
+    private string? _enrollmentError;
+    private int? _expandedSessionId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessions();
+    }
+
+    private async Task LoadSessions()
+    {
+        _isLoading = true;
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var identityId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(identityId))
+            {
+                _error = "Unable to determine your identity. Please sign in again.";
+                return;
+            }
+
+            var sessionsTask = Api.GetTrainerSessionsV3(identityId);
+            var schedulesTask = Api.GetTrainerCompletedSchedules(identityId);
+            await Task.WhenAll(sessionsTask, schedulesTask);
+
+            var completedSessions = sessionsTask.Result
+                .Where(s => string.Equals(s.Status, "Completed", StringComparison.OrdinalIgnoreCase));
+
+            _sessions = completedSessions
+                .Concat(schedulesTask.Result)
+                .OrderByDescending(s => s.StartTime)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error loading classes: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ToggleSession(int sessionId)
+    {
+        if (_expandedSessionId == sessionId)
+        {
+            _expandedSessionId = null;
+            _enrollments = new();
+            _enrollmentError = null;
+            return;
+        }
+
+        _expandedSessionId = sessionId;
+        _enrollments = new();
+        _enrollmentError = null;
+        _loadingEnrollments = true;
+        StateHasChanged();
+
+        try
+        {
+            _enrollments = await Api.GetSessionEnrollmentDetails(sessionId);
+        }
+        catch (Exception ex)
+        {
+            _enrollmentError = $"Error loading participants: {ex.Message}";
+        }
+        finally
+        {
+            _loadingEnrollments = false;
+        }
+    }
+}

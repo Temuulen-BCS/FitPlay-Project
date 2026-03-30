@@ -6,6 +6,7 @@
 @using FitPlay_Blazor.Components.Layout
 @using FitPlay.Blazor.Services
 
+@implements IDisposable
 @inject ApiClient Api
 @inject IJSRuntime JS
 
@@ -167,6 +168,7 @@
 
 @code {
     private bool _loading = true;
+    private bool _chartsInitialized;
     private string? _error;
 
     private ApiClient.GymRead? _gym;
@@ -251,7 +253,9 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _gym == null) return;
+        if (_chartsInitialized || _loading || _gym == null) return;
+
+        _chartsInitialized = true;
 
         var chartData = new
         {
@@ -293,7 +297,7 @@
     // Real sessions grouped by status (replaces fake "Bookings by Room Type")
     private object BuildStatusSeries()
     {
-        var statuses = new[] { "Scheduled", "Active", "Completed", "Cancelled" };
+        var statuses = new[] { "Scheduled", "Ongoing", "Completed", "Cancelled" };
         var data = statuses
             .Select(st => _sessions.Count(s => string.Equals(s.Status, st, StringComparison.OrdinalIgnoreCase)))
             .ToArray();
@@ -318,7 +322,12 @@
 
         foreach (var s in todaySessions)
         {
-            _trainerNameById.TryGetValue(s.TrainerId, out var trainerName);
+            // Prefer the TrainerName already returned by the API;
+            // fall back to the trainer-link dictionary, then to a truncated ID.
+            var trainerName = s.TrainerName;
+            if (string.IsNullOrWhiteSpace(trainerName))
+                _trainerNameById.TryGetValue(s.TrainerId, out trainerName);
+
             _bookingRows.Add(new BookingRow
             {
                 Name = s.Title,
@@ -346,6 +355,18 @@
         public int MaxStudents { get; set; }
         public decimal Revenue { get; set; }
     }
+
+    public void Dispose()
+    {
+        try
+        {
+            _ = JS.InvokeVoidAsync("gymDash.dispose");
+        }
+        catch
+        {
+            // JS interop may fail if the circuit is already gone
+        }
+    }
 }
 
 <style>
@@ -353,9 +374,9 @@
         font-family: 'DM Sans', 'Segoe UI', sans-serif;
         background: #F4F7FB;
         color: #0F172A;
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 0;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 2.5rem 1.5rem 4rem;
     }
 
     /* ── PAGE HEADER ── */

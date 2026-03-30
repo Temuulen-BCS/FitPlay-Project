@@ -1,6 +1,7 @@
 @page "/gym/trainers"
 @attribute [Authorize(Roles = "GymAdmin")]
 @layout GymAdminLayout
+@rendermode InteractiveServer
 
 @using Microsoft.AspNetCore.Authorization
 @using FitPlay_Blazor.Components.Layout
@@ -176,7 +177,7 @@
 }
 
 <style>
-    .gym-page { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; color: #0F172A; background: #F4F7FB; border-radius: 16px; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
+    .gym-page { width: 100%; box-sizing: border-box; padding: 2.5rem 1.5rem 4rem; color: #0F172A; background: #F4F7FB; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
     .page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
     .page-eyebrow { margin: 0 0 4px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.18em; color: #3B6FE8; }
     .page-title { margin: 0 0 0.25rem; font-size: 2rem; font-weight: 700; }
@@ -202,7 +203,7 @@
     .tab-count-pending { background: #FEF3C7; color: #B45309; }
 
     /* Table */
-    .trainers-table-wrap { background: #ffffff; border: 1px solid #E8EDF5; border-radius: 14px; overflow: hidden; }
+    .trainers-table-wrap { background: #ffffff; border: 1px solid #E8EDF5; border-radius: 14px; overflow: hidden; overflow-x: auto; }
     .trainers-table { width: 100%; border-collapse: collapse; }
     .trainers-table thead tr { border-bottom: 1px solid #E8EDF5; background: #F8FAFC; }
     .trainers-table th { padding: 0.875rem 1rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; text-align: left; }

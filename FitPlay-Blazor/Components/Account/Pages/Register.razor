@@ -225,6 +225,12 @@
 
         // 1. Create the Identity user
         var user = CreateUser();
+
+        // Split the full name into first / last and store on the user entity
+        var nameParts = Input.Name.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        user.FirstName = nameParts.Length > 0 ? nameParts[0] : "";
+        user.LastName  = nameParts.Length > 1 ? nameParts[1] : "";
+
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
         var emailStore = GetEmailStore();
         await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);

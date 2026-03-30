@@ -13,15 +13,18 @@ public class TrainingCompletionService
     private readonly FitPlayContext _db;
     private readonly ProgressService _progressService;
     private readonly AchievementService _achievementService;
+    private readonly IClockService _clock;
 
     public TrainingCompletionService(
         FitPlayContext db, 
         ProgressService progressService,
-        AchievementService achievementService)
+        AchievementService achievementService,
+        IClockService clock)
     {
         _db = db;
         _progressService = progressService;
         _achievementService = achievementService;
+        _clock = clock;
     }
 
     /// <summary>
@@ -103,7 +106,7 @@ public class TrainingCompletionService
             throw new InvalidOperationException("Completion is not pending validation");
 
         completion.ValidatedByTrainerId = trainerId;
-        completion.ValidatedAt = DateTime.UtcNow;
+        completion.ValidatedAt = _clock.UtcNow;
 
         int newTotalXp = 0;
         int newLevel = 1;

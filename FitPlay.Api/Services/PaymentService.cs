@@ -12,14 +12,17 @@ namespace FitPlay.Api.Services;
 public class PaymentService : IPaymentService
 {
     private const decimal PlatformRate = 0.10m;
+    private const decimal ClassScheduleRefundRate = 0.85m;
 
     private readonly FitPlayContext _db;
     private readonly StripeOptions _stripeOptions;
+    private readonly IClockService _clock;
 
-    public PaymentService(FitPlayContext db, IOptions<StripeOptions> stripeOptions)
+    public PaymentService(FitPlayContext db, IOptions<StripeOptions> stripeOptions, IClockService clock)
     {
         _db = db;
         _stripeOptions = stripeOptions.Value;
+        _clock = clock;
 
         if (!string.IsNullOrWhiteSpace(_stripeOptions.SecretKey))
         {
@@ -139,7 +142,7 @@ public class PaymentService : IPaymentService
             TrainerAmount = trainerAmount,
             PlatformAmount = platformAmount,
             StripeTransferId = $"{gymTransfer.Id};{trainerTransfer.Id}",
-            ProcessedAt = DateTime.UtcNow
+            ProcessedAt = _clock.UtcNow
         };
 
         _db.PaymentSplits.Add(split);
@@ -187,6 +190,114 @@ public class PaymentService : IPaymentService
             items.Sum(i => i.Amount),
             items
         );
+    }
+
+    // ── Class Schedule (Book-Class) Payment ──
+
+    /// <summary>
+    /// Verifies the Stripe PaymentIntent succeeded, then optionally creates revenue splits.
+    /// Returns the Stripe PaymentIntent ID on success.
+    /// </summary>
+    public async Task<string> ConfirmClassSchedulePaymentAsync(
+        int scheduleId,
+        int userId,
+        string stripePaymentIntentId,
+        decimal paidAmount,
+        string? trainerStripeAccountId,
+        decimal gymCommissionRate,
+        string? gymStripeAccountId)
+    {
+        if (string.IsNullOrWhiteSpace(stripePaymentIntentId))
+            throw new ArgumentException("StripePaymentIntentId is required.");
+
+        var paymentIntentService = new PaymentIntentService();
+        var paymentIntent = await paymentIntentService.GetAsync(stripePaymentIntentId.Trim());
+
+        if (!string.Equals(paymentIntent.Status, "succeeded", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("PaymentIntent has not been confirmed by Stripe.");
+
+        var expectedCents = Convert.ToInt64(decimal.Round(paidAmount * 100m, 0, MidpointRounding.AwayFromZero));
+        if (paymentIntent.AmountReceived < expectedCents)
+            throw new InvalidOperationException("Stripe amount received is lower than expected.");
+
+        // Process revenue splits if trainer/gym Stripe accounts are available
+        if (!string.IsNullOrWhiteSpace(trainerStripeAccountId) &&
+            !string.IsNullOrWhiteSpace(gymStripeAccountId) &&
+            gymCommissionRate > 0)
+        {
+            var trainerRate = 1m - gymCommissionRate - PlatformRate;
+            if (trainerRate > 0)
+            {
+                var gymAmount = decimal.Round(paidAmount * gymCommissionRate, 2, MidpointRounding.AwayFromZero);
+                var platformAmount = decimal.Round(paidAmount * PlatformRate, 2, MidpointRounding.AwayFromZero);
+                var trainerAmount = paidAmount - gymAmount - platformAmount;
+
+                var transferService = new TransferService();
+
+                await transferService.CreateAsync(new TransferCreateOptions
+                {
+                    Amount = ToStripeAmount(gymAmount),
+                    Currency = "eur",
+                    Destination = gymStripeAccountId,
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["scheduleId"] = scheduleId.ToString(),
+                        ["userId"] = userId.ToString(),
+                        ["type"] = "gym_share"
+                    }
+                });
+
+                await transferService.CreateAsync(new TransferCreateOptions
+                {
+                    Amount = ToStripeAmount(trainerAmount),
+                    Currency = "eur",
+                    Destination = trainerStripeAccountId,
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["scheduleId"] = scheduleId.ToString(),
+                        ["userId"] = userId.ToString(),
+                        ["type"] = "trainer_share"
+                    }
+                });
+            }
+        }
+
+        return paymentIntent.Id;
+    }
+
+    /// <summary>
+    /// Issues an 85% refund for a cancelled paid class schedule booking.
+    /// </summary>
+    public async Task<ClassPaymentRefundResponse> RefundClassSchedulePaymentAsync(int scheduleId)
+    {
+        var schedule = await _db.ClassSchedules.FindAsync(scheduleId)
+            ?? throw new ArgumentException("Class schedule not found.");
+
+        if (schedule.PaymentStatus != ClassSchedulePaymentStatus.Completed)
+            throw new InvalidOperationException("This booking has no completed payment to refund.");
+
+        if (string.IsNullOrWhiteSpace(schedule.StripePaymentIntentId))
+            throw new InvalidOperationException("No Stripe PaymentIntent found for this booking.");
+
+        if (!schedule.PaidAmount.HasValue || schedule.PaidAmount.Value <= 0)
+            throw new InvalidOperationException("No valid paid amount found for refund.");
+
+        var refundAmount = decimal.Round(schedule.PaidAmount.Value * ClassScheduleRefundRate, 2, MidpointRounding.AwayFromZero);
+
+        var refundService = new RefundService();
+        await refundService.CreateAsync(new RefundCreateOptions
+        {
+            PaymentIntent = schedule.StripePaymentIntentId,
+            Amount = ToStripeAmount(refundAmount),
+            Metadata = new Dictionary<string, string>
+            {
+                ["scheduleId"] = scheduleId.ToString(),
+                ["reason"] = "user_cancellation",
+                ["refundRate"] = ClassScheduleRefundRate.ToString("F2")
+            }
+        });
+
+        return new ClassPaymentRefundResponse(scheduleId, refundAmount, "Refunded");
     }
 
     private static long ToStripeAmount(decimal amount)
