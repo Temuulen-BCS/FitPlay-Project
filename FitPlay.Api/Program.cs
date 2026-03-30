@@ -136,13 +136,35 @@ var app = builder.Build();
 
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
-// Auto-create database schema on startup (for fresh Railway Postgres deploy)
+// Ensure database schema is up-to-date on startup.
+// EnsureCreatedAsync is a no-op when the DB already exists, so we first check
+// whether a key new table (GymVisits) is missing and, if so, wipe + recreate.
 using (var scope = app.Services.CreateScope())
 {
     var fitPlayDb = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+
+    // Detect stale schema: if GymVisits table is missing, the DB predates the merge
+    bool needsRecreate = false;
+    try
+    {
+        _ = await fitPlayDb.Database.ExecuteSqlRawAsync("SELECT 1 FROM \"GymVisits\" LIMIT 1");
+    }
+    catch
+    {
+        needsRecreate = true;
+    }
+
+    if (needsRecreate)
+    {
+        await fitPlayDb.Database.EnsureDeletedAsync();
+    }
     await fitPlayDb.Database.EnsureCreatedAsync();
 
     var identityDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    if (needsRecreate)
+    {
+        await identityDb.Database.EnsureDeletedAsync();
+    }
     await identityDb.Database.EnsureCreatedAsync();
 }
 
