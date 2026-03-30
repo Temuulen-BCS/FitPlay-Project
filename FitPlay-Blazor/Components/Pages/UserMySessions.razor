@@ -1,0 +1,572 @@
+@page "/user/my-sessions"
+@attribute [Authorize(Roles = "User")]
+@layout UserLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using FitPlay.Blazor.Services
+@using FitPlay_Blazor.Components.Layout
+@using FitPlay_Blazor.Components.Gamification
+
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>My Sessions - FitPlay</PageTitle>
+
+<div class="ms-page">
+
+    <div class="ms-header">
+        <div>
+            <p class="ms-eyebrow">My Account</p>
+            <h1 class="ms-title">My Sessions</h1>
+        </div>
+        <a href="/user/sessions/enroll" class="btn-primary-ms">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Enroll in Session
+        </a>
+    </div>
+
+    <!-- Tabs -->
+    <div class="ms-tabs">
+        <button class="ms-tab @(_tab == "upcoming" ? "active" : "")" @onclick='() => _tab = "upcoming"'>Upcoming</button>
+        <button class="ms-tab @(_tab == "past" ? "active" : "")" @onclick='() => _tab = "past"'>Past</button>
+        <button class="ms-tab @(_tab == "all" ? "active" : "")" @onclick='() => _tab = "all"'>All</button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="ms-loading">
+            <div class="ms-spinner"></div>
+            <p>Loading your sessions...</p>
+        </div>
+    }
+    else if (_filtered.Count == 0)
+    {
+        <div class="ms-empty">
+            <div class="ms-empty-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+            </div>
+            <p>No sessions found for this filter.</p>
+            <a href="/user/sessions/enroll" class="btn-primary-ms">Find a Session</a>
+        </div>
+    }
+    else
+    {
+        <div class="ms-cards">
+            @foreach (var e in _filtered)
+            {
+                var isPast = e.StartTime < DateTime.UtcNow;
+                var isCancelled = e.EnrollmentStatus == "Cancelled" || e.SessionStatus == "Cancelled";
+                var canCheckIn = !isCancelled && !e.CheckedIn && !isPast && e.EnrollmentStatus != "Cancelled";
+                var canCancel = !isCancelled && !isPast;
+
+                <div class="ms-card @(isCancelled ? "card-cancelled" : isPast ? "card-past" : "card-upcoming")">
+                    <div class="ms-card-header">
+                        <div class="ms-card-meta">
+                            <span class="enroll-badge @GetEnrollBadgeClass(e.EnrollmentStatus)">@e.EnrollmentStatus</span>
+                            @if (e.CheckedIn)
+                            {
+                                <span class="checkin-badge">Checked In</span>
+                            }
+                        </div>
+                        <div class="ms-card-actions">
+                            @if (canCheckIn)
+                            {
+                                <button class="btn-checkin"
+                                        @onclick="() => OpenCheckIn(e)"
+                                        disabled="@(_checkingInId == e.EnrollmentId)">
+                                    @(_checkingInId == e.EnrollmentId ? "Checking in..." : "Check In")
+                                </button>
+                            }
+                            @if (canCancel)
+                            {
+                                <button class="btn-cancel-enroll"
+                                        @onclick="() => ConfirmCancelEnrollment(e)"
+                                        disabled="@(_cancellingEnrollId == e.EnrollmentId)">
+                                    @(_cancellingEnrollId == e.EnrollmentId ? "..." : "Cancel")
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <h3 class="ms-card-title">@e.SessionTitle</h3>
+                    @if (!string.IsNullOrWhiteSpace(e.SessionDescription))
+                    {
+                        <p class="ms-card-desc">@e.SessionDescription</p>
+                    }
+
+                    <div class="ms-card-details">
+                        <div class="ms-detail">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <span>@e.StartTime.ToLocalTime().ToString("MMM dd, yyyy") &nbsp; @e.StartTime.ToLocalTime().ToString("HH:mm") &ndash; @e.EndTime.ToLocalTime().ToString("HH:mm")</span>
+                        </div>
+                        <div class="ms-detail">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            <span>@e.EnrolledStudents / @e.MaxStudents students</span>
+                        </div>
+                        <div class="ms-detail">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            <span>@e.PricePerStudent.ToString("C")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+<!-- Check-in confirm overlay -->
+@if (_checkInTarget != null && !_checkInDone)
+{
+    <div class="ms-overlay" @onclick="CloseCheckIn">
+        <div class="ms-modal" @onclick:stopPropagation>
+            <h3 class="ms-modal-title">Check In</h3>
+            <p class="ms-modal-body">
+                Confirm check-in for <strong>@_checkInTarget.SessionTitle</strong>?<br />
+                You will earn XP for attending.
+            </p>
+            <div class="ms-modal-actions">
+                <button class="btn-modal-ghost" @onclick="CloseCheckIn">Cancel</button>
+                <button class="btn-modal-teal" @onclick="ExecuteCheckIn" disabled="@(_checkingInId.HasValue)">
+                    @(_checkingInId.HasValue ? "Checking in..." : "Yes, Check In")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- XP reward toast -->
+@if (_checkInDone && _xpEarned > 0)
+{
+    <div class="ms-xp-toast">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Check-in confirmed! +@_xpEarned XP
+    </div>
+}
+
+<!-- Cancel enrollment confirm -->
+@if (_cancelEnrollTarget != null)
+{
+    <div class="ms-overlay" @onclick="CloseCancelEnroll">
+        <div class="ms-modal" @onclick:stopPropagation>
+            <h3 class="ms-modal-title">Cancel Enrollment</h3>
+            <p class="ms-modal-body">
+                Are you sure you want to cancel your enrollment in <strong>@_cancelEnrollTarget.SessionTitle</strong>?
+            </p>
+            <div class="ms-modal-actions">
+                <button class="btn-modal-ghost" @onclick="CloseCancelEnroll">Keep</button>
+                <button class="btn-modal-danger" @onclick="ExecuteCancelEnroll" disabled="@(_cancellingEnrollId.HasValue)">
+                    @(_cancellingEnrollId.HasValue ? "Cancelling..." : "Yes, Cancel")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="ms-toast error">@_error</div>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private string _tab = "upcoming";
+
+    private List<ApiClient.UserEnrollmentWithSession> _all = new();
+
+    private ApiClient.UserEnrollmentWithSession? _checkInTarget;
+    private int? _checkingInId;
+    private bool _checkInDone;
+    private int _xpEarned;
+
+    private ApiClient.UserEnrollmentWithSession? _cancelEnrollTarget;
+    private int? _cancellingEnrollId;
+
+    private List<ApiClient.UserEnrollmentWithSession> _filtered => _tab switch
+    {
+        "upcoming" => _all.Where(e =>
+            e.StartTime >= DateTime.UtcNow &&
+            e.EnrollmentStatus != "Cancelled" &&
+            e.SessionStatus != "Cancelled").OrderBy(e => e.StartTime).ToList(),
+        "past" => _all.Where(e => e.StartTime < DateTime.UtcNow).OrderByDescending(e => e.StartTime).ToList(),
+        _ => _all.OrderByDescending(e => e.StartTime).ToList()
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _all = await Api.GetMyEnrollments();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load sessions: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenCheckIn(ApiClient.UserEnrollmentWithSession e)
+    {
+        _checkInTarget = e;
+        _checkInDone = false;
+        _xpEarned = 0;
+        _error = null;
+    }
+
+    private void CloseCheckIn()
+    {
+        _checkInTarget = null;
+        _checkInDone = false;
+    }
+
+    private async Task ExecuteCheckIn()
+    {
+        if (_checkInTarget is null) return;
+        _checkingInId = _checkInTarget.EnrollmentId;
+        try
+        {
+            var result = await Api.CheckInEnrollment(_checkInTarget.EnrollmentId);
+            _xpEarned = result?.XpAwarded ?? 0;
+            _checkInDone = true;
+
+            // Update local list
+            var idx = _all.FindIndex(e => e.EnrollmentId == _checkInTarget.EnrollmentId);
+            if (idx >= 0)
+                _all[idx] = _all[idx] with { CheckedIn = true };
+
+            _checkInTarget = null;
+
+            // Auto-hide toast after 4s
+            _ = Task.Delay(4000).ContinueWith(_ =>
+            {
+                _checkInDone = false;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+        catch (Exception ex)
+        {
+            _error = $"Check-in failed: {ex.Message}";
+        }
+        finally
+        {
+            _checkingInId = null;
+        }
+    }
+
+    private void ConfirmCancelEnrollment(ApiClient.UserEnrollmentWithSession e)
+    {
+        _cancelEnrollTarget = e;
+        _error = null;
+    }
+
+    private void CloseCancelEnroll() => _cancelEnrollTarget = null;
+
+    private async Task ExecuteCancelEnroll()
+    {
+        if (_cancelEnrollTarget is null) return;
+        _cancellingEnrollId = _cancelEnrollTarget.EnrollmentId;
+        try
+        {
+            await Api.CancelEnrollment(_cancelEnrollTarget.EnrollmentId);
+
+            var idx = _all.FindIndex(e => e.EnrollmentId == _cancelEnrollTarget.EnrollmentId);
+            if (idx >= 0)
+                _all[idx] = _all[idx] with { EnrollmentStatus = "Cancelled" };
+
+            _cancelEnrollTarget = null;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not cancel: {ex.Message}";
+        }
+        finally
+        {
+            _cancellingEnrollId = null;
+        }
+    }
+
+    private static string GetEnrollBadgeClass(string status) => status?.ToLower() switch
+    {
+        "confirmed" => "badge-confirmed",
+        "pending"   => "badge-pending",
+        "cancelled" => "badge-cancelled",
+        _           => "badge-unknown"
+    };
+}
+
+<style>
+    .ms-page {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 5rem;
+        color: var(--text-primary, #f8f9fb);
+    }
+
+    /* Header */
+    .ms-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .ms-eyebrow {
+        margin: 0 0 4px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: #0ef0ff;
+    }
+    .ms-title { margin: 0; font-size: 2rem; font-weight: 700; }
+
+    .btn-primary-ms {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
+        color: #001e24;
+        border: none;
+        padding: 0.7rem 1.4rem;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        font-family: inherit;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 18px rgba(14,240,255,0.35);
+    }
+    .btn-primary-ms:hover { transform: scale(1.03); box-shadow: 0 6px 28px rgba(14,240,255,0.55); }
+
+    /* Tabs */
+    .ms-tabs {
+        display: flex;
+        gap: 0.25rem;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 30px;
+        padding: 3px;
+        width: fit-content;
+        margin-bottom: 1.75rem;
+    }
+    .ms-tab {
+        background: transparent;
+        border: none;
+        color: var(--text-muted, #9aa0b5);
+        font-size: 0.85rem;
+        font-weight: 500;
+        font-family: inherit;
+        padding: 0.45rem 1.1rem;
+        border-radius: 26px;
+        cursor: pointer;
+        transition: background 0.18s, color 0.18s;
+    }
+    .ms-tab:hover { color: #f8f9fb; }
+    .ms-tab.active { background: rgba(14,240,255,0.15); color: #0ef0ff; font-weight: 600; }
+
+    /* Loading */
+    .ms-loading {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        min-height: 40vh; gap: 1rem; color: var(--text-muted, #9aa0b5);
+    }
+    .ms-spinner {
+        width: 38px; height: 38px;
+        border: 3px solid rgba(14,240,255,0.2);
+        border-top-color: #0ef0ff;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Empty */
+    .ms-empty {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        min-height: 32vh; gap: 1rem; color: var(--text-muted, #9aa0b5); text-align: center;
+    }
+    .ms-empty-icon {
+        width: 70px; height: 70px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Cards */
+    .ms-cards { display: flex; flex-direction: column; gap: 1rem; }
+
+    .ms-card {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 18px;
+        padding: 1.4rem 1.5rem;
+        transition: border-color 0.2s;
+    }
+    .ms-card:hover { border-color: rgba(14,240,255,0.25); }
+    .card-upcoming { border-left: 3px solid rgba(14,240,255,0.5); }
+    .card-past     { border-left: 3px solid rgba(255,180,0,0.4); opacity: 0.8; }
+    .card-cancelled { border-left: 3px solid rgba(255,255,255,0.1); opacity: 0.55; }
+
+    .ms-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.6rem;
+    }
+    .ms-card-meta { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+
+    /* Enrollment badges */
+    .enroll-badge {
+        font-size: 0.7rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        padding: 2px 9px; border-radius: 20px;
+    }
+    .badge-confirmed { background: rgba(14,240,255,0.12); color: #0ef0ff; border: 1px solid rgba(14,240,255,0.3); }
+    .badge-pending   { background: rgba(255,180,0,0.12);  color: #ffb400; border: 1px solid rgba(255,180,0,0.3); }
+    .badge-cancelled { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
+    .badge-unknown   { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
+
+    .checkin-badge {
+        font-size: 0.7rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        padding: 2px 9px; border-radius: 20px;
+        background: rgba(109,255,157,0.12); color: #6dff9d; border: 1px solid rgba(109,255,157,0.3);
+    }
+
+    /* Card actions */
+    .ms-card-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    .btn-checkin {
+        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
+        color: #001e24;
+        border: none;
+        font-size: 0.8rem; font-weight: 700; font-family: inherit;
+        padding: 5px 14px; border-radius: 20px; cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 3px 12px rgba(14,240,255,0.3);
+    }
+    .btn-checkin:hover { transform: scale(1.04); box-shadow: 0 5px 20px rgba(14,240,255,0.5); }
+    .btn-checkin:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+    .btn-cancel-enroll {
+        background: transparent;
+        border: 1px solid rgba(255,47,180,0.3);
+        color: #ff2fb4;
+        font-size: 0.78rem; font-weight: 600; font-family: inherit;
+        padding: 4px 12px; border-radius: 20px; cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-cancel-enroll:hover { background: rgba(255,47,180,0.08); border-color: rgba(255,47,180,0.55); }
+    .btn-cancel-enroll:disabled { opacity: 0.5; cursor: default; }
+
+    /* Card content */
+    .ms-card-title { margin: 0 0 0.3rem; font-size: 1.1rem; font-weight: 700; }
+    .ms-card-desc  { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-muted, #9aa0b5); line-height: 1.5; }
+    .ms-card-details { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-top: 0.5rem; }
+    .ms-detail {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 0.82rem; color: var(--text-muted, #9aa0b5);
+    }
+
+    /* Modals */
+    .ms-overlay {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        z-index: 9500;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .ms-modal {
+        background: #0d1117;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 18px;
+        padding: 2rem;
+        max-width: 420px; width: 90%;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+    .ms-modal-title { margin: 0 0 0.75rem; font-size: 1.25rem; font-weight: 700; }
+    .ms-modal-body  { margin: 0 0 1.75rem; color: var(--text-muted, #9aa0b5); line-height: 1.6; }
+    .ms-modal-body strong { color: #f8f9fb; }
+    .ms-modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+
+    .btn-modal-ghost {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.14);
+        color: var(--text-muted, #9aa0b5);
+        font-size: 0.9rem; font-weight: 600; font-family: inherit;
+        padding: 0.6rem 1.4rem; border-radius: 30px; cursor: pointer;
+        transition: border-color 0.18s, color 0.18s;
+    }
+    .btn-modal-ghost:hover { border-color: rgba(255,255,255,0.3); color: #f8f9fb; }
+
+    .btn-modal-teal {
+        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
+        border: none; color: #001e24;
+        font-size: 0.9rem; font-weight: 700; font-family: inherit;
+        padding: 0.6rem 1.4rem; border-radius: 30px; cursor: pointer;
+        transition: transform 0.18s, box-shadow 0.18s;
+        box-shadow: 0 4px 16px rgba(14,240,255,0.35);
+    }
+    .btn-modal-teal:hover { transform: scale(1.03); box-shadow: 0 6px 24px rgba(14,240,255,0.55); }
+    .btn-modal-teal:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+    .btn-modal-danger {
+        background: linear-gradient(135deg, #ff2fb4, #c0106a);
+        border: none; color: #fff;
+        font-size: 0.9rem; font-weight: 700; font-family: inherit;
+        padding: 0.6rem 1.4rem; border-radius: 30px; cursor: pointer;
+        transition: transform 0.18s, box-shadow 0.18s;
+        box-shadow: 0 4px 16px rgba(255,47,180,0.35);
+    }
+    .btn-modal-danger:hover { transform: scale(1.03); box-shadow: 0 6px 24px rgba(255,47,180,0.55); }
+    .btn-modal-danger:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+    /* XP Toast */
+    .ms-xp-toast {
+        position: fixed;
+        bottom: 2rem; right: 2rem;
+        display: flex; align-items: center; gap: 10px;
+        background: rgba(109,255,157,0.12);
+        border: 1px solid rgba(109,255,157,0.35);
+        color: #6dff9d;
+        padding: 0.875rem 1.5rem;
+        border-radius: 12px;
+        font-size: 0.95rem; font-weight: 600;
+        z-index: 9600;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 6px 30px rgba(109,255,157,0.2);
+        animation: slideIn 0.3s ease;
+    }
+
+    /* Error toast */
+    .ms-toast.error {
+        position: fixed;
+        bottom: 2rem; right: 2rem;
+        padding: 0.875rem 1.5rem;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        z-index: 9000;
+        backdrop-filter: blur(10px);
+        background: rgba(255,47,180,0.15);
+        border: 1px solid rgba(255,47,180,0.35);
+        color: #ff2fb4;
+    }
+
+    @@keyframes slideIn {
+        from { transform: translateY(20px); opacity: 0; }
+        to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    @@media (max-width: 600px) {
+        .ms-card-header { flex-direction: column; align-items: flex-start; }
+        .ms-card-actions { width: 100%; justify-content: flex-end; }
+    }
+</style>

@@ -1,0 +1,1396 @@
+@page "/trainer/rooms"
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Rooms - FitPlay</PageTitle>
+
+<div class="page-wrap">
+    <h1>Rooms Availability</h1>
+
+    <div class="toolbar">
+        <input type="date" @bind="_selectedDate" @bind:after="Load" />
+        <button @onclick="Load">Refresh</button>
+    </div>
+
+    @if (_loading)
+    {
+        <p>Loading...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="error">@_error</p>
+    }
+    else
+    {
+        @foreach (var group in _roomsByLocation)
+        {
+            <h3>@group.Key</h3>
+            <div class="grid">
+                @foreach (var room in group.Value)
+                {
+                    var closedToday = IsClosedToday(room);
+                    var fullyBooked = !closedToday && IsFullyBookedWithinHours(room);
+                    var availableHours = closedToday ? 0 : GetAvailableHoursInWindow(room);
+                    var clickable = !closedToday && !fullyBooked;
+
+                    <article class="card @(closedToday ? "not-available" : fullyBooked ? "fully-booked" : "room-clickable")"
+                             @onclick="() => { if (clickable) TryOpenModal(room, group.Key); }">
+                        <h4>@room.Name</h4>
+                        <p>Capacity: @room.Capacity | @room.PricePerHour.ToString("C")/h</p>
+
+                        @if (closedToday)
+                        {
+                            <div class="not-available-badge">
+                                <span class="icon">🚫</span>
+                                <span class="text">NOT AVAILABLE</span>
+                            </div>
+                        }
+                        else if (fullyBooked)
+                        {
+                            <div class="fully-booked-badge">
+                                <span class="icon">🔒</span>
+                                <span class="text">FULLY BOOKED</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="availability-summary">
+                                <span class="icon">✓</span>
+                                <span class="text">@availableHours.ToString("F1")h available</span>
+                            </div>
+                            <div class="card-action-hint">Click to schedule →</div>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    }
+</div>
+
+@if (_showModal && _modalRoom is not null)
+{
+    <div class="modal-backdrop" @onclick="CloseModal">
+        <div class="modal" @onclick:stopPropagation="true">
+
+            @* Header *@
+            <div class="modal-header">
+                <div>
+                    <h3>📍 @_modalRoom.Name</h3>
+                    <p class="modal-meta">@_modalLocation · Cap: @_modalRoom.Capacity · @_modalRoom.PricePerHour.ToString("C")/hr</p>
+                </div>
+                <button class="modal-close" @onclick="CloseModal">×</button>
+            </div>
+
+            @* Operating Hours *@
+            @{
+                var oh = GetOperatingHoursForSelectedDay(_modalRoom);
+            }
+            <div class="modal-section">
+                <div class="section-label">OPERATING HOURS — @_selectedDate.DayOfWeek.ToString().ToUpperInvariant()</div>
+                @if (oh is null || oh.IsClosed)
+                {
+                    <div class="not-available-inline">Not available on this day</div>
+                }
+                else
+                {
+                    <div class="operating-hours-row">
+                        <span class="oh-time">@oh.OpenTime?.ToString("HH:mm")</span>
+                        <span class="oh-sep">→</span>
+                        <span class="oh-time">@oh.CloseTime?.ToString("HH:mm")</span>
+                    </div>
+                }
+            </div>
+
+            @* Availability Slots *@
+            <div class="modal-section">
+                <div class="section-label">AVAILABILITY — @_selectedDate.ToString("dd MMM yyyy")</div>
+                @{
+                    var clipped = GetClippedSlots(_modalRoom);
+                }
+                @if (!clipped.Any())
+                {
+                    <div class="not-available-inline">No availability data</div>
+                }
+                else
+                {
+                    <div class="slots-list">
+                        @foreach (var slot in clipped)
+                        {
+                            var dur = (slot.EndTime - slot.StartTime).TotalHours;
+                            var startLocal = slot.StartTime.ToLocalTime();
+                            var endLocal = slot.EndTime.ToLocalTime();
+                            <div class="slot-row @(slot.IsAvailable ? "slot-free" : "slot-booked")">
+                                <span class="slot-icon">@(slot.IsAvailable ? "✓" : "✗")</span>
+                                <span class="slot-range">@startLocal.ToString("HH:mm") – @endLocal.ToString("HH:mm")</span>
+                                @if (slot.IsAvailable)
+                                {
+                                    <span class="slot-dur">(@dur.ToString("F1")h)</span>
+                                    <span class="slot-label free">Free</span>
+                                }
+                                else
+                                {
+                                    <span class="slot-label booked">Booked</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* Book Room & Schedule Form *@
+            <div class="modal-section">
+                <div class="section-label">BOOK ROOM & SCHEDULE CLASS</div>
+                @if (_scheduleSuccess is not null)
+                {
+                    <div class="success-msg">@_scheduleSuccess</div>
+                }
+                else
+                {
+                    <div class="booking-form">
+                        @* Purpose & Description *@
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Booking Purpose</label>
+                                <select @bind="_bookingForm.Purpose">
+                                    <option value="">Select purpose</option>
+                                    <option value="GroupClass">Group Class</option>
+                                    <option value="PersonalTraining">Personal Training</option>
+                                    <option value="Rehabilitation">Rehabilitation</option>
+                                    <option value="Assessment">Assessment</option>
+                                    <option value="Yoga">Yoga</option>
+                                    <option value="Pilates">Pilates</option>
+                                    <option value="Crossfit">Crossfit</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Class Modality</label>
+                                <select class="neon-dropdown" @bind="_bookingForm.Modality">
+                                    <option value="">Select a modality</option>
+                                    <option value="Boxing">Boxing</option>
+                                    <option value="Muay Thai">Muay Thai</option>
+                                    <option value="Martial Arts">Martial Arts</option>
+                                    <option value="CrossFit">CrossFit</option>
+                                    <option value="Functional Train">Functional Train</option>
+                                    <option value="Weight Training">Weight Training</option>
+                                    <option value="Circuit Training">Circuit Training</option>
+                                    <option value="HIIT">HIIT</option>
+                                    <option value="Pilates">Pilates</option>
+                                    <option value="Yoga">Yoga</option>
+                                    <option value="Stretching/Mobility">Stretching/Mobility</option>
+                                    <option value="Zumba/Dance Fit">Zumba/Dance Fit</option>
+                                    <option value="Spinning/Cycling">Spinning/Cycling</option>
+                                    <option value="Step Class">Step Class</option>
+                                    <option value="Running Club">Running Club</option>
+                                    <option value="Cycling">Cycling</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label>Purpose Description (optional)</label>
+                            <textarea @bind="_bookingForm.PurposeDescription" 
+                                      rows="2" 
+                                      placeholder="Brief description of the booking purpose..."></textarea>
+                        </div>
+
+                        @* Time Blocks *@
+                        <div class="time-blocks-section">
+                            <div class="section-label">TIME BLOCKS</div>
+                            
+                            @foreach (var block in _timeBlocks)
+                            {
+                                <div class="time-block-row">
+                                    <div class="time-selectors">
+                                        <select @bind="block.StartTime" @bind:after="RecalculateTotalPrice">
+                                            <option value="">Start</option>
+                                            @foreach (var hour in GetAvailableStartTimes())
+                                            {
+                                                <option value="@hour">@hour</option>
+                                            }
+                                        </select>
+                                        <span class="time-arrow">→</span>
+                                        <select @bind="block.EndTime" @bind:after="RecalculateTotalPrice">
+                                            <option value="">End</option>
+                                            @foreach (var hour in GetAvailableEndTimes(block.StartTime))
+                                            {
+                                                <option value="@hour">@hour</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    
+                                    @if (block.IsValid() && _modalRoom != null)
+                                    {
+                                        var hours = CalculateHours(block.StartTime, block.EndTime);
+                                        var price = hours * _modalRoom.PricePerHour;
+                                        <div class="block-price">
+                                            @_modalRoom.PricePerHour.ToString("C")/hr × @hours.ToString("F1")h = @price.ToString("C")
+                                        </div>
+                                    }
+                                    
+                                    @if (_timeBlocks.Count > 1)
+                                    {
+                                        <button type="button" class="btn-remove-block" @onclick="() => RemoveTimeBlock(block.Id)">
+                                            Remove
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            
+                            <button type="button" class="btn-add-block" @onclick="AddTimeBlock">
+                                + Add Another Time Block
+                            </button>
+                        </div>
+
+                        @* Total Price Display *@
+                        @if (_totalPrice > 0)
+                        {
+                            <div class="total-price-display">
+                                <div class="total-label">TOTAL COST</div>
+                                <div class="total-amount">@_totalPrice.ToString("C")</div>
+                            </div>
+                        }
+
+                        @* Additional Notes *@
+                        <div class="form-group full-width">
+                            <label>Additional Notes (optional)</label>
+                            <textarea @bind="_bookingForm.Notes" 
+                                      rows="2" 
+                                      placeholder="Any additional details..."></textarea>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_scheduleError))
+                        {
+                            <div class="inline-error">@_scheduleError</div>
+                        }
+
+                        <div class="modal-actions">
+                            <button class="btn-secondary" @onclick="CloseModal" disabled="@_scheduling">Cancel</button>
+                            <button class="btn-primary" @onclick="CreateBookingAndSchedule" disabled="@_scheduling">
+                                @(_scheduling ? "Booking..." : "Book & Schedule →")
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    .page-wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .toolbar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .toolbar input,
+    .toolbar button {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--glass-border);
+        background: rgba(255,255,255,.06);
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .toolbar button {
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+
+    .toolbar button:hover { 
+        border-color: rgba(14,240,255,0.7);
+        box-shadow: 0 0 28px rgba(14,240,255,0.35);
+        background: linear-gradient(135deg, rgba(14,240,255,0.14), rgba(255,77,250,0.14));
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 14px;
+        margin-bottom: 24px;
+    }
+
+    .card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+        padding: 14px;
+        position: relative;
+    }
+
+    .card h4 { margin: 0 0 8px 0; font-size: 16px; color: var(--text-primary); }
+    .card p  { margin: 0 0 12px 0; font-size: 13px; color: var(--text-muted); }
+
+    /* Clickable */
+    .room-clickable {
+        cursor: pointer;
+        transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .room-clickable:hover {
+        transform: translateY(-4px);
+        border-color: var(--accent-teal);
+        box-shadow: 0 8px 24px rgba(14,240,255,0.2);
+    }
+    .card-action-hint {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--glass-border);
+        font-size: 12px;
+        color: var(--accent-teal);
+        font-weight: 600;
+        text-align: center;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .room-clickable:hover .card-action-hint { opacity: 1; }
+
+    /* Fully booked */
+    .card.fully-booked { opacity: 0.6; cursor: not-allowed; }
+    .card.fully-booked:hover { transform: none; border-color: var(--glass-border); box-shadow: none; }
+
+    .fully-booked-badge {
+        background: rgba(255,77,109,0.2);
+        color: #ff9aa2;
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid rgba(255,77,109,0.4);
+    }
+    .fully-booked-badge .icon { font-size: 18px; }
+
+    /* Not available (closed day) */
+    .card.not-available { opacity: 0.5; cursor: not-allowed; }
+    .card.not-available:hover { transform: none; border-color: var(--glass-border); box-shadow: none; }
+
+    .not-available-badge {
+        background: rgba(120,120,140,0.2);
+        color: #aaa;
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid rgba(120,120,140,0.35);
+    }
+    .not-available-badge .icon { font-size: 18px; }
+
+    /* Availability summary on card */
+    .availability-summary {
+        background: rgba(14,240,255,0.12);
+        color: var(--accent-teal);
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 600;
+        margin: 12px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border: 1px solid rgba(14,240,255,0.3);
+    }
+
+    .error {
+        color: #ff9aa2;
+        background: rgba(255,77,109,0.15);
+        padding: 12px;
+        border-radius: 8px;
+        margin: 12px 0;
+    }
+
+    /* ── Modal ────────────────────────────────── */
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(5,8,15,0.78);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 20px;
+        animation: fadeIn 0.2s ease-out;
+        overflow-y: auto;
+    }
+
+    @@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .modal {
+        background: var(--bg-dark, #0b0b11);
+        border-radius: 18px;
+        width: min(720px, 96vw);
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+        padding: 24px;
+        border: 1px solid var(--glass-border);
+        animation: slideUp 0.25s ease-out;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        margin: auto;
+        position: relative;
+    }
+
+    @@keyframes slideUp {
+        from { opacity: 0; transform: translateY(18px); }
+        to   { opacity: 1; transform: translateY(0);    }
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .modal-header h3 { margin: 0 0 4px; font-size: 20px; color: var(--text-primary); font-weight: 700; }
+    .modal-meta { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+    .modal-close {
+        background: rgba(255,255,255,0.08);
+        border: none;
+        border-radius: 8px;
+        width: 34px; height: 34px;
+        cursor: pointer;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+        flex-shrink: 0;
+        transition: background 0.2s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.14); }
+
+    /* Sections inside modal */
+    .modal-section {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 16px;
+    }
+
+    .section-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+    }
+
+    /* Operating hours row */
+    .operating-hours-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .oh-time {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--accent-teal);
+    }
+    .oh-sep {
+        font-size: 18px;
+        color: var(--text-muted);
+    }
+
+    /* Not available inline */
+    .not-available-inline {
+        color: #aaa;
+        font-size: 14px;
+        font-style: italic;
+    }
+
+    /* Slots list */
+    .slots-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .slot-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 9px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .slot-row.slot-free {
+        background: rgba(14,240,255,0.08);
+        border: 1px solid rgba(14,240,255,0.2);
+    }
+
+    .slot-row.slot-booked {
+        background: rgba(255,77,109,0.08);
+        border: 1px solid rgba(255,77,109,0.2);
+    }
+
+    .slot-icon { font-size: 15px; width: 18px; text-align: center; }
+
+    .slot-range { color: var(--text-primary); flex: 1; }
+
+    .slot-dur { color: var(--text-muted); font-size: 12px; }
+
+    .slot-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+    .slot-label.free   { background: rgba(14,240,255,0.15); color: var(--accent-teal); }
+    .slot-label.booked { background: rgba(255,77,109,0.15); color: #ff9aa2; }
+
+    /* Booking Form */
+    .booking-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+    }
+
+    .form-group { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 6px; 
+    }
+
+    .form-group.full-width { 
+        grid-column: 1 / -1; 
+    }
+
+    .form-group label { 
+        font-size: 12px; 
+        color: var(--text-muted); 
+        font-weight: 600; 
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 10px 12px;
+        border: 1px solid var(--glass-border);
+        border-radius: 9px;
+        font-size: 14px;
+        background: rgba(255,255,255,0.04);
+        color: var(--text-primary);
+        transition: border-color 0.2s;
+        font-family: inherit;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--accent-teal);
+        background: rgba(255,255,255,0.06);
+    }
+
+    .neon-dropdown {
+        background: rgba(57,255,20,0.55);
+        color: #000;
+        font-weight: 700;
+        border: 1px solid rgba(182,255,0,0.9);
+        box-shadow: 0 0 12px rgba(57,255,20,0.45);
+    }
+    .neon-dropdown:focus {
+        outline: none;
+        border-color: rgba(234,255,106,1);
+        box-shadow: 0 0 16px rgba(57,255,20,0.65);
+    }
+    .neon-dropdown option { background: rgba(11,11,17,0.95); color: #fff; }
+
+    /* Time Blocks Section */
+    .time-blocks-section {
+        background: rgba(14,240,255,0.04);
+        border: 1px solid rgba(14,240,255,0.15);
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .time-block-row {
+        background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        animation: slideDown 0.2s ease-out;
+    }
+
+    @@keyframes slideDown {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .time-selectors {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 240px;
+    }
+
+    .time-selectors select {
+        flex: 1;
+        padding: 8px 10px;
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.06);
+        color: var(--text-primary);
+        font-size: 13px;
+        font-weight: 600;
+        transition: border-color 0.2s;
+    }
+
+    .time-selectors select:focus {
+        outline: none;
+        border-color: var(--accent-teal);
+    }
+
+    .time-arrow {
+        color: var(--accent-teal);
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .block-price {
+        background: rgba(14,240,255,0.12);
+        color: var(--accent-teal);
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        border: 1px solid rgba(14,240,255,0.25);
+    }
+
+    .btn-remove-block {
+        background: rgba(255,77,109,0.2);
+        color: #ff9aa2;
+        border: 1px solid rgba(255,77,109,0.4);
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-remove-block:hover {
+        background: rgba(255,77,109,0.3);
+        transform: translateY(-1px);
+    }
+
+    .btn-add-block {
+        background: transparent;
+        border: 2px dashed rgba(14,240,255,0.4);
+        color: var(--accent-teal);
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: center;
+    }
+
+    .btn-add-block:hover {
+        border-color: var(--accent-teal);
+        background: rgba(14,240,255,0.08);
+    }
+
+    /* Total Price Display */
+    .total-price-display {
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
+        animation: priceUpdate 0.3s ease-out;
+    }
+
+    @@keyframes priceUpdate {
+        0% { transform: scale(0.98); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(1); }
+    }
+
+    .total-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+    .total-amount {
+        font-size: 28px;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--accent-teal), var(--accent-magenta));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .inline-error {
+        color: #fecaca;
+        background: rgba(127,29,29,0.4);
+        border-radius: 9px;
+        padding: 10px 13px;
+        font-size: 13px;
+        border: 1px solid rgba(127,29,29,0.6);
+    }
+
+    .success-msg {
+        background: rgba(14,240,255,0.12);
+        color: var(--accent-teal);
+        padding: 14px;
+        border-radius: 10px;
+        font-weight: 600;
+        border: 1px solid rgba(14,240,255,0.3);
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 8px;
+    }
+
+    .btn-secondary {
+        background: rgba(255,255,255,0.08);
+        color: var(--text-primary);
+        border: 1px solid var(--glass-border);
+        padding: 10px 18px;
+        border-radius: 9px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: background 0.2s;
+    }
+    .btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+    .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary {
+        background: linear-gradient(135deg, rgba(14,240,255,0.08), rgba(255,77,250,0.08));
+        border: 2px solid rgba(14,240,255,0.4);
+        box-shadow: 0 0 20px rgba(14,240,255,0.2);
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 9px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 700;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, transform 0.1s;
+    }
+    .btn-primary:hover:not(:disabled) { 
+        border-color: rgba(14,240,255,0.7);
+        box-shadow: 0 0 28px rgba(14,240,255,0.35);
+        background: linear-gradient(135deg, rgba(14,240,255,0.14), rgba(255,77,250,0.14));
+        transform: translateY(-1px);
+    }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .modal {
+            width: 95vw;
+            max-height: 95vh;
+            padding: 20px;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+        }
+
+        .modal-meta {
+            font-size: 12px;
+        }
+
+        .form-row { 
+            grid-template-columns: 1fr; 
+        }
+
+        .booking-form {
+            gap: 12px;
+        }
+
+        .time-blocks-section {
+            padding: 12px;
+        }
+
+        .time-block-row { 
+            flex-direction: column; 
+            align-items: stretch;
+            padding: 10px;
+        }
+
+        .time-selectors { 
+            min-width: 100%;
+            flex-direction: column;
+        }
+
+        .time-selectors select {
+            width: 100%;
+        }
+
+        .time-arrow {
+            display: none;
+        }
+
+        .block-price { 
+            text-align: center;
+            width: 100%;
+        }
+
+        .btn-remove-block {
+            width: 100%;
+        }
+
+        .modal-actions {
+            flex-direction: column-reverse;
+            gap: 8px;
+        }
+
+        .modal-actions button {
+            width: 100%;
+        }
+
+        .total-price-display {
+            padding: 12px;
+        }
+
+        .total-amount {
+            font-size: 24px;
+        }
+
+        .operating-hours-row {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .slots-list {
+            font-size: 12px;
+        }
+    }
+
+    @@media (max-width: 640px) {
+        .grid { 
+            grid-template-columns: 1fr; 
+        }
+
+        .page-wrap {
+            padding: 16px;
+        }
+
+        .toolbar {
+            flex-direction: column;
+        }
+
+        .toolbar input,
+        .toolbar button {
+            width: 100%;
+        }
+    }
+</style>
+
+@code {
+    // ── Page state ─────────────────────────────────────────────────────────
+    private readonly Dictionary<string, List<ApiClient.RoomRead>> _roomsByLocation = new();
+    private readonly Dictionary<int, ApiClient.RoomAvailability> _availability = new();
+    private bool _loading = true;
+    private string? _error;
+    private DateTime _selectedDate = DateTime.UtcNow.Date;
+
+    // ── Modal state ─────────────────────────────────────────────────────────
+    private bool _showModal;
+    private ApiClient.RoomRead? _modalRoom;
+    private string? _modalLocation;
+    private bool _scheduling;
+    private string? _scheduleError;
+    private string? _scheduleSuccess;
+    private BookingForm _bookingForm = new();
+    private List<TimeBlock> _timeBlocks = new();
+    private decimal _totalPrice;
+    private readonly Dictionary<int, decimal> _blockPrices = new();
+
+    // ── Trainer context ─────────────────────────────────────────────────────
+    private int? _currentTrainerId;
+
+    // ── Lifecycle ───────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        _currentTrainerId = await ResolveCurrentTrainerIdAsync();
+        await Load();
+    }
+
+    // ── Data loading ────────────────────────────────────────────────────────
+    private async Task Load()
+    {
+        _loading = true;
+        _error = null;
+        _roomsByLocation.Clear();
+        _availability.Clear();
+
+        try
+        {
+            var gyms = await Api.GetGyms(true);
+            var date = DateOnly.FromDateTime(_selectedDate);
+
+            foreach (var gym in gyms)
+            {
+                var locations = await Api.GetGymLocations(gym.Id, true);
+                foreach (var location in locations)
+                {
+                    var rooms = await Api.GetRoomsByLocation(location.Id, true);
+                    if (!rooms.Any()) continue;
+
+                    var key = $"{gym.Name} - {location.Name}";
+                    _roomsByLocation[key] = rooms;
+
+                    foreach (var room in rooms)
+                    {
+                        var av = await Api.GetRoomAvailability(room.Id, date);
+                        if (av is not null)
+                            _availability[room.Id] = av;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // ── Operating hours helpers ─────────────────────────────────────────────
+    private ApiClient.RoomOperatingHoursDto? GetOperatingHoursForSelectedDay(ApiClient.RoomRead room)
+    {
+        var day = _selectedDate.DayOfWeek;
+        return room.OperatingHours.FirstOrDefault(h => h.DayOfWeek == day);
+    }
+
+    private bool IsClosedToday(ApiClient.RoomRead room)
+    {
+        var oh = GetOperatingHoursForSelectedDay(room);
+        return oh is null || oh.IsClosed;
+    }
+
+    // ── Availability clipping (UTC slots → operating-hours window) ──────────
+    private List<ApiClient.AvailabilitySlot> GetClippedSlots(ApiClient.RoomRead room)
+    {
+        if (!_availability.TryGetValue(room.Id, out var av)) return new();
+
+        var oh = GetOperatingHoursForSelectedDay(room);
+        if (oh is null || oh.IsClosed || oh.OpenTime is null || oh.CloseTime is null)
+            return new();
+
+        // Convert operating hours to UTC for comparison
+        var openLocal  = new DateTime(_selectedDate.Year, _selectedDate.Month, _selectedDate.Day,
+                                      oh.OpenTime.Value.Hour, oh.OpenTime.Value.Minute, 0, DateTimeKind.Local);
+        var closeLocal = new DateTime(_selectedDate.Year, _selectedDate.Month, _selectedDate.Day,
+                                      oh.CloseTime.Value.Hour, oh.CloseTime.Value.Minute, 0, DateTimeKind.Local);
+        var windowStart = openLocal.ToUniversalTime();
+        var windowEnd   = closeLocal.ToUniversalTime();
+
+        var result = new List<ApiClient.AvailabilitySlot>();
+        foreach (var slot in av.Slots)
+        {
+            if (slot.EndTime <= windowStart || slot.StartTime >= windowEnd) continue;
+            var clippedStart = slot.StartTime < windowStart ? windowStart : slot.StartTime;
+            var clippedEnd   = slot.EndTime   > windowEnd   ? windowEnd   : slot.EndTime;
+            if (clippedEnd > clippedStart)
+                result.Add(slot with { StartTime = clippedStart, EndTime = clippedEnd });
+        }
+        return result;
+    }
+
+    // ── Card helpers ────────────────────────────────────────────────────────
+    private double GetAvailableHoursInWindow(ApiClient.RoomRead room)
+    {
+        return GetClippedSlots(room)
+            .Where(s => s.IsAvailable)
+            .Sum(s => (s.EndTime - s.StartTime).TotalHours);
+    }
+
+    private bool IsFullyBookedWithinHours(ApiClient.RoomRead room)
+        => GetAvailableHoursInWindow(room) <= 0;
+
+    // ── Modal open / close ──────────────────────────────────────────────────
+    private void TryOpenModal(ApiClient.RoomRead room, string location)
+    {
+        _modalRoom     = room;
+        _modalLocation = location;
+        _scheduleError   = null;
+        _scheduleSuccess = null;
+        _bookingForm    = new BookingForm();
+        _timeBlocks     = new List<TimeBlock> { new TimeBlock() };
+        _totalPrice     = 0;
+        _blockPrices.Clear();
+
+        _showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        _showModal        = false;
+        _scheduleError    = null;
+        _scheduleSuccess  = null;
+    }
+
+    // ── Time Block Management ───────────────────────────────────────────────
+    private void AddTimeBlock()
+    {
+        _timeBlocks.Add(new TimeBlock());
+        StateHasChanged();
+    }
+
+    private void RemoveTimeBlock(int id)
+    {
+        var block = _timeBlocks.FirstOrDefault(b => b.Id == id);
+        if (block != null)
+        {
+            _timeBlocks.Remove(block);
+            _blockPrices.Remove(id);
+            RecalculateTotalPrice();
+        }
+    }
+
+    // ── Available Times (Hour-by-Hour) ──────────────────────────────────────
+    private List<string> GetAvailableStartTimes()
+    {
+        if (_modalRoom is null) return new();
+        
+        var clipped = GetClippedSlots(_modalRoom);
+        var availableSlots = clipped.Where(s => s.IsAvailable).ToList();
+        if (!availableSlots.Any()) return new();
+
+        var hours = new HashSet<string>();
+        foreach (var slot in availableSlots)
+        {
+            var start = slot.StartTime.ToLocalTime();
+            var end = slot.EndTime.ToLocalTime();
+            
+            // Add hourly increments within the slot
+            var current = new DateTime(start.Year, start.Month, start.Day, start.Hour, 0, 0);
+            while (current < end)
+            {
+                if (current >= start)
+                    hours.Add(current.ToString("HH:mm"));
+                current = current.AddHours(1);
+            }
+        }
+
+        return hours.OrderBy(h => h).ToList();
+    }
+
+    private List<string> GetAvailableEndTimes(string? startTime)
+    {
+        if (_modalRoom is null || string.IsNullOrEmpty(startTime)) return new();
+        
+        if (!TimeOnly.TryParse(startTime, out var startTimeOnly)) return new();
+
+        var clipped = GetClippedSlots(_modalRoom);
+        var availableSlots = clipped.Where(s => s.IsAvailable).ToList();
+        if (!availableSlots.Any()) return new();
+
+        var hours = new HashSet<string>();
+        
+        // Find which slot contains this start time
+        var startLocal = new DateTime(_selectedDate.Year, _selectedDate.Month, _selectedDate.Day, 
+                                      startTimeOnly.Hour, startTimeOnly.Minute, 0, DateTimeKind.Local);
+        var startUtc = startLocal.ToUniversalTime();
+
+        foreach (var slot in availableSlots)
+        {
+            if (startUtc >= slot.StartTime && startUtc < slot.EndTime)
+            {
+                // Add hourly increments from start+1 to slot end
+                var current = startLocal.AddHours(1);
+                var endLocal = slot.EndTime.ToLocalTime();
+                
+                while (current <= endLocal)
+                {
+                    hours.Add(current.ToString("HH:mm"));
+                    current = current.AddHours(1);
+                }
+            }
+        }
+
+        return hours.OrderBy(h => h).ToList();
+    }
+
+    // ── Price Calculation ───────────────────────────────────────────────────
+    private void RecalculateTotalPrice()
+    {
+        if (_modalRoom is null)
+        {
+            _totalPrice = 0;
+            return;
+        }
+
+        _totalPrice = 0;
+        _blockPrices.Clear();
+
+        foreach (var block in _timeBlocks)
+        {
+            if (!block.IsValid()) continue;
+
+            var hours = CalculateHours(block.StartTime, block.EndTime);
+            var price = hours * _modalRoom.PricePerHour;
+            _blockPrices[block.Id] = price;
+            _totalPrice += price;
+        }
+
+        StateHasChanged();
+    }
+
+    private decimal CalculateHours(string? startTime, string? endTime)
+    {
+        if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime)) return 0;
+        if (!TimeOnly.TryParse(startTime, out var start) || !TimeOnly.TryParse(endTime, out var end)) return 0;
+        
+        var startMinutes = start.Hour * 60 + start.Minute;
+        var endMinutes = end.Hour * 60 + end.Minute;
+        var durationMinutes = endMinutes - startMinutes;
+        
+        return durationMinutes > 0 ? (decimal)durationMinutes / 60m : 0;
+    }
+
+    // ── Validation ──────────────────────────────────────────────────────────
+    private bool BlocksOverlap(TimeBlock a, TimeBlock b)
+    {
+        if (!a.IsValid() || !b.IsValid()) return false;
+        if (!TimeOnly.TryParse(a.StartTime, out var aStart) || !TimeOnly.TryParse(a.EndTime, out var aEnd)) return false;
+        if (!TimeOnly.TryParse(b.StartTime, out var bStart) || !TimeOnly.TryParse(b.EndTime, out var bEnd)) return false;
+
+        return aStart < bEnd && aEnd > bStart;
+    }
+
+    private string? ValidateBookingForm()
+    {
+        if (string.IsNullOrWhiteSpace(_bookingForm.Purpose))
+            return "Please select a booking purpose.";
+
+        if (string.IsNullOrWhiteSpace(_bookingForm.Modality))
+            return "Please select a class modality.";
+
+        if (!_timeBlocks.Any(b => b.IsValid()))
+            return "Please add at least one valid time block.";
+
+        // Check for overlaps
+        for (int i = 0; i < _timeBlocks.Count; i++)
+        {
+            for (int j = i + 1; j < _timeBlocks.Count; j++)
+            {
+                if (BlocksOverlap(_timeBlocks[i], _timeBlocks[j]))
+                    return "Time blocks cannot overlap.";
+            }
+        }
+
+        // Validate times are in the future
+        foreach (var block in _timeBlocks.Where(b => b.IsValid()))
+        {
+            var startUtc = CombineDateAndTime(_selectedDate, block.StartTime!);
+            if (startUtc <= DateTime.UtcNow)
+                return "All booking times must be in the future.";
+        }
+
+        if (_currentTrainerId is null)
+            return "Trainer profile not found. Please sign in again.";
+
+        return null;
+    }
+
+    // ── Booking & Schedule Creation ─────────────────────────────────────────
+    private async Task CreateBookingAndSchedule()
+    {
+        _scheduleError = null;
+
+        var validationError = ValidateBookingForm();
+        if (validationError != null)
+        {
+            _scheduleError = validationError;
+            return;
+        }
+
+        if (_modalRoom is null || _currentTrainerId is null) return;
+
+        _scheduling = true;
+        var createdBookingIds = new List<int>();
+
+        try
+        {
+            // Step 1: Create room bookings for each time block
+            foreach (var block in _timeBlocks.Where(b => b.IsValid()))
+            {
+                var startUtc = CombineDateAndTime(_selectedDate, block.StartTime!);
+                var endUtc = CombineDateAndTime(_selectedDate, block.EndTime!);
+
+                var bookingBody = new ApiClient.CreateRoomBookingBody(
+                    Purpose: _bookingForm.Purpose!,
+                    PurposeDescription: _bookingForm.PurposeDescription,
+                    StartTime: startUtc,
+                    EndTime: endUtc,
+                    Notes: $"Class: {_bookingForm.Modality}"
+                );
+
+                var booking = await Api.CreateRoomBooking(_modalRoom.Id, bookingBody);
+                if (booking?.Id != null)
+                    createdBookingIds.Add(booking.Id);
+            }
+
+            if (!createdBookingIds.Any())
+            {
+                _scheduleError = "Failed to create room bookings.";
+                return;
+            }
+
+            // Step 2: Create class schedule linked to the first booking
+            var firstBlock = _timeBlocks.First(b => b.IsValid());
+            var scheduledAt = CombineDateAndTime(_selectedDate, firstBlock.StartTime!);
+            var notes = BuildNotesWithMultipleBookings(createdBookingIds, _bookingForm.Notes);
+
+            await Api.CreateTrainerClassSchedule(
+                _currentTrainerId.Value,
+                _bookingForm.Modality!.Trim(),
+                scheduledAt,
+                notes
+            );
+
+            var totalHours = _timeBlocks.Where(b => b.IsValid()).Sum(b => (double)CalculateHours(b.StartTime, b.EndTime));
+            _scheduleSuccess = $"✓ Room booked for {totalHours:F1}h and class scheduled at {scheduledAt.ToLocalTime():dd MMM yyyy HH:mm}";
+        }
+        catch (Exception ex)
+        {
+            _scheduleError = $"Error: {ex.Message}";
+            
+            // Rollback: Cancel all created bookings
+            foreach (var bookingId in createdBookingIds)
+            {
+                try
+                {
+                    await Api.CancelRoomBooking(bookingId);
+                }
+                catch
+                {
+                    // Ignore rollback errors
+                }
+            }
+        }
+        finally
+        {
+            _scheduling = false;
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    private DateTime CombineDateAndTime(DateTime date, string time)
+    {
+        if (!TimeOnly.TryParse(time, out var timeOnly))
+            throw new ArgumentException("Invalid time format");
+
+        var local = new DateTime(date.Year, date.Month, date.Day, timeOnly.Hour, timeOnly.Minute, 0, DateTimeKind.Local);
+        return local.ToUniversalTime();
+    }
+
+    private string BuildNotesWithMultipleBookings(List<int> bookingIds, string? additionalNotes)
+    {
+        var parts = new List<string>();
+        
+        parts.Add($"Room Bookings: {string.Join(", ", bookingIds.Select(id => $"#{id}"))}");
+        
+        var totalBlocks = _timeBlocks.Count(b => b.IsValid());
+        parts.Add($"{totalBlocks} time block{(totalBlocks != 1 ? "s" : "")}");
+
+        if (!string.IsNullOrWhiteSpace(additionalNotes))
+            parts.Add(additionalNotes.Trim());
+
+        return string.Join(" | ", parts);
+    }
+
+    // ── Trainer identity ────────────────────────────────────────────────────
+    private async Task<int?> ResolveCurrentTrainerIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true) return null;
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId)) return null;
+
+        var trainer = await Api.GetTrainerByIdentity(identityId);
+        return trainer?.Id;
+    }
+
+    // ── Inner types ─────────────────────────────────────────────────────────
+    private class TimeBlock
+    {
+        private static int _nextId = 1;
+        
+        public int Id { get; }
+        public string? StartTime { get; set; }
+        public string? EndTime { get; set; }
+
+        public TimeBlock()
+        {
+            Id = _nextId++;
+        }
+
+        public bool IsValid() => !string.IsNullOrEmpty(StartTime) && !string.IsNullOrEmpty(EndTime);
+    }
+
+    private class BookingForm
+    {
+        public string? Purpose { get; set; }
+        public string? PurposeDescription { get; set; }
+        public string? Modality { get; set; }
+        public string? Notes { get; set; }
+    }
+}

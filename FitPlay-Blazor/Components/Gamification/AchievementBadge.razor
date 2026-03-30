@@ -32,19 +32,19 @@
     }
 
     .achievement-badge.earned {
-        background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
-        border: 2px solid #9f7aea;
+        background: linear-gradient(135deg, rgba(255,47,180,0.14) 0%, rgba(14,240,255,0.12) 100%);
+        border: 1px solid rgba(255,47,180,0.45);
     }
 
     .achievement-badge.locked {
-        background: #f7fafc;
-        border: 2px solid #e2e8f0;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--glass-border);
         opacity: 0.7;
     }
 
     .achievement-badge.earned:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(159, 122, 234, 0.3);
+        box-shadow: 0 4px 12px rgba(255, 47, 180, 0.3);
     }
 
     .badge-icon {
@@ -58,11 +58,11 @@
     }
 
     .earned .badge-icon {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--accent-magenta) 0%, var(--accent-teal) 100%);
     }
 
     .locked .badge-icon {
-        background: #cbd5e0;
+        background: rgba(255,255,255,0.2);
     }
 
     .icon {
@@ -80,24 +80,24 @@
     .badge-name {
         display: block;
         font-weight: bold;
-        color: #1a202c;
+        color: var(--text-primary);
         margin-bottom: 4px;
     }
 
     .locked .badge-name {
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .badge-description {
         display: block;
         font-size: 13px;
-        color: #718096;
+        color: var(--text-muted);
     }
 
     .earned-date {
         display: block;
         font-size: 11px;
-        color: #9f7aea;
+        color: var(--accent-teal);
         margin-top: 4px;
     }
 </style>

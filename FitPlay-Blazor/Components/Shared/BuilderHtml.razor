@@ -1,0 +1,42 @@
+@using FitPlay.Blazor.Services
+@inject BuilderHtmlService BuilderService
+
+@if (_resolved)
+{
+    if (_hasContent)
+    {
+        @((MarkupString)_html)
+    }
+    else
+    {
+        @ChildContent
+    }
+}
+
+@code {
+    [Parameter] public string Model { get; set; } = "page";
+    [Parameter] public string UrlPath { get; set; } = "/";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback<bool> OnResolved { get; set; }
+
+    private bool _resolved;
+    private bool _hasContent;
+    private string _html = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _resolved = false;
+        _hasContent = false;
+        _html = string.Empty;
+
+        var html = await BuilderService.GetHtmlAsync(Model, UrlPath);
+        if (!string.IsNullOrWhiteSpace(html))
+        {
+            _html = html;
+            _hasContent = true;
+        }
+
+        _resolved = true;
+        await OnResolved.InvokeAsync(_hasContent);
+    }
+}

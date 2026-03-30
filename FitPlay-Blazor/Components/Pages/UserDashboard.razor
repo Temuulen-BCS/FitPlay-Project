@@ -1,53 +1,18 @@
 @page "/dashboard"
+@page "/user/dashboard"
+@rendermode InteractiveServer
 @attribute [Authorize]
-@layout EmptyLayout
+@layout UserLayout
 
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
 @using FitPlay_Blazor.Components.Layout
+@inject ApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Dashboard - FitPlay</PageTitle>
-
-<!-- PAGE STYLES -->
-<style>
-    @@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-    :root {
-        --bg-dark: #0b0b11;
-        --bg-card: rgba(255,255,255,0.04);
-        --accent-magenta: #ff2fb4;
-        --accent-teal: #0ef0ff;
-        --accent-gold: #ffd700;
-        --text-primary: #f8f9fb;
-        --text-muted: #9aa0b5;
-        --glass-border: rgba(255,255,255,0.08);
-        --glass-bg: rgba(255,255,255,0.06);
-    }
-
-    body {
-        margin: 0;
-        background: var(--bg-dark);
-        color: var(--text-primary);
-        font-family: 'Space Grotesk', sans-serif;
-        overflow-x: hidden;
-    }
-</style>
-
-<!-- TOP NAV BAR -->
-<header class="top-nav">
-    <div class="nav-inner">
-        <a href="/" class="logo">FIT<span>PLAY</span></a>
-        <nav class="nav-links-top">
-            <a href="/dashboard" class="active">Dashboard</a>
-            <a href="/trainings">Classes</a>
-            <a href="/#trainers">Trainers</a>
-            <a href="/#perks">Membership</a>
-        </nav>
-        <div class="nav-user">
-            <span class="user-level">Lv. 12</span>
-            <div class="user-avatar">U</div>
-        </div>
-    </div>
-</header>
 
 <!-- DASHBOARD CONTENT -->
 <main class="dashboard-main">
@@ -60,11 +25,11 @@
         <!-- WELCOME HEADER -->
         <section class="welcome-section">
             <div class="welcome-content">
-                <h1>Welcome back, <span class="highlight">Champion</span></h1>
-                <p class="welcome-sub">Ready to crush your goals today? You're on a 7-day streak!</p>
+                <h1>Welcome back, <span class="highlight">@_welcomeTitle</span></h1>
+                <p class="welcome-sub">@_welcomeSubtitle</p>
             </div>
             <div class="streak-badge">
-                <span class="streak-flame">7</span>
+                <span class="streak-flame">@_currentStreak</span>
                 <span class="streak-label">Day Streak</span>
             </div>
         </section>
@@ -74,40 +39,72 @@
             <div class="stat-card glow-magenta">
                 <div class="stat-icon">XP</div>
                 <div class="stat-info">
-                    <span class="stat-value">2,450</span>
+                    <span class="stat-value">@_totalXpDisplay</span>
                     <span class="stat-label">Total XP</span>
                 </div>
                 <div class="stat-progress">
-                    <div class="progress-bar" style="width: 65%;"></div>
+                    <div class="progress-bar" style="width: @_xpProgressPercent%;"></div>
                 </div>
-                <span class="stat-next">550 XP to Level 13</span>
+                <span class="stat-next">@_xpToNextLevelLabel</span>
             </div>
 
             <div class="stat-card glow-teal">
                 <div class="stat-icon">CAL</div>
                 <div class="stat-info">
-                    <span class="stat-value">12,840</span>
+                    <span class="stat-value">@_caloriesDisplay</span>
                     <span class="stat-label">Calories Burned</span>
                 </div>
-                <span class="stat-detail">This month</span>
+                <span class="stat-detail">@_caloriesPeriodLabel</span>
             </div>
 
             <div class="stat-card glow-gold">
                 <div class="stat-icon">WO</div>
                 <div class="stat-info">
-                    <span class="stat-value">24</span>
+                    <span class="stat-value">@_workoutsDisplay</span>
                     <span class="stat-label">Workouts</span>
                 </div>
-                <span class="stat-detail">Completed</span>
+                <span class="stat-detail">@_workoutsLabel</span>
             </div>
 
             <div class="stat-card glow-magenta">
                 <div class="stat-icon">HR</div>
                 <div class="stat-info">
-                    <span class="stat-value">18.5</span>
+                    <span class="stat-value">@_hoursTrainedDisplay</span>
                     <span class="stat-label">Hours Trained</span>
                 </div>
-                <span class="stat-detail">Total time</span>
+                <span class="stat-detail">@_hoursLabel</span>
+            </div>
+        </section>
+
+        <!-- WEEKLY PROGRESS -->
+        <section class="card progress-card">
+            <div class="card-header">
+                <h2>Weekly Progress</h2>
+            </div>
+            <div class="progress-chart">
+                <div class="chart-bars">
+                    @foreach (var bar in _weeklyBars)
+                    {
+                        <div class="chart-bar @bar.BarClass">
+                            <div class="bar-fill @bar.FillClass" style="height: @bar.HeightPercent%;"></div>
+                            <span class="bar-label">@bar.Label</span>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="progress-stats">
+                <div class="progress-stat">
+                    <span class="ps-value">@_weekWorkouts</span>
+                    <span class="ps-label">Workouts</span>
+                </div>
+                <div class="progress-stat">
+                    <span class="ps-value">@_weekCaloriesDisplay</span>
+                    <span class="ps-label">Calories</span>
+                </div>
+                <div class="progress-stat">
+                    <span class="ps-value">@_weekHoursDisplay</span>
+                    <span class="ps-label">Time</span>
+                </div>
             </div>
         </section>
 
@@ -118,88 +115,37 @@
                 <!-- TODAY'S SCHEDULE -->
                 <section class="card schedule-card">
                     <div class="card-header">
-                        <h2>Today's Schedule</h2>
-                        <a href="/trainings" class="link-btn">View All</a>
+                        <h2>@_scheduleHeader</h2>
+                        <a href="/user/trainings" class="link-btn">View All</a>
                     </div>
                     <div class="schedule-list">
-                        <div class="schedule-item active">
-                            <div class="schedule-time">19:00</div>
-                            <div class="schedule-info">
-                                <h3>HIIT Inferno</h3>
-                                <p>Coach Marcus | 45 min</p>
+                        @if (_todaySchedule.Any())
+                        {
+                            @foreach (var item in _todaySchedule)
+                            {
+                                <div class="schedule-item @item.ItemClass">
+                                    <div class="schedule-time">@item.TimeLabel</div>
+                                    <div class="schedule-info">
+                                        <h3>@item.Title</h3>
+                                        <p>@item.Subtitle</p>
+                                    </div>
+                                    @if (item.IsBooked)
+                                    {
+                                        <span class="schedule-status booked">Completed</span>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn-book" disabled>View</button>
+                                    }
+                                </div>
+                            }
+                        }
+                        else if (!_isLoading)
+                        {
+                            <div class="schedule-empty">
+                                <p>No trainings scheduled in the next 7 days.</p>
                             </div>
-                            <span class="schedule-status booked">Booked</span>
-                        </div>
-                        <div class="schedule-item">
-                            <div class="schedule-time">20:30</div>
-                            <div class="schedule-info">
-                                <h3>Box & Flow</h3>
-                                <p>Coach Leila | 60 min</p>
-                            </div>
-                            <button class="btn-book">Book</button>
-                        </div>
-                        <div class="schedule-item">
-                            <div class="schedule-time">21:45</div>
-                            <div class="schedule-info">
-                                <h3>Night Yoga</h3>
-                                <p>Coach Sana | 50 min</p>
-                            </div>
-                            <button class="btn-book">Book</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- WEEKLY PROGRESS -->
-                <section class="card progress-card">
-                    <div class="card-header">
-                        <h2>Weekly Progress</h2>
-                        <span class="badge-teal">+15% vs last week</span>
-                    </div>
-                    <div class="progress-chart">
-                        <div class="chart-bars">
-                            <div class="chart-bar">
-                                <div class="bar-fill" style="height: 60%;"></div>
-                                <span class="bar-label">Mon</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="bar-fill" style="height: 80%;"></div>
-                                <span class="bar-label">Tue</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="bar-fill" style="height: 45%;"></div>
-                                <span class="bar-label">Wed</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="bar-fill" style="height: 90%;"></div>
-                                <span class="bar-label">Thu</span>
-                            </div>
-                            <div class="chart-bar active">
-                                <div class="bar-fill" style="height: 70%;"></div>
-                                <span class="bar-label">Fri</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="bar-fill empty" style="height: 20%;"></div>
-                                <span class="bar-label">Sat</span>
-                            </div>
-                            <div class="chart-bar">
-                                <div class="bar-fill empty" style="height: 20%;"></div>
-                                <span class="bar-label">Sun</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="progress-stats">
-                        <div class="progress-stat">
-                            <span class="ps-value">5</span>
-                            <span class="ps-label">Workouts</span>
-                        </div>
-                        <div class="progress-stat">
-                            <span class="ps-value">3,200</span>
-                            <span class="ps-label">Calories</span>
-                        </div>
-                        <div class="progress-stat">
-                            <span class="ps-value">4.5h</span>
-                            <span class="ps-label">Time</span>
-                        </div>
+                        }
                     </div>
                 </section>
             </div>
@@ -210,33 +156,25 @@
                 <section class="card achievements-card">
                     <div class="card-header">
                         <h2>Achievements</h2>
-                        <span class="achievement-count">8/24</span>
+                        <span class="achievement-count">@_achievementCountLabel</span>
                     </div>
                     <div class="achievements-grid">
-                        <div class="achievement unlocked">
-                            <div class="achievement-icon">1W</div>
-                            <span class="achievement-name">First Week</span>
-                        </div>
-                        <div class="achievement unlocked">
-                            <div class="achievement-icon">10</div>
-                            <span class="achievement-name">10 Workouts</span>
-                        </div>
-                        <div class="achievement unlocked">
-                            <div class="achievement-icon">5K</div>
-                            <span class="achievement-name">5K Calories</span>
-                        </div>
-                        <div class="achievement unlocked">
-                            <div class="achievement-icon">7D</div>
-                            <span class="achievement-name">7 Day Streak</span>
-                        </div>
-                        <div class="achievement locked">
-                            <div class="achievement-icon">30</div>
-                            <span class="achievement-name">30 Workouts</span>
-                        </div>
-                        <div class="achievement locked">
-                            <div class="achievement-icon">14D</div>
-                            <span class="achievement-name">14 Day Streak</span>
-                        </div>
+                        @if (_achievements.Any())
+                        {
+                            @foreach (var achievement in _achievements)
+                            {
+                                <div class="achievement @(achievement.Earned ? "unlocked" : "locked")">
+                                    <div class="achievement-icon">@achievement.Icon</div>
+                                    <span class="achievement-name">@achievement.Name</span>
+                                </div>
+                            }
+                        }
+                        else if (!_isLoading)
+                        {
+                            <div class="achievement-empty">
+                                <p>No achievements yet.</p>
+                            </div>
+                        }
                     </div>
                 </section>
 
@@ -246,30 +184,26 @@
                         <h2>Recommended For You</h2>
                     </div>
                     <div class="recommended-list">
-                        <div class="recommended-item">
-                            <div class="rec-icon">HIIT</div>
-                            <div class="rec-info">
-                                <h3>Morning Burn</h3>
-                                <p>High intensity | 30 min</p>
+                        @if (_recommendedTrainings.Any())
+                        {
+                            @foreach (var training in _recommendedTrainings)
+                            {
+                                <div class="recommended-item">
+                                    <div class="rec-icon">@training.Icon</div>
+                                    <div class="rec-info">
+                                        <h3>@training.Name</h3>
+                                        <p>@training.Detail</p>
+                                    </div>
+                                    <span class="rec-xp">+@training.XpReward XP</span>
+                                </div>
+                            }
+                        }
+                        else if (!_isLoading)
+                        {
+                            <div class="recommended-empty">
+                                <p>No recommendations right now.</p>
                             </div>
-                            <span class="rec-xp">+150 XP</span>
-                        </div>
-                        <div class="recommended-item">
-                            <div class="rec-icon">STR</div>
-                            <div class="rec-info">
-                                <h3>Upper Body Power</h3>
-                                <p>Strength | 45 min</p>
-                            </div>
-                            <span class="rec-xp">+200 XP</span>
-                        </div>
-                        <div class="recommended-item">
-                            <div class="rec-icon">YG</div>
-                            <div class="rec-info">
-                                <h3>Recovery Flow</h3>
-                                <p>Yoga | 40 min</p>
-                            </div>
-                            <span class="rec-xp">+100 XP</span>
-                        </div>
+                        }
                     </div>
                 </section>
 
@@ -277,11 +211,11 @@
                 <section class="card actions-card">
                     <h2>Quick Actions</h2>
                     <div class="actions-grid">
-                        <a href="/trainings" class="action-btn">
+                        <a href="/user/book-class" class="action-btn">
                             <span class="action-icon">+</span>
                             <span>Book Class</span>
                         </a>
-                        <a href="#" class="action-btn">
+                        <a href="/user/log-workout" class="action-btn">
                             <span class="action-icon">LOG</span>
                             <span>Log Workout</span>
                         </a>
@@ -306,80 +240,11 @@
 </footer>
 
 <style>
-    /* === TOP NAV === */
-    .top-nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 1000;
-        background: rgba(11, 11, 17, 0.85);
-        backdrop-filter: blur(12px);
-        border-bottom: 1px solid var(--glass-border);
-    }
-    .nav-inner {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 1rem 2rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .logo {
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: var(--text-primary);
-        text-decoration: none;
-        letter-spacing: 2px;
-    }
-    .logo span {
-        color: var(--accent-magenta);
-    }
-    .nav-links-top {
-        display: flex;
-        gap: 2rem;
-    }
-    .nav-links-top a {
-        color: var(--text-muted);
-        text-decoration: none;
-        font-weight: 500;
-        transition: color 0.3s;
-    }
-    .nav-links-top a:hover,
-    .nav-links-top a.active {
-        color: var(--accent-teal);
-    }
-    .nav-user {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-    .user-level {
-        background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-weight: 700;
-        font-size: 0.9rem;
-    }
-    .user-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        color: #fff;
-        cursor: pointer;
-    }
-
     /* === DASHBOARD MAIN === */
     .dashboard-main {
         position: relative;
         min-height: 100vh;
-        padding: 6rem 2rem 4rem;
+        padding: 2rem 2rem 4rem;
     }
     .dashboard-bg {
         position: fixed;
@@ -471,7 +336,7 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1.5rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
     .stat-card {
         background: var(--glass-bg);
@@ -506,59 +371,53 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.9rem;
         font-weight: 700;
-        color: var(--accent-teal);
+        font-size: 0.85rem;
+        color: var(--text-primary);
         margin-bottom: 1rem;
     }
-    .glow-magenta .stat-icon { color: var(--accent-magenta); }
-    .glow-gold .stat-icon { color: var(--accent-gold); }
     .stat-info {
         display: flex;
         flex-direction: column;
+        gap: 0.25rem;
     }
     .stat-value {
-        font-size: 1.8rem;
+        font-size: 1.6rem;
         font-weight: 700;
     }
     .stat-label {
-        font-size: 0.9rem;
         color: var(--text-muted);
-    }
-    .stat-detail {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        margin-top: 0.5rem;
+        font-size: 0.85rem;
     }
     .stat-progress {
-        margin-top: 1rem;
+        margin: 1rem 0 0.5rem;
         height: 6px;
+        border-radius: 6px;
         background: rgba(255,255,255,0.1);
-        border-radius: 3px;
         overflow: hidden;
     }
     .progress-bar {
         height: 100%;
         background: linear-gradient(90deg, var(--accent-magenta), var(--accent-teal));
-        border-radius: 3px;
+        border-radius: 6px;
     }
-    .stat-next {
-        font-size: 0.75rem;
+    .stat-next,
+    .stat-detail {
         color: var(--text-muted);
-        margin-top: 0.5rem;
-        display: block;
+        font-size: 0.8rem;
     }
 
-    /* === DASHBOARD GRID === */
+    /* === GRID === */
     .dashboard-grid {
         display: grid;
-        grid-template-columns: 1.2fr 1fr;
-        gap: 1.5rem;
+        grid-template-columns: 2fr 1.2fr;
+        gap: 2rem;
     }
-    .grid-left, .grid-right {
+    .grid-left,
+    .grid-right {
         display: flex;
         flex-direction: column;
-        gap: 1.5rem;
+        gap: 2rem;
     }
 
     /* === CARDS === */
@@ -567,227 +426,154 @@
         border: 1px solid var(--glass-border);
         border-radius: 20px;
         padding: 1.5rem;
+        backdrop-filter: blur(10px);
     }
     .card-header {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        margin-bottom: 1.25rem;
+        justify-content: space-between;
+        margin-bottom: 1rem;
     }
     .card-header h2 {
-        font-size: 1.25rem;
-        font-weight: 600;
+        font-size: 1.2rem;
         margin: 0;
     }
     .link-btn {
         color: var(--accent-teal);
         text-decoration: none;
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-    .link-btn:hover {
-        text-decoration: underline;
-    }
-    .badge-teal {
-        background: rgba(14,240,255,0.15);
-        color: var(--accent-teal);
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
+        font-size: 0.85rem;
     }
 
     /* === SCHEDULE === */
     .schedule-list {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.75rem;
     }
     .schedule-item {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        background: rgba(255,255,255,0.03);
-        border: 1px solid var(--glass-border);
-        border-radius: 14px;
-        transition: border-color 0.3s;
-    }
-    .schedule-item:hover {
-        border-color: var(--accent-teal);
+        justify-content: space-between;
+        background: rgba(255,255,255,0.04);
+        border-radius: 16px;
+        padding: 0.85rem 1rem;
+        border: 1px solid transparent;
     }
     .schedule-item.active {
         border-color: var(--accent-magenta);
-        background: rgba(255,47,180,0.05);
     }
     .schedule-time {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--accent-teal);
-        min-width: 60px;
-    }
-    .schedule-item.active .schedule-time {
-        color: var(--accent-magenta);
-    }
-    .schedule-info {
-        flex: 1;
+        font-weight: 600;
     }
     .schedule-info h3 {
-        margin: 0 0 0.25rem;
+        margin: 0;
         font-size: 1rem;
-        font-weight: 600;
     }
     .schedule-info p {
-        margin: 0;
-        font-size: 0.85rem;
+        margin: 0.2rem 0 0;
         color: var(--text-muted);
+        font-size: 0.85rem;
     }
     .schedule-status {
-        font-size: 0.8rem;
-        font-weight: 600;
-        padding: 0.35rem 0.75rem;
-        border-radius: 20px;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 8px;
     }
     .schedule-status.booked {
-        background: rgba(255,47,180,0.2);
-        color: var(--accent-magenta);
+        background: rgba(14,240,255,0.2);
+        color: var(--accent-teal);
     }
     .btn-book {
-        background: transparent;
-        border: 1px solid var(--accent-teal);
-        color: var(--accent-teal);
-        padding: 0.35rem 1rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.3s, color 0.3s;
-    }
-    .btn-book:hover {
-        background: var(--accent-teal);
-        color: var(--bg-dark);
+        background: var(--accent-magenta);
+        color: #fff;
+        border: none;
+        padding: 0.35rem 0.7rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
     }
 
-    /* === PROGRESS CHART === */
+    /* === PROGRESS === */
     .progress-chart {
-        margin-bottom: 1.5rem;
+        margin: 1rem 0;
+    }
+    .progress-card {
+        margin-bottom: 2rem;
     }
     .chart-bars {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        height: 120px;
-        gap: 0.5rem;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.75rem;
+        align-items: end;
+        min-height: 140px;
     }
     .chart-bar {
-        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
-        height: 100%;
+        gap: 0.5rem;
+        height: 140px;
+        justify-content: flex-end;
     }
     .bar-fill {
         width: 100%;
-        max-width: 40px;
         background: linear-gradient(180deg, var(--accent-teal), var(--accent-magenta));
-        border-radius: 6px 6px 0 0;
-        margin-top: auto;
-        transition: height 0.3s;
+        border-radius: 8px 8px 2px 2px;
+        min-height: 8px;
     }
     .bar-fill.empty {
-        background: rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.08);
     }
     .chart-bar.active .bar-fill {
-        box-shadow: 0 0 15px rgba(14,240,255,0.4);
+        box-shadow: 0 0 16px rgba(255,47,180,0.4);
     }
     .bar-label {
         font-size: 0.75rem;
         color: var(--text-muted);
-        margin-top: 0.5rem;
-    }
-    .chart-bar.active .bar-label {
-        color: var(--accent-teal);
-        font-weight: 600;
     }
     .progress-stats {
-        display: flex;
-        justify-content: space-around;
-        padding-top: 1rem;
-        border-top: 1px solid var(--glass-border);
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
     }
     .progress-stat {
         text-align: center;
     }
     .ps-value {
         display: block;
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         font-weight: 700;
-        color: var(--accent-teal);
     }
     .ps-label {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         color: var(--text-muted);
     }
 
     /* === ACHIEVEMENTS === */
-    .achievement-count {
-        color: var(--text-muted);
-        font-size: 0.9rem;
-    }
     .achievements-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 1rem;
+        gap: 0.75rem;
     }
     .achievement {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        background: rgba(255,255,255,0.05);
+        border-radius: 12px;
+        padding: 0.75rem;
         text-align: center;
-        padding: 1rem 0.5rem;
-        border-radius: 14px;
-        background: rgba(255,255,255,0.03);
-        border: 1px solid var(--glass-border);
-        transition: transform 0.2s, border-color 0.3s;
-    }
-    .achievement:hover {
-        transform: translateY(-2px);
+        border: 1px solid transparent;
     }
     .achievement.unlocked {
-        border-color: rgba(255,215,0,0.3);
-    }
-    .achievement.unlocked:hover {
         border-color: var(--accent-gold);
     }
-    .achievement.locked {
-        opacity: 0.5;
-    }
     .achievement-icon {
-        width: 45px;
-        height: 45px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.85rem;
         font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    .achievement.unlocked .achievement-icon {
-        background: linear-gradient(135deg, var(--accent-gold), #ff8c00);
-        color: #fff;
-    }
-    .achievement.locked .achievement-icon {
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        color: var(--text-muted);
+        margin-bottom: 0.35rem;
     }
     .achievement-name {
-        font-size: 0.75rem;
-        color: var(--text-muted);
+        font-size: 0.8rem;
     }
-    .achievement.unlocked .achievement-name {
-        color: var(--text-primary);
+    .achievement-count {
+        color: var(--accent-teal);
+        font-size: 0.85rem;
     }
 
     /* === RECOMMENDED === */
@@ -799,103 +585,64 @@
     .recommended-item {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        background: rgba(255,255,255,0.03);
-        border: 1px solid var(--glass-border);
+        justify-content: space-between;
+        gap: 0.75rem;
+        background: rgba(255,255,255,0.05);
         border-radius: 14px;
-        cursor: pointer;
-        transition: border-color 0.3s, transform 0.2s;
-    }
-    .recommended-item:hover {
-        border-color: var(--accent-magenta);
-        transform: translateX(4px);
+        padding: 0.75rem;
     }
     .rec-icon {
-        width: 45px;
-        height: 45px;
-        background: linear-gradient(135deg, var(--accent-magenta), var(--accent-teal));
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.75rem;
         font-weight: 700;
-        color: #fff;
-    }
-    .rec-info {
-        flex: 1;
+        font-size: 0.85rem;
+        background: rgba(255,255,255,0.08);
+        padding: 0.5rem 0.6rem;
+        border-radius: 10px;
     }
     .rec-info h3 {
-        margin: 0 0 0.25rem;
+        margin: 0;
         font-size: 0.95rem;
-        font-weight: 600;
     }
     .rec-info p {
-        margin: 0;
-        font-size: 0.8rem;
+        margin: 0.2rem 0 0;
         color: var(--text-muted);
+        font-size: 0.8rem;
     }
     .rec-xp {
         font-size: 0.85rem;
-        font-weight: 700;
         color: var(--accent-teal);
+        font-weight: 600;
     }
 
-    /* === QUICK ACTIONS === */
-    .actions-card h2 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin: 0 0 1.25rem;
-    }
+    /* === ACTIONS === */
     .actions-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
+        gap: 0.75rem;
     }
     .action-btn {
         display: flex;
-        flex-direction: column;
         align-items: center;
         gap: 0.5rem;
-        padding: 1.25rem 1rem;
-        background: rgba(255,255,255,0.03);
-        border: 1px solid var(--glass-border);
+        background: rgba(255,255,255,0.05);
         border-radius: 14px;
-        text-decoration: none;
+        padding: 0.75rem;
         color: var(--text-primary);
-        font-size: 0.85rem;
-        font-weight: 500;
-        transition: border-color 0.3s, transform 0.2s;
+        text-decoration: none;
+        border: 1px solid transparent;
     }
     .action-btn:hover {
         border-color: var(--accent-teal);
-        transform: translateY(-2px);
     }
     .action-icon {
-        width: 40px;
-        height: 40px;
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1rem;
+        font-size: 0.8rem;
         font-weight: 700;
-        color: var(--accent-magenta);
     }
 
     /* === FOOTER === */
     .site-footer {
-        position: relative;
-        z-index: 1;
         text-align: center;
-        padding: 2rem;
-        background: var(--bg-dark);
-        border-top: 1px solid var(--glass-border);
+        padding: 2rem 0 1rem;
         color: var(--text-muted);
-        font-size: 0.85rem;
     }
 
     /* === RESPONSIVE === */
@@ -926,8 +673,381 @@
             grid-template-columns: 1fr;
         }
     }
+
+    .schedule-empty,
+    .achievement-empty,
+    .recommended-empty {
+        padding: 1rem;
+        text-align: center;
+        color: var(--text-muted);
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+    }
 </style>
 
 @code {
-    
+    private ApiClient.UserProgress? _progress;
+    private List<ApiClient.TrainingCompletion> _completions = new();
+    private List<ApiClient.TrainingSummary> _trainings = new();
+    private List<ApiClient.AchievementStatus> _achievementStatuses = new();
+    private List<ApiClient.ClassSchedule> _schedules = new();
+    private List<ScheduleItem> _todaySchedule = new();
+    private List<WeeklyBar> _weeklyBars = new();
+    private List<AchievementItem> _achievements = new();
+    private List<RecommendedItem> _recommendedTrainings = new();
+    private bool _isLoading = true;
+    private int? _currentUserId;
+    private string? _userName;
+
+    private const double DefaultMetValue = 6.0;
+    private const double DefaultWeightKg = 70.0;
+
+    private string _welcomeTitle = "Champion";
+    private string _welcomeSubtitle = "Ready to crush your goals today?";
+    private string _levelLabel = "Lv. 1";
+    private int _currentStreak;
+    private string _totalXpDisplay = "0";
+    private string _xpProgressPercent = "0";
+    private string _xpToNextLevelLabel = "";
+    private string _caloriesDisplay = "0";
+    private string _caloriesPeriodLabel = "Total";
+    private string _workoutsDisplay = "0";
+    private string _workoutsLabel = "Completed";
+    private string _hoursTrainedDisplay = "0";
+    private string _hoursLabel = "Total time";
+    private string _weekCaloriesDisplay = "0";
+    private string _weekHoursDisplay = "0h";
+    private int _weekWorkouts;
+    private string _achievementCountLabel = "0/0";
+    private string _scheduleHeader = "Today's Schedule";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboard();
+    }
+
+    private async Task LoadDashboard()
+    {
+        _isLoading = true;
+        try
+        {
+            _currentUserId = await ResolveCurrentUserIdAsync();
+            if (_currentUserId is null)
+            {
+                _welcomeSubtitle = "Please sign in to view your stats.";
+                return;
+            }
+
+            var progressTask = Api.GetUserProgress(_currentUserId.Value);
+            var completionsTask = Api.GetUserCompletions(_currentUserId.Value, 200);
+            var trainingsTask = Api.GetTrainings(_currentUserId.Value);
+            var achievementsTask = Api.GetAllAchievementsStatus(_currentUserId.Value);
+            var todayStart = DateTime.UtcNow.Date;
+            var todayEnd = todayStart.AddDays(1).AddTicks(-1);
+            var schedulesTask = Api.GetUserSchedule(_currentUserId.Value, todayStart, todayEnd);
+
+            await Task.WhenAll(progressTask, completionsTask, trainingsTask, achievementsTask, schedulesTask);
+
+            _progress = await progressTask;
+            _completions = await completionsTask;
+            _trainings = await trainingsTask;
+            _achievementStatuses = await achievementsTask;
+            _schedules = await schedulesTask;
+
+            if (_schedules.Count == 0)
+            {
+                var upcomingEnd = todayStart.AddDays(7).AddTicks(-1);
+                _schedules = await Api.GetUserSchedule(_currentUserId.Value, todayStart, upcomingEnd);
+                _scheduleHeader = _schedules.Count > 0 ? "Upcoming Schedule" : "Today's Schedule";
+            }
+            else
+            {
+                _scheduleHeader = "Today's Schedule";
+            }
+
+            BuildDashboardView();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task<int?> ResolveCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        var identityId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(identityId))
+        {
+            return null;
+        }
+
+        var domainUser = await Api.GetUserByIdentity(identityId);
+        if (domainUser is null)
+        {
+            _welcomeSubtitle = "No domain profile found for this account.";
+        }
+        else
+        {
+            _userName = domainUser.Name;
+        }
+        return domainUser?.Id;
+    }
+
+    private void BuildDashboardView()
+    {
+        _currentStreak = _progress?.CurrentStreak ?? 0;
+        _welcomeTitle = string.IsNullOrWhiteSpace(_userName) ? "Champion" : _userName;
+        _welcomeSubtitle = _currentStreak > 0
+            ? $"You're on a {_currentStreak}-day streak! Keep it going."
+            : "Ready to crush your goals today?";
+        _levelLabel = $"Lv. {_progress?.CurrentLevel ?? 1}";
+
+        var totalXp = _progress?.TotalXp ?? 0;
+        _totalXpDisplay = totalXp.ToString("N0");
+        var xpPercent = Math.Clamp(_progress?.ProgressPercent ?? 0, 0, 100);
+        _xpProgressPercent = xpPercent.ToString("0.#");
+
+        if (_progress != null)
+        {
+            var xpToNext = Math.Max(0, _progress.XpForNextLevel - _progress.TotalXp);
+            _xpToNextLevelLabel = xpToNext > 0
+                ? $"{xpToNext:N0} XP to Level {_progress.CurrentLevel + 1}"
+                : "Max level reached";
+        }
+
+        var approvedCompletions = GetApprovedCompletions(_completions);
+        var weekStart = DateTime.UtcNow.Date.AddDays(-6);
+        var weekCompletions = approvedCompletions
+            .Where(c => c.CompletedAt.Date >= weekStart)
+            .ToList();
+
+        _weekWorkouts = weekCompletions.Count;
+
+        var weekDurationMinutes = GetCompletedTrainingMinutes(weekCompletions);
+        var weekHours = weekDurationMinutes / 60.0;
+        _weekHoursDisplay = $"{weekHours:0.#}h";
+
+        var weekCalories = EstimateCalories(weekHours);
+        _weekCaloriesDisplay = weekCalories.ToString("N0");
+
+        var totalDurationMinutes = GetCompletedTrainingMinutes(approvedCompletions);
+        var totalHours = totalDurationMinutes / 60.0;
+        _hoursTrainedDisplay = $"{totalHours:0.#}";
+
+        var totalCalories = EstimateCalories(totalHours);
+        _caloriesDisplay = totalCalories.ToString("N0");
+        _caloriesPeriodLabel = "Total";
+
+        _workoutsDisplay = (_progress?.TotalTrainingsCompleted ?? approvedCompletions.Count).ToString("N0");
+        _workoutsLabel = "Completed";
+        _hoursLabel = "Total time";
+
+        BuildSchedule(approvedCompletions);
+        BuildWeeklyBars(weekCompletions, weekStart);
+        BuildAchievements();
+        BuildRecommended();
+    }
+
+    private static List<ApiClient.TrainingCompletion> GetApprovedCompletions(List<ApiClient.TrainingCompletion> completions)
+    {
+        return completions
+            .Where(c => string.Equals(c.Status, "AutoApproved", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Status, "Validated", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private int GetCompletedTrainingMinutes(IEnumerable<ApiClient.TrainingCompletion> completions)
+    {
+        var completionsByTraining = completions
+            .Select(c => c.TrainingId)
+            .ToHashSet();
+
+        var trainingDurationMap = _trainings
+            .Where(t => completionsByTraining.Contains(t.Id))
+            .ToDictionary(t => t.Id, t => t.DurationMin);
+
+        var totalMinutes = 0;
+        foreach (var completion in completions)
+        {
+            if (trainingDurationMap.TryGetValue(completion.TrainingId, out var duration))
+            {
+                totalMinutes += duration;
+            }
+        }
+
+        return totalMinutes;
+    }
+
+    private double EstimateCalories(double hours)
+    {
+        var calories = DefaultMetValue * DefaultWeightKg * hours;
+        return Math.Max(0, Math.Round(calories));
+    }
+
+    private void BuildSchedule(List<ApiClient.TrainingCompletion> approvedCompletions)
+    {
+        if (_schedules.Any())
+        {
+            _todaySchedule = _schedules
+                .OrderBy(s => s.ScheduledAt)
+                .Select((s, index) => new ScheduleItem
+                {
+                    Title = s.Modality,
+                    Subtitle = "Scheduled class",
+                    TimeLabel = s.ScheduledAt.ToString("HH:mm"),
+                    IsBooked = string.Equals(s.Status, "Completed", StringComparison.OrdinalIgnoreCase),
+                    ItemClass = index == 0 ? "active" : string.Empty
+                })
+                .ToList();
+            return;
+        }
+
+        var today = DateTime.UtcNow.Date;
+        var todayCompletions = approvedCompletions
+            .Where(c => c.CompletedAt.Date == today)
+            .OrderByDescending(c => c.CompletedAt)
+            .ToList();
+
+        _todaySchedule = todayCompletions.Select((c, index) => new ScheduleItem
+        {
+            Title = c.TrainingName,
+            Subtitle = $"Completed at {c.CompletedAt:HH:mm}",
+            TimeLabel = c.CompletedAt.ToString("HH:mm"),
+            IsBooked = true,
+            ItemClass = index == 0 ? "active" : string.Empty
+        }).ToList();
+    }
+
+    private void BuildWeeklyBars(List<ApiClient.TrainingCompletion> weekCompletions, DateTime weekStart)
+    {
+        var dailyCounts = new Dictionary<DateTime, int>();
+        for (var i = 0; i < 7; i++)
+        {
+            dailyCounts[weekStart.AddDays(i)] = 0;
+        }
+
+        foreach (var completion in weekCompletions)
+        {
+            var date = completion.CompletedAt.Date;
+            if (dailyCounts.ContainsKey(date))
+            {
+                dailyCounts[date] += 1;
+            }
+        }
+
+        var maxCount = Math.Max(1, dailyCounts.Values.Max());
+        var today = DateTime.UtcNow.Date;
+
+        _weeklyBars = dailyCounts.OrderBy(kvp => kvp.Key).Select(kvp =>
+        {
+            var count = kvp.Value;
+            var rawHeight = Math.Round(count / (double)maxCount * 100, 0);
+            var height = count > 0 ? Math.Max(12, rawHeight) : 10;
+            var isToday = kvp.Key == today;
+            return new WeeklyBar
+            {
+                Label = kvp.Key.ToString("ddd"),
+                HeightPercent = height,
+                BarClass = isToday ? "active" : string.Empty,
+                FillClass = count == 0 ? "empty" : string.Empty
+            };
+        }).ToList();
+    }
+
+    private void BuildAchievements()
+    {
+        _achievements = _achievementStatuses.Select(a => new AchievementItem
+        {
+            Name = a.Name,
+            Earned = a.Earned,
+            Icon = GetAchievementIcon(a.Name)
+        }).ToList();
+
+        var earnedCount = _achievements.Count(a => a.Earned);
+        _achievementCountLabel = _achievements.Count == 0
+            ? "0/0"
+            : $"{earnedCount}/{_achievements.Count}";
+    }
+
+    private void BuildRecommended()
+    {
+        _recommendedTrainings = _trainings
+            .Where(t => !t.IsCompleted)
+            .OrderBy(t => t.Difficulty)
+            .Take(3)
+            .Select(t => new RecommendedItem
+            {
+                Name = t.Name,
+                Detail = $"{t.TrainerName} | {t.DurationMin} min",
+                XpReward = t.XpReward,
+                Icon = GetTrainingIcon(t.Name)
+            })
+            .ToList();
+    }
+
+    private static string GetAchievementIcon(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "ACH";
+        var tokens = name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 1)
+        {
+            return tokens[0].Length >= 2 ? tokens[0][..2].ToUpperInvariant() : tokens[0].ToUpperInvariant();
+        }
+        return string.Concat(tokens.Take(2).Select(t => char.ToUpperInvariant(t[0])));
+    }
+
+    private static string GetTrainingIcon(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "TR";
+        var tokens = name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 1)
+        {
+            return tokens[0].Length >= 3 ? tokens[0][..3].ToUpperInvariant() : tokens[0].ToUpperInvariant();
+        }
+        return string.Concat(tokens.Take(3).Select(t => char.ToUpperInvariant(t[0])));
+    }
+
+    private sealed class ScheduleItem
+    {
+        public string Title { get; init; } = string.Empty;
+        public string Subtitle { get; init; } = string.Empty;
+        public string TimeLabel { get; init; } = string.Empty;
+        public bool IsBooked { get; init; }
+        public string ItemClass { get; init; } = string.Empty;
+    }
+
+    private sealed class WeeklyBar
+    {
+        public string Label { get; init; } = string.Empty;
+        public double HeightPercent { get; init; }
+        public string BarClass { get; init; } = string.Empty;
+        public string FillClass { get; init; } = string.Empty;
+    }
+
+    private sealed class AchievementItem
+    {
+        public string Name { get; init; } = string.Empty;
+        public bool Earned { get; init; }
+        public string Icon { get; init; } = string.Empty;
+    }
+
+    private sealed class RecommendedItem
+    {
+        public string Name { get; init; } = string.Empty;
+        public string Detail { get; init; } = string.Empty;
+        public int XpReward { get; init; }
+        public string Icon { get; init; } = string.Empty;
+    }
 }

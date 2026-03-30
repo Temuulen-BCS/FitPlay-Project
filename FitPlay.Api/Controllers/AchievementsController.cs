@@ -1,5 +1,6 @@
 using FitPlay.Domain.DTOs;
 using FitPlay.Domain.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FitPlay.Api.Controllers;
@@ -19,6 +20,7 @@ public class AchievementsController : ControllerBase
     /// Get user's earned achievements.
     /// </summary>
     [HttpGet("user/{userId}")]
+    [Authorize(Policy = "ActiveMembership")]
     public async Task<ActionResult<List<AchievementDto>>> GetUserAchievements(int userId)
     {
         var achievements = await _achievementService.GetUserAchievementsAsync(userId);
@@ -29,6 +31,7 @@ public class AchievementsController : ControllerBase
     /// Get all achievements with earned status for a user.
     /// </summary>
     [HttpGet("user/{userId}/all")]
+    [Authorize(Policy = "ActiveMembership")]
     public async Task<ActionResult<object>> GetAllAchievementsStatus(int userId)
     {
         var achievements = await _achievementService.GetAllAchievementsStatusAsync(userId);

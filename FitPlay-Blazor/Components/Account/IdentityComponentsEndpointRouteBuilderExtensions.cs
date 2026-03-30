@@ -43,10 +43,28 @@ namespace Microsoft.AspNetCore.Routing
             accountGroup.MapPost("/Logout", async (
                 ClaimsPrincipal user,
                 SignInManager<ApplicationUser> signInManager,
-                [FromForm] string returnUrl) =>
+                [FromForm] string? returnUrl) =>
             {
                 await signInManager.SignOutAsync();
-                return TypedResults.LocalRedirect($"~/{returnUrl}");
+
+                // Guard: only redirect to a local relative path.
+                // Reject empty, absolute URIs (contain "://"), or protocol-relative ("//").
+                string safeUrl = "/";
+                if (!string.IsNullOrWhiteSpace(returnUrl))
+                {
+                    var trimmed = returnUrl.Trim();
+                    // Strip leading ~/ so Uri.IsWellFormedUriString works correctly
+                    if (trimmed.StartsWith("~/"))
+                        trimmed = trimmed[1..]; // keep the leading /
+
+                    bool looksAbsolute = trimmed.Contains("://") || trimmed.StartsWith("//");
+                    if (!looksAbsolute && trimmed.StartsWith("/"))
+                        safeUrl = trimmed;
+                    else if (!looksAbsolute && !trimmed.StartsWith("/"))
+                        safeUrl = "/" + trimmed;
+                }
+
+                return TypedResults.LocalRedirect($"~{safeUrl}");
             });
 
             var manageGroup = accountGroup.MapGroup("/Manage").RequireAuthorization();

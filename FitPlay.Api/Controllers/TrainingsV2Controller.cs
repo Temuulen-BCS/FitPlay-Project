@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace FitPlay.Api.Controllers;
 
 [ApiController]
-[Route("api/v2/[controller]")]
+[Route("api/v2/trainings")]
 public class TrainingsV2Controller : ControllerBase
 {
     private readonly TrainingService _trainingService;
@@ -20,6 +20,7 @@ public class TrainingsV2Controller : ControllerBase
     /// Get all active trainings.
     /// </summary>
     [HttpGet]
+    [Authorize(Policy = "ActiveMembership")]
     public async Task<ActionResult<List<TrainingSummaryDto>>> GetAll([FromQuery] int? userId = null)
     {
         var trainings = await _trainingService.GetTrainingsAsync(userId);
@@ -30,6 +31,7 @@ public class TrainingsV2Controller : ControllerBase
     /// Get trainings by a specific trainer.
     /// </summary>
     [HttpGet("trainer/{trainerId}")]
+    [Authorize(Policy = "ActiveMembership")]
     public async Task<ActionResult<List<TrainingSummaryDto>>> GetByTrainer(int trainerId)
     {
         var trainings = await _trainingService.GetTrainerTrainingsAsync(trainerId);
@@ -40,6 +42,7 @@ public class TrainingsV2Controller : ControllerBase
     /// Get a training by ID with full details.
     /// </summary>
     [HttpGet("{id:int}")]
+    [Authorize(Policy = "ActiveMembership")]
     public async Task<ActionResult<TrainingDto>> GetById(int id)
     {
         var training = await _trainingService.GetTrainingAsync(id);

@@ -1,7 +1,10 @@
+﻿using FitPlay.Api;
 using FitPlay.Api.Data;
 //using FitPlay.Api.Endpoints;
-using FitPlay.Api.Auth;                
+using FitPlay.Api.Auth;
+using Stripe;
 using FitPlay.Domain.Data;
+using FitPlay.Api.Services;
 using FitPlay.Domain.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer; 
 using Microsoft.AspNetCore.Identity;        
@@ -15,6 +18,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
 
 builder.Services.AddSwaggerGen(c =>
 {
@@ -49,17 +54,29 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<FitPlayContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly("FitPlay.Api")
+        b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure()
     ));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.EnableRetryOnFailure()
+    ));
 
 // Register gamification services
 builder.Services.AddScoped<ProgressService>();
 builder.Services.AddScoped<AchievementService>();
 builder.Services.AddScoped<TrainingCompletionService>();
 builder.Services.AddScoped<TrainingService>();
+builder.Services.AddScoped<ClassScheduleService>();
+builder.Services.AddScoped<MembershipService>();
+
+// Register gym/sessions services
+builder.Services.AddScoped<IAcademyService, AcademyService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
+builder.Services.AddScoped<ICheckInService, CheckInService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>()
     .AddRoles<IdentityRole>()
@@ -87,10 +104,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ActiveMembership", policy =>
+        policy.RequireClaim("membership", "active"));
+});
 
 
 var app = builder.Build();
+
+StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
 if (app.Environment.IsDevelopment())
 {
@@ -98,7 +121,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Exempt the Stripe webhook from HTTPS redirection so the Stripe CLI can POST
+// to http://localhost:5179/api/billing/webhook without getting a 307 redirect.
+app.UseWhen(
+    ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook"),
+    branch => branch.UseHttpsRedirection());
 
 app.UseAuthentication();   
 app.UseAuthorization();    
@@ -120,7 +147,19 @@ app.MapGet("/weatherforecast", () =>
         });
 });
 
-// app.MapUsersEndpoints();
 app.MapControllers();
 
+// Seed roles on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+
+    await db1.Database.MigrateAsync();
+    await db2.Database.MigrateAsync();
+}
+
 app.Run();
+
+
+

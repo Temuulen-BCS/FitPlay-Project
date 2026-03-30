@@ -1,0 +1,675 @@
+@page "/gym/rooms"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "GymAdmin")]
+@layout GymAdminLayout
+
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay_Blazor.Components.Layout
+@using FitPlay.Blazor.Services
+
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<PageTitle>Rooms - FitPlay Gym</PageTitle>
+
+<div class="gym-page">
+    <div class="page-header">
+        <div>
+            <p class="page-eyebrow">Gym Partner</p>
+            <h1 class="page-title">Rooms</h1>
+            <p class="page-sub">Manage rooms per location — capacity, pricing, and availability.</p>
+        </div>
+        <div class="header-actions">
+            @if (!_showForm && _locations.Count > 0)
+            {
+                <button class="btn-gym-primary" @onclick="OpenAddForm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Add Room
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMsg)) { <div class="alert-success">@_successMsg</div> }
+    @if (!string.IsNullOrEmpty(_errorMsg))   { <div class="alert-error">@_errorMsg</div>   }
+
+    @if (_loading)
+    {
+        <div class="gym-loading"><div class="loading-spinner"></div><p>Loading rooms…</p></div>
+    }
+    else if (_gym == null)
+    {
+        <div class="empty-state"><p>No gym found. <a href="/gym/setup">Register your gym first.</a></p></div>
+    }
+    else if (_locations.Count == 0)
+    {
+        <div class="empty-state">
+            <p>No locations yet. <a href="/gym/locations">Add a location</a> before creating rooms.</p>
+        </div>
+    }
+    else
+    {
+        <!-- Location filter tabs -->
+        <div class="tab-row">
+            <button class="tab @(_selectedLocationId == null ? "tab-active" : "")" @onclick="() => SelectLocation(null)">All</button>
+            @foreach (var loc in _locations)
+            {
+                <button class="tab @(_selectedLocationId == loc.Id ? "tab-active" : "")" @onclick="() => SelectLocation(loc.Id)">
+                    @loc.Name
+                </button>
+            }
+        </div>
+
+        <!-- Add/Edit form -->
+        @if (_showForm)
+        {
+            <div class="form-card" style="margin-bottom: 1.5rem;">
+                <h3 class="form-card-title">@(_editId.HasValue ? "Edit Room" : "New Room")</h3>
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label>Location *</label>
+                        <select class="form-input" @bind="_fLocationId">
+                            <option value="0">Select location…</option>
+                            @foreach (var loc in _locations)
+                            {
+                                <option value="@loc.Id">@loc.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Room Name *</label>
+                        <input class="form-input" @bind="_fName" placeholder="e.g. Studio A" />
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input class="form-input" @bind="_fDescription" placeholder="Optional details" />
+                    </div>
+                </div>
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label>Capacity *</label>
+                        <input class="form-input" type="number" @bind="_fCapacity" min="1" placeholder="e.g. 20" />
+                    </div>
+                    <div class="form-group">
+                        <label>Price per Hour (R$) *</label>
+                        <input class="form-input" type="number" @bind="_fPrice" min="0" step="0.01" placeholder="e.g. 150.00" />
+                    </div>
+                    @if (_editId.HasValue)
+                    {
+                        <div class="form-group">
+                            <label>Active</label>
+                            <label class="toggle-label" style="margin-top: 0.6rem;">
+                                <input type="checkbox" class="toggle-input" @bind="_fIsActive" />
+                                <span class="toggle-track"></span>
+                                <span style="font-size:0.85rem;">Room is available</span>
+                            </label>
+                        </div>
+                    }
+                </div>
+
+                <!-- Operating Hours Section -->
+                <div class="operating-hours-section">
+                    <div class="operating-hours-header">
+                        <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #3B6FE8;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 6px;">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            Operating Hours
+                        </h4>
+                        <p style="margin: 0.4rem 0 0; font-size: 0.8rem; color: #64748B;">Define when this room is available for booking</p>
+                    </div>
+                    
+                    @foreach (var day in Enum.GetValues<DayOfWeek>())
+                    {
+                        var hours = GetOperatingHours(day);
+                        <div class="operating-hours-row">
+                            <div class="day-name">@day</div>
+                            <div class="day-closed-toggle">
+                                <label class="toggle-label-small">
+                                    <input type="checkbox" class="toggle-input" @bind="hours.IsClosed" />
+                                    <span class="toggle-track-small"></span>
+                                    <span>Closed</span>
+                                </label>
+                            </div>
+                            @if (!hours.IsClosed)
+                            {
+                                <div class="time-inputs">
+                                    <input type="time" class="time-input" @bind="hours.OpenTime" />
+                                    <span class="time-separator">to</span>
+                                    <input type="time" class="time-input" @bind="hours.CloseTime" />
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="time-inputs-placeholder"></div>
+                            }
+                        </div>
+                    }
+                    
+                    <div style="margin-top: 0.75rem;">
+                        <button type="button" class="btn-quick-action" @onclick="ApplyMondayToAll">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="17 1 21 5 17 9"></polyline>
+                                <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                                <polyline points="7 23 3 19 7 15"></polyline>
+                                <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                            </svg>
+                            Apply Monday's hours to all days
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button class="btn-gym-primary" @onclick="SaveRoom" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="btn-spinner"></span><span>Saving…</span>
+                        }
+                        else
+                        {
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span>@(_editId.HasValue ? "Save Changes" : "Create Room")</span>
+                        }
+                    </button>
+                    <button class="btn-gym-outline" @onclick="CancelForm">Cancel</button>
+                </div>
+            </div>
+        }
+
+        <!-- Rooms per location -->
+        @foreach (var loc in FilteredLocations)
+        {
+            var locRooms = _roomsByLocation.TryGetValue(loc.Id, out var r) ? r : new();
+            <div class="location-section">
+                <div class="location-section-header">
+                    <div class="location-section-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    </div>
+                    <span class="location-section-name">@loc.Name</span>
+                    <span class="location-section-city">@loc.City, @loc.State</span>
+                    <span class="location-room-count">@locRooms.Count room@(locRooms.Count != 1 ? "s" : "")</span>
+                </div>
+
+                @if (locRooms.Count == 0)
+                {
+                    <div class="no-rooms">No rooms in this location yet.</div>
+                }
+                else
+                {
+                    <div class="rooms-grid">
+                        @foreach (var room in locRooms)
+                        {
+                            <div class="room-card @(!room.IsActive ? "card-inactive" : "")">
+                                <div class="room-card-header">
+                                    <div class="room-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                                    </div>
+                                    <span class="room-status @(room.IsActive ? "status-active" : "status-inactive")">
+                                        @(room.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </div>
+                                <h4 class="room-name">@room.Name</h4>
+                                @if (!string.IsNullOrEmpty(room.Description))
+                                {
+                                    <p class="room-desc">@room.Description</p>
+                                }
+                                <div class="room-meta">
+                                    <span>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                                        @room.Capacity slots
+                                    </span>
+                                    <span>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
+                                        R$ @room.PricePerHour.ToString("F2")/h
+                                    </span>
+                                </div>
+                                <div class="room-actions">
+                                    <button class="btn-gym-ghost btn-sm" @onclick="() => OpenEditRoom(room, loc.Id)">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                        Edit
+                                    </button>
+                                    <button class="btn-danger-ghost btn-sm" @onclick="() => ConfirmDelete(room.Id)">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<!-- Delete confirm modal -->
+@if (_deleteConfirmId.HasValue)
+{
+    <div class="modal-overlay" @onclick="CancelDelete">
+        <div class="modal-card" @onclick:stopPropagation>
+            <h3>Delete Room?</h3>
+            <p>This will permanently remove the room. Existing bookings will not be affected. This cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="btn-danger" @onclick="ExecuteDelete" disabled="@_saving">@(_saving ? "Deleting…" : "Yes, Delete")</button>
+                <button class="btn-gym-outline" @onclick="CancelDelete">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? locationId { get; set; }
+
+    private bool _loading = true;
+    private bool _saving = false;
+    private bool _showForm = false;
+    private string? _successMsg;
+    private string? _errorMsg;
+
+    private ApiClient.GymRead? _gym;
+    private List<ApiClient.GymLocationRead> _locations = new();
+    private Dictionary<int, List<ApiClient.RoomRead>> _roomsByLocation = new();
+    private int? _selectedLocationId;
+    private int? _editId;
+    private int? _editLocationId;
+    private int? _deleteConfirmId;
+
+    // Form fields
+    private int _fLocationId;
+    private string _fName = "";
+    private string _fDescription = "";
+    private int _fCapacity = 20;
+    private decimal _fPrice = 100;
+    private bool _fIsActive = true;
+    private List<OperatingHoursFormData> _fOperatingHours = new();
+
+    // Helper class for operating hours form data
+    private class OperatingHoursFormData
+    {
+        public DayOfWeek DayOfWeek { get; set; }
+        public TimeOnly? OpenTime { get; set; }
+        public TimeOnly? CloseTime { get; set; }
+        public bool IsClosed { get; set; }
+    }
+
+    private IEnumerable<ApiClient.GymLocationRead> FilteredLocations =>
+        _selectedLocationId.HasValue
+            ? _locations.Where(l => l.Id == _selectedLocationId.Value)
+            : _locations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selectedLocationId = locationId;
+        try
+        {
+            _gym = await Api.GetMyGym();
+            if (_gym != null)
+            {
+                _locations = await Api.GetGymLocations(_gym.Id);
+                foreach (var loc in _locations)
+                    _roomsByLocation[loc.Id] = await Api.GetRoomsByLocation(loc.Id);
+            }
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private void SelectLocation(int? id) { _selectedLocationId = id; }
+
+    private void OpenAddForm()
+    {
+        _editId = null;
+        _editLocationId = null;
+        _fLocationId = _selectedLocationId ?? (_locations.FirstOrDefault()?.Id ?? 0);
+        _fName = _fDescription = "";
+        _fCapacity = 20;
+        _fPrice = 100;
+        _fIsActive = true;
+        InitializeOperatingHours(null);
+        _showForm = true;
+    }
+
+    private void OpenEditRoom(ApiClient.RoomRead room, int locId)
+    {
+        _editId = room.Id;
+        _editLocationId = locId;
+        _fLocationId = locId;
+        _fName = room.Name;
+        _fDescription = room.Description ?? "";
+        _fCapacity = room.Capacity;
+        _fPrice = room.PricePerHour;
+        _fIsActive = room.IsActive;
+        InitializeOperatingHours(room.OperatingHours);
+        _showForm = true;
+    }
+
+    private void CancelForm() { _showForm = false; _editId = null; _editLocationId = null; }
+
+    private void InitializeOperatingHours(List<ApiClient.RoomOperatingHoursDto>? existingHours)
+    {
+        _fOperatingHours = new List<OperatingHoursFormData>();
+        
+        foreach (DayOfWeek day in Enum.GetValues<DayOfWeek>())
+        {
+            var existing = existingHours?.FirstOrDefault(h => h.DayOfWeek == day);
+            _fOperatingHours.Add(new OperatingHoursFormData
+            {
+                DayOfWeek = day,
+                OpenTime = existing?.OpenTime ?? new TimeOnly(8, 0),
+                CloseTime = existing?.CloseTime ?? new TimeOnly(22, 0),
+                IsClosed = existing?.IsClosed ?? false
+            });
+        }
+    }
+
+    private OperatingHoursFormData GetOperatingHours(DayOfWeek day)
+    {
+        return _fOperatingHours.FirstOrDefault(oh => oh.DayOfWeek == day) 
+            ?? new OperatingHoursFormData { DayOfWeek = day, OpenTime = new TimeOnly(8, 0), CloseTime = new TimeOnly(22, 0) };
+    }
+
+    private void ApplyMondayToAll()
+    {
+        var monday = GetOperatingHours(DayOfWeek.Monday);
+        foreach (var day in _fOperatingHours)
+        {
+            if (day.DayOfWeek != DayOfWeek.Monday)
+            {
+                day.OpenTime = monday.OpenTime;
+                day.CloseTime = monday.CloseTime;
+                day.IsClosed = monday.IsClosed;
+            }
+        }
+    }
+
+    private async Task SaveRoom()
+    {
+        if (_fLocationId <= 0 || string.IsNullOrWhiteSpace(_fName) || _fCapacity <= 0 || _fPrice < 0)
+        {
+            _successMsg = null;
+            _errorMsg = "Please fill all required fields: Location, Room Name, valid Capacity (> 0) and Price (>= 0).";
+            return;
+        }
+
+        _saving = true;
+        _successMsg = _errorMsg = null;
+        try
+        {
+            // Convert operating hours to DTO
+            var operatingHoursDto = _fOperatingHours.Select(oh => new ApiClient.RoomOperatingHoursDto(
+                oh.DayOfWeek,
+                oh.IsClosed ? null : oh.OpenTime,
+                oh.IsClosed ? null : oh.CloseTime,
+                oh.IsClosed
+            )).ToList();
+
+            if (_editId.HasValue)
+            {
+                var req = new ApiClient.UpdateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, _fIsActive, operatingHoursDto);
+                await Api.UpdateRoom(_editId.Value, req);
+            }
+            else
+            {
+                var req = new ApiClient.CreateRoomRequest(_fName, _fDescription, _fCapacity, _fPrice, operatingHoursDto);
+                await Api.CreateRoom(_fLocationId, req);
+            }
+            var affectedLocationId = _editId.HasValue ? _editLocationId : _fLocationId;
+            if (affectedLocationId.HasValue && affectedLocationId.Value > 0)
+            {
+                _roomsByLocation[affectedLocationId.Value] = await Api.GetRoomsByLocation(affectedLocationId.Value);
+            }
+            _successMsg = _editId.HasValue ? "Room updated." : "Room created.";
+            _showForm = false;
+            _editId = null;
+            _editLocationId = null;
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private void ConfirmDelete(int id) => _deleteConfirmId = id;
+    private void CancelDelete() => _deleteConfirmId = null;
+
+    private async Task ExecuteDelete()
+    {
+        if (!_deleteConfirmId.HasValue) return;
+
+        var roomId = _deleteConfirmId.Value;
+        var affectedLocationId = _roomsByLocation
+            .FirstOrDefault(kvp => kvp.Value.Any(room => room.Id == roomId))
+            .Key;
+
+        _saving = true;
+        try
+        {
+            await Api.DeleteRoom(roomId);
+
+            if (affectedLocationId > 0)
+            {
+                _roomsByLocation[affectedLocationId] = await Api.GetRoomsByLocation(affectedLocationId);
+            }
+            else
+            {
+                foreach (var loc in _locations)
+                    _roomsByLocation[loc.Id] = await Api.GetRoomsByLocation(loc.Id);
+            }
+
+            _successMsg = "Room deleted.";
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _saving = false; _deleteConfirmId = null; }
+    }
+}
+
+<style>
+    .gym-page { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; color: #0F172A; background: #F4F7FB; border-radius: 16px; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+    .page-eyebrow { margin: 0 0 4px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.18em; color: #3B6FE8; }
+    .page-title { margin: 0 0 0.25rem; font-size: 2rem; font-weight: 700; }
+    .page-sub { margin: 0; color: #64748B; font-size: 0.92rem; }
+    .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+    .alert-success { background: #EEF3FD; border: 1px solid #C7D9F8; color: #3B6FE8; padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.9rem; }
+    .alert-error { background: #FEF2F2; border: 1px solid #FECACA; color: #EF4444; padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.9rem; }
+
+    .gym-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 30vh; gap: 1rem; color: #64748B; }
+    .loading-spinner { width: 36px; height: 36px; border: 3px solid rgba(59,111,232,0.2); border-top-color: #3B6FE8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state { text-align: center; padding: 3rem 2rem; color: #64748B; }
+    .empty-state a { color: #3B6FE8; }
+
+    /* Tabs */
+    .tab-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .tab {
+        padding: 0.45rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; font-family: inherit;
+        background: #ffffff; border: 1px solid #E8EDF5;
+        color: #64748B; cursor: pointer; transition: all 0.15s;
+    }
+    .tab:hover { color: #3B6FE8; border-color: #C7D9F8; }
+    .tab-active { background: #EEF3FD; border-color: #C7D9F8; color: #3B6FE8; }
+
+    /* Form */
+    .form-card { background: #ffffff; border: 1px solid #E8EDF5; border-radius: 14px; padding: 1.75rem; }
+    .form-card-title { margin: 0 0 1.25rem; font-size: 1rem; font-weight: 700; color: #3B6FE8; }
+    .form-row-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.875rem; margin-bottom: 0.875rem; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group label { font-size: 0.85rem; font-weight: 500; margin-bottom: 0.4rem; color: #0F172A; }
+    .form-input {
+        padding: 0.7rem 0.9rem; background: #F8FAFC; border: 1px solid #E8EDF5;
+        border-radius: 10px; color: #0F172A; font-size: 0.92rem; font-family: inherit;
+        transition: border-color 0.2s, box-shadow 0.2s; width: 100%; box-sizing: border-box;
+    }
+    .form-input:focus { outline: none; border-color: #3B6FE8; box-shadow: 0 0 0 3px rgba(59,111,232,0.15); }
+    .form-input::placeholder { color: #94A3B8; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1.25rem; align-items: center; flex-wrap: wrap; }
+
+    /* Operating Hours */
+    .operating-hours-section { 
+        background: #F8FAFC; 
+        border: 1px solid #E8EDF5; 
+        border-radius: 12px; 
+        padding: 1.25rem; 
+        margin-bottom: 1.25rem; 
+    }
+    .operating-hours-header { margin-bottom: 1rem; }
+    .operating-hours-row {
+        display: grid;
+        grid-template-columns: 100px 100px 1fr;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid #E8EDF5;
+    }
+    .operating-hours-row:last-child { border-bottom: none; }
+    .day-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #0F172A;
+    }
+    .day-closed-toggle { }
+    .toggle-label-small {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: #64748B;
+    }
+    .toggle-track-small {
+        width: 32px;
+        height: 18px;
+        background: #E8EDF5;
+        border: 1px solid #CBD5E1;
+        border-radius: 20px;
+        position: relative;
+        flex-shrink: 0;
+        transition: background 0.2s;
+    }
+    .toggle-track-small::after {
+        content: '';
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: #fff;
+        border-radius: 50%;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+    }
+    .toggle-input:checked + .toggle-track-small {
+        background: #EF4444;
+        border-color: #EF4444;
+    }
+    .toggle-input:checked + .toggle-track-small::after {
+        transform: translateX(14px);
+    }
+    .time-inputs {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .time-inputs-placeholder {
+        height: 1px;
+    }
+    .time-input {
+        padding: 0.5rem 0.7rem;
+        background: #ffffff;
+        border: 1px solid #E8EDF5;
+        border-radius: 8px;
+        color: #0F172A;
+        font-size: 0.85rem;
+        font-family: inherit;
+        transition: border-color 0.2s;
+        width: 110px;
+    }
+    .time-input:focus {
+        outline: none;
+        border-color: #3B6FE8;
+        box-shadow: 0 0 0 2px rgba(59,111,232,0.1);
+    }
+    .time-separator {
+        font-size: 0.8rem;
+        color: #64748B;
+    }
+    .btn-quick-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+        color: #3B6FE8;
+        border: 1px solid #C7D9F8;
+        padding: 0.5rem 0.9rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .btn-quick-action:hover {
+        background: #EEF3FD;
+    }
+
+    /* Toggle */
+    .toggle-label { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; }
+    .toggle-input { display: none; }
+    .toggle-track { width: 38px; height: 22px; background: #E8EDF5; border: 1px solid #CBD5E1; border-radius: 30px; position: relative; flex-shrink: 0; transition: background 0.2s; }
+    .toggle-track::after { content: ''; position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s, background 0.2s; }
+    .toggle-input:checked + .toggle-track { background: #3B6FE8; border-color: #3B6FE8; }
+    .toggle-input:checked + .toggle-track::after { transform: translateX(16px); background: #ffffff; }
+
+    /* Location section */
+    .location-section { margin-bottom: 2rem; }
+    .location-section-header {
+        display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;
+        padding-bottom: 0.75rem; border-bottom: 1px solid #E8EDF5;
+    }
+    .location-section-icon { width: 28px; height: 28px; background: #EEF3FD; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #3B6FE8; flex-shrink: 0; }
+    .location-section-name { font-weight: 700; font-size: 1rem; }
+    .location-section-city { color: #64748B; font-size: 0.82rem; }
+    .location-room-count { margin-left: auto; font-size: 0.78rem; color: #64748B; }
+    .no-rooms { padding: 1.5rem; text-align: center; color: #64748B; font-size: 0.85rem; background: #ffffff; border-radius: 12px; border: 1px dashed #CBD5E1; }
+
+    /* Rooms grid */
+    .rooms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .room-card { background: #ffffff; border: 1px solid #E8EDF5; border-radius: 14px; padding: 1.1rem; transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s; }
+    .room-card:hover { border-color: #C7D9F8; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59,111,232,0.08); }
+    .card-inactive { opacity: 0.6; }
+    .room-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+    .room-icon { width: 32px; height: 32px; background: #EEF3FD; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #3B6FE8; }
+    .room-status { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .status-active { background: #EEF3FD; color: #3B6FE8; border: 1px solid #C7D9F8; }
+    .status-inactive { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
+    .room-name { margin: 0 0 0.3rem; font-size: 0.95rem; font-weight: 700; }
+    .room-desc { margin: 0 0 0.6rem; font-size: 0.8rem; color: #64748B; }
+    .room-meta { display: flex; gap: 1rem; margin-bottom: 0.9rem; font-size: 0.78rem; color: #64748B; }
+    .room-meta span { display: flex; align-items: center; gap: 4px; }
+    .room-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    /* Buttons */
+    .btn-gym-primary { display: inline-flex; align-items: center; gap: 6px; background: #3B6FE8; color: #ffffff; border: none; padding: 0.7rem 1.25rem; border-radius: 10px; font-weight: 700; font-size: 0.88rem; font-family: inherit; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s, background 0.2s; box-shadow: 0 2px 10px rgba(59,111,232,0.25); text-decoration: none; }
+    .btn-gym-primary:hover:not(:disabled) { transform: translateY(-1px); background: #2952CC; }
+    .btn-gym-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.35); border-top-color: #ffffff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .btn-gym-outline { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: #3B6FE8; border: 1px solid #C7D9F8; padding: 0.6rem 1.1rem; border-radius: 10px; font-weight: 600; font-size: 0.85rem; font-family: inherit; text-decoration: none; cursor: pointer; transition: background 0.2s; }
+    .btn-gym-outline:hover { background: #EEF3FD; }
+    .btn-gym-ghost { display: inline-flex; align-items: center; gap: 5px; background: transparent; color: #64748B; border: 1px solid #E8EDF5; border-radius: 20px; font-size: 0.8rem; font-family: inherit; text-decoration: none; cursor: pointer; transition: color 0.2s, border-color 0.2s, background 0.2s; padding: 0.35rem 0.75rem; }
+    .btn-gym-ghost:hover { color: #3B6FE8; border-color: #C7D9F8; background: #F8FAFC; }
+    .btn-sm { padding: 0.32rem 0.7rem; font-size: 0.76rem; }
+    .btn-danger-ghost { display: inline-flex; align-items: center; gap: 5px; background: transparent; color: #EF4444; border: 1px solid #FECACA; border-radius: 20px; font-size: 0.76rem; font-family: inherit; cursor: pointer; padding: 0.32rem 0.7rem; transition: border-color 0.2s, background 0.2s; }
+    .btn-danger-ghost:hover { border-color: #FCA5A5; background: #FEF2F2; }
+    .btn-danger { background: #EF4444; color: #fff; border: none; padding: 0.7rem 1.25rem; border-radius: 10px; font-weight: 700; font-size: 0.88rem; font-family: inherit; cursor: pointer; transition: opacity 0.2s, background 0.2s; }
+    .btn-danger:hover:not(:disabled) { background: #DC2626; }
+    .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.35); backdrop-filter: blur(2px); z-index: 8000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-card { background: #ffffff; border: 1px solid #E8EDF5; border-radius: 14px; padding: 1.75rem; max-width: 440px; width: 100%; box-shadow: 0 16px 40px rgba(15,23,42,0.18); }
+    .modal-card h3 { margin: 0 0 0.75rem; font-size: 1.2rem; }
+    .modal-card p { color: #64748B; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .modal-actions { display: flex; gap: 0.75rem; }
+</style>
