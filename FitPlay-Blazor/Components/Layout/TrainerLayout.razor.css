@@ -1,0 +1,86 @@
+.top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    overflow: visible;
+}
+
+.nav-inner {
+    overflow: visible;
+}
+
+.nav-links-top ::deep a.active {
+    color: var(--accent-teal);
+}
+
+.trainer-content {
+    padding-top: 5.5rem;
+}
+
+::deep .nav-icon-btn {
+    position: relative;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    color: #8ab0c8;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+::deep .nav-icon-btn:hover {
+    color: #0ef0ff;
+    background: rgba(14, 240, 255, 0.08);
+}
+
+::deep .nav-icon-btn.active,
+::deep .nav-icon-btn:global(.active) {
+    color: #0ef0ff;
+}
+
+::deep .nav-icon-btn.has-notifications {
+    animation: bellShake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+    color: #0ef0ff;
+}
+
+::deep .nav-icon-btn.has-notifications svg {
+    filter: drop-shadow(0 0 4px rgba(14, 240, 255, 0.6));
+    animation: bellGlow 2s ease-in-out infinite;
+}
+
+@keyframes bellShake {
+    0%, 100% { transform: rotate(0deg); }
+    10% { transform: rotate(-15deg); }
+    20% { transform: rotate(15deg); }
+    30% { transform: rotate(-15deg); }
+    40% { transform: rotate(15deg); }
+    50% { transform: rotate(0deg); }
+}
+
+@keyframes bellGlow {
+    0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(14, 240, 255, 0.4));
+    }
+    50% {
+        filter: drop-shadow(0 0 10px rgba(14, 240, 255, 1));
+    }
+}
+
+::deep .icon-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    font-size: 0.55rem;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+}
+
+@media (max-width: 768px) {
+    .trainer-content {
+        padding-top: 4.75rem;
+    }
+}

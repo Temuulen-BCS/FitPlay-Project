@@ -1,0 +1,13 @@
+﻿@page "/academy/login"
+@attribute [AllowAnonymous]
+
+@using Microsoft.AspNetCore.Authorization
+
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavigationManager.NavigateTo("/Account/Login?returnUrl=%2Fgym%2Fdashboard", forceLoad: true);
+    }
+}

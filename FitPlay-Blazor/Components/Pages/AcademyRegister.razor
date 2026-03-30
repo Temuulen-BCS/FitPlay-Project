@@ -1,0 +1,223 @@
+﻿@page "/academy/register"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using FitPlay_Blazor.Components.Account
+@using FitPlay_Blazor.Components.Layout
+@using FitPlay_Blazor.Data
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject ILogger<AcademyRegister> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Gym Partner Register - FitPlay</PageTitle>
+
+<header class="top-nav">
+    <div class="nav-inner">
+        <a href="/" class="logo">FIT<span>PLAY</span></a>
+        <nav class="nav-links-top">
+            <a href="/">Home</a>
+            <a href="/#trainers">Trainers</a>
+            <a href="/#academy-partner">Partners</a>
+        </nav>
+        <a href="/academy/login" class="btn-secondary-nav" data-enhanced-nav="false">Log in</a>
+    </div>
+</header>
+
+<section class="auth-hero">
+    <div class="auth-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+    <div class="auth-container">
+        <div class="auth-welcome">
+            <h1>Become a <span class="highlight">Gym Partner</span></h1>
+            <p class="auth-subtitle">Create your gym account and start publishing spaces in the FitPlay network.</p>
+
+            <div class="perks-list">
+                <div class="perk">
+                    <span class="perk-icon">NET</span>
+                    <span>List your gym in the partner network</span>
+                </div>
+                <div class="perk">
+                    <span class="perk-icon">MGT</span>
+                    <span>Manage rooms, schedules, and availability</span>
+                </div>
+                <div class="perk">
+                    <span class="perk-icon">REV</span>
+                    <span>Track classes and partner revenue</span>
+                </div>
+            </div>
+
+            <p class="auth-login-prompt">
+                Already have an account? <a href="/academy/login" data-enhanced-nav="false">Log in</a>
+            </p>
+        </div>
+
+        <div class="auth-card">
+            <h2>Create Gym Account</h2>
+            <p class="card-subtitle">Register your partner access</p>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="validation-errors" role="alert">@errorMessage</div>
+            }
+
+            <EditForm Model="Input" method="post" OnValidSubmit="RegisterGym" FormName="academy-register">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="validation-errors" role="alert" />
+
+                <div class="form-group">
+                    <label>Contact Name</label>
+                    <InputText @bind-Value="Input.Name" class="form-input" autocomplete="name" aria-required="true" placeholder="Your full name" />
+                    <ValidationMessage For="() => Input.Name" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <InputText @bind-Value="Input.Email" class="form-input" autocomplete="username" aria-required="true" placeholder="name@yourgym.com" />
+                    <ValidationMessage For="() => Input.Email" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Phone</label>
+                    <InputText @bind-Value="Input.Phone" class="form-input" autocomplete="tel" aria-required="true" placeholder="+353 87 123 4567" />
+                    <ValidationMessage For="() => Input.Phone" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
+                    <InputText type="password" @bind-Value="Input.Password" class="form-input" autocomplete="new-password" aria-required="true" placeholder="Create a strong password" />
+                    <ValidationMessage For="() => Input.Password" class="field-error" />
+                </div>
+
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <InputText type="password" @bind-Value="Input.ConfirmPassword" class="form-input" autocomplete="new-password" aria-required="true" placeholder="Repeat your password" />
+                    <ValidationMessage For="() => Input.ConfirmPassword" class="field-error" />
+                </div>
+
+                <button type="submit" class="btn-primary btn-full">Create Gym Partner Account</button>
+            </EditForm>
+        </div>
+    </div>
+</section>
+
+<footer class="site-footer">
+    <p>© 2026 FitPlay. Where Fitness Meets Nightlife. All rights reserved.</p>
+</footer>
+
+@code {
+    private string? errorMessage;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private async Task RegisterGym(EditContext editContext)
+    {
+        errorMessage = null;
+
+        var user = CreateUser();
+        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        var emailStore = GetEmailStore();
+        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+
+        var createResult = await UserManager.CreateAsync(user, Input.Password);
+        if (!createResult.Succeeded)
+        {
+            errorMessage = string.Join(", ", createResult.Errors.Select(e => e.Description));
+            return;
+        }
+
+        var roleResult = await UserManager.AddToRoleAsync(user, "GymAdmin");
+        if (!roleResult.Succeeded)
+        {
+            await UserManager.DeleteAsync(user);
+            errorMessage = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+            return;
+        }
+
+        Logger.LogInformation("Gym partner user created for email {Email}.", Input.Email);
+
+        var userId = await UserManager.GetUserIdAsync(user);
+        var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+
+        var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+            NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+
+        await EmailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
+
+        if (UserManager.Options.SignIn.RequireConfirmedAccount)
+        {
+            RedirectManager.RedirectTo(
+                "Account/RegisterConfirmation",
+                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+            return;
+        }
+
+        await SignInManager.SignInAsync(user, isPersistent: false);
+        RedirectManager.RedirectTo(ReturnUrl ?? "/gym/dashboard");
+    }
+
+    private ApplicationUser CreateUser()
+    {
+        try
+        {
+            return Activator.CreateInstance<ApplicationUser>();
+        }
+        catch
+        {
+            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. Ensure a parameterless constructor exists.");
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("The default UI requires a user store with email support.");
+        }
+
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [Phone]
+        public string Phone { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = string.Empty;
+
+        [DataType(DataType.Password)]
+        [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

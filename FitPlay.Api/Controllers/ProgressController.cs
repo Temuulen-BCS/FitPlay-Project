@@ -20,6 +20,7 @@ public class ProgressController : ControllerBase
     /// Get user's progress (XP, level, streak).
     /// </summary>
     [HttpGet("{userId}")]
+    [Authorize(Policy = "ActiveMembership")]
     public async Task<ActionResult<UserProgressDto>> GetProgress(int userId)
     {
         var progress = await _progressService.GetUserProgressAsync(userId);
@@ -30,6 +31,7 @@ public class ProgressController : ControllerBase
     /// Get user's XP transaction history.
     /// </summary>
     [HttpGet("{userId}/history")]
+    [Authorize(Policy = "ActiveMembership")]
     public async Task<ActionResult<List<XpTransactionDto>>> GetXpHistory(int userId, [FromQuery] int limit = 50)
     {
         var history = await _progressService.GetXpHistoryAsync(userId, limit);

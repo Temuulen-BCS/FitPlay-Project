@@ -1,0 +1,467 @@
+@page "/gym/setup"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "GymAdmin")]
+@layout GymAdminLayout
+
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay_Blazor.Components.Layout
+@using FitPlay.Blazor.Services
+
+@inject ApiClient Api
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<PageTitle>My Gym - FitPlay</PageTitle>
+
+<div class="setup-page">
+
+    <!-- Header -->
+    <div class="setup-header">
+        <div>
+            <p class="setup-eyebrow">Gym Admin</p>
+            <h1 class="setup-title">My Gym</h1>
+            <p class="setup-sub">@(_isEdit ? "Manage your gym profile and financial settings." : "Register your gym to start managing locations, rooms and trainers.")</p>
+        </div>
+        @if (_isEdit)
+        {
+            <span class="status-pill @(_isActive ? "pill-active" : "pill-inactive")">
+                <span class="pill-dot"></span>
+                @(_isActive ? "Active" : "Inactive")
+            </span>
+        }
+    </div>
+
+    <!-- Profile card (edit mode only) -->
+    @if (_isEdit)
+    {
+        <div class="profile-card">
+            <div class="profile-card-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+            </div>
+            <div class="profile-card-info">
+                <div class="profile-card-name">@_name</div>
+                <div class="profile-card-cnpj">CNPJ: @_cnpj</div>
+            </div>
+            <div class="profile-card-stats">
+                <div class="profile-stat">
+                    <span class="profile-stat-val">@(_commissionPct.ToString("0.##"))%</span>
+                    <span class="profile-stat-label">Commission</span>
+                </div>
+                <div class="profile-stat-divider"></div>
+                <div class="profile-stat">
+                    <span class="profile-stat-val">@(_cancelFeePct.ToString("0.##"))%</span>
+                    <span class="profile-stat-label">Cancel fee</span>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Form -->
+    <div class="form-card">
+
+        @if (!string.IsNullOrEmpty(_successMsg))
+        {
+            <div class="alert-success">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                @_successMsg
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(_errorMsg))
+        {
+            <div class="alert-error">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                @_errorMsg
+            </div>
+        }
+
+        <form @onsubmit="HandleSubmit">
+
+            <p class="section-label">Basic Information</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Gym Name <span class="req">*</span></label>
+                    <input class="form-input" type="text" @bind="_name" placeholder="e.g. Iron Temple Gym" required />
+                </div>
+                <div class="form-group">
+                    <label>CNPJ <span class="req">*</span></label>
+                    <input class="form-input" type="text" @bind="_cnpj" placeholder="00.000.000/0000-00"
+                           required disabled="@_isEdit" />
+                    @if (_isEdit)
+                    {
+                        <span class="field-hint">Cannot be changed after registration.</span>
+                    }
+                </div>
+            </div>
+
+            <p class="section-label" style="margin-top:1.75rem;">Financial Settings</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Commission Rate (%)</label>
+                    <input class="form-input" type="number" @bind="_commissionPct" min="0" max="100" step="0.1" placeholder="15" />
+                    <span class="field-hint">Withheld from each booking payment.</span>
+                </div>
+                <div class="form-group">
+                    <label>Cancellation Fee (%)</label>
+                    <input class="form-input" type="number" @bind="_cancelFeePct" min="0" max="100" step="0.1" placeholder="10" />
+                    <span class="field-hint">Charged on cancellations.</span>
+                </div>
+            </div>
+
+            @if (_isEdit)
+            {
+                <p class="section-label" style="margin-top:1.75rem;">Status</p>
+                <div class="form-group toggle-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" class="toggle-input" @bind="_isActive" />
+                        <span class="toggle-track"></span>
+                        <span>Gym is active and accepting bookings</span>
+                    </label>
+                </div>
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save" disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="btn-spinner"></span>
+                        <span>Saving…</span>
+                    }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>@(_isEdit ? "Save Changes" : "Register Gym")</span>
+                    }
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+</div>
+
+@code {
+    private bool _saving;
+    private bool _isEdit;
+    private string? _successMsg;
+    private string? _errorMsg;
+
+    private int? _gymId;
+    private string _name = "";
+    private string _cnpj = "";
+    private decimal _commissionPct = 15;
+    private decimal _cancelFeePct = 10;
+    private bool _isActive = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var gym = await Api.GetMyGym();
+            if (gym != null)
+            {
+                _isEdit = true;
+                _gymId = gym.Id;
+                _name = gym.Name;
+                _cnpj = gym.CNPJ;
+                _commissionPct = gym.CommissionRate * 100;
+                _cancelFeePct = gym.CancelFeeRate * 100;
+                _isActive = gym.IsActive;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMsg = $"Failed to load gym data: {ex.Message}";
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _saving = true;
+        _successMsg = null;
+        _errorMsg = null;
+
+        try
+        {
+            if (_isEdit && _gymId.HasValue)
+            {
+                var req = new ApiClient.UpdateGymRequest(
+                    _name,
+                    _cnpj,
+                    _commissionPct / 100m,
+                    _cancelFeePct / 100m,
+                    _isActive
+                );
+                await Api.UpdateGym(_gymId.Value, req);
+                _successMsg = "Gym updated successfully.";
+            }
+            else
+            {
+                var req = new ApiClient.CreateGymRequest(
+                    _name,
+                    _cnpj,
+                    _commissionPct / 100m,
+                    _cancelFeePct / 100m
+                );
+                var created = await Api.CreateGym(req);
+
+                if (created is null)
+                {
+                    created = await Api.GetMyGym();
+                }
+
+                if (created != null)
+                {
+                    _isEdit = true;
+                    _gymId = created.Id;
+                    _name = created.Name;
+                    _cnpj = created.CNPJ;
+                    _commissionPct = created.CommissionRate * 100m;
+                    _cancelFeePct = created.CancelFeeRate * 100m;
+                    _isActive = created.IsActive;
+
+                    _successMsg = "Gym registered successfully. Your gym details are now shown below.";
+                    await InvokeAsync(StateHasChanged);
+                }
+                else
+                {
+                    _errorMsg = "Gym registration succeeded, but we could not load gym details. Please refresh the page.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMsg = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}
+
+<style>
+    .setup-page {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 2.5rem 1.5rem 4rem;
+        font-family: 'DM Sans', 'Segoe UI', sans-serif;
+        color: #0F172A;
+        background: #F4F7FB;
+    }
+
+    /* Header */
+    .setup-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .setup-eyebrow {
+        margin: 0 0 4px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: #3B6FE8;
+    }
+    .setup-title { margin: 0 0 0.35rem; font-size: 2rem; font-weight: 700; }
+    .setup-sub   { margin: 0; color: #64748B; font-size: 0.92rem; }
+
+    /* Status pill */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 30px;
+        flex-shrink: 0;
+        margin-top: 4px;
+    }
+    .pill-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .pill-active  { background: #D5E5FF; color: #3B6FE8; border: 1px solid #3B6FE8; }
+    .pill-active  .pill-dot { background: #3B6FE8; box-shadow: 0 0 0 3px rgba(59,111,232,0.16); }
+    .pill-inactive { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
+    .pill-inactive .pill-dot { background: #94A3B8; }
+
+    /* Profile card */
+    .profile-card {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        background: #EEF3FD;
+        border: 1px solid #C7D9F8;
+        border-radius: 14px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .profile-card-icon {
+        width: 56px; height: 56px;
+        background: #ffffff;
+        border: 1px solid #E8EDF5;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        color: #3B6FE8;
+        flex-shrink: 0;
+    }
+    .profile-card-info { flex: 1; min-width: 140px; }
+    .profile-card-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+    .profile-card-cnpj { font-size: 0.8rem; color: #64748B; font-family: monospace; }
+    .profile-card-stats {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-shrink: 0;
+    }
+    .profile-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .profile-stat-val   { font-size: 1.25rem; font-weight: 700; color: #3B6FE8; line-height: 1; }
+    .profile-stat-label { font-size: 0.72rem; color: #64748B; white-space: nowrap; }
+    .profile-stat-divider {
+        width: 1px; height: 36px;
+        background: #C7D9F8;
+    }
+
+    /* Form card */
+    .form-card {
+        background: #ffffff;
+        border: 1px solid #E8EDF5;
+        border-radius: 14px;
+        padding: 2rem;
+    }
+
+    .section-label {
+        margin: 0 0 1rem;
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #3B6FE8;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 0.25rem;
+    }
+    .form-group label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 0.4rem;
+        color: #0F172A;
+    }
+    .req { color: #EF4444; }
+
+    .form-input {
+        padding: 0.75rem 1rem;
+        background: #F8FAFC;
+        border: 1px solid #E8EDF5;
+        border-radius: 10px;
+        color: #0F172A;
+        font-size: 0.92rem;
+        font-family: inherit;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+        width: 100%;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: #3B6FE8;
+        box-shadow: 0 0 0 3px rgba(59,111,232,0.15);
+    }
+    .form-input:disabled { opacity: 1; background: #F1F5F9; color: #94A3B8; cursor: not-allowed; }
+    .form-input::placeholder { color: #94A3B8; }
+    .field-hint { font-size: 0.77rem; color: #64748B; margin-top: 5px; }
+
+    /* Toggle */
+    .toggle-group { margin-top: 0.25rem; }
+    .toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; font-size: 0.9rem; }
+    .toggle-input { display: none; }
+    .toggle-track {
+        width: 42px; height: 24px;
+        background: #E8EDF5;
+        border: 1px solid #CBD5E1;
+        border-radius: 30px;
+        position: relative;
+        flex-shrink: 0;
+        transition: background 0.2s;
+    }
+    .toggle-track::after {
+        content: '';
+        position: absolute;
+        width: 18px; height: 18px;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.25);
+        border-radius: 50%;
+        top: 2px; left: 2px;
+        transition: transform 0.2s, background 0.2s;
+    }
+    .toggle-input:checked + .toggle-track { background: #3B6FE8; border-color: #3B6FE8; }
+    .toggle-input:checked + .toggle-track::after { transform: translateX(18px); background: #ffffff; }
+
+    /* Alerts */
+    .alert-success, .alert-error {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0.875rem 1rem;
+        border-radius: 10px;
+        margin-bottom: 1.25rem;
+        font-size: 0.88rem;
+    }
+    .alert-success { background: #EEF3FD; border: 1px solid #C7D9F8; color: #3B6FE8; }
+    .alert-error   { background: #FEF2F2; border: 1px solid #FECACA; color: #EF4444; }
+
+    /* Actions */
+    .form-actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 2rem; }
+
+    .btn-save {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #3B6FE8;
+        color: #ffffff;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        font-family: inherit;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+        box-shadow: 0 2px 10px rgba(59,111,232,0.25);
+    }
+    .btn-save:hover:not(:disabled) { transform: translateY(-1px); background: #2952CC; box-shadow: 0 4px 16px rgba(59,111,232,0.35); }
+    .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-spinner {
+        width: 15px; height: 15px;
+        border: 2px solid rgba(255,255,255,0.35);
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        flex-shrink: 0;
+    }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    @@media (max-width: 580px) {
+        .form-row { grid-template-columns: 1fr; }
+        .profile-card { flex-direction: column; align-items: flex-start; }
+        .profile-card-stats { width: 100%; justify-content: flex-start; }
+    }
+</style>

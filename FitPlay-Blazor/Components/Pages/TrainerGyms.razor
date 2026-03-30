@@ -1,0 +1,484 @@
+@page "/trainer/gyms"
+@attribute [Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using FitPlay.Blazor.Services
+@inject ApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Gyms - FitPlay</PageTitle>
+
+<div class="page-wrap">
+    <h1>Gyms</h1>
+    <p class="page-subtitle">Request access to gyms so you can book their rooms and create classes.</p>
+
+    @if (_loading)
+    {
+        <p>Loading gyms...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="error">@_error</p>
+    }
+    else
+    {
+        @* ── My Gyms Section ──────────────────────────────────────────────── *@
+        <section class="section">
+            <h2 class="section-title">My Gyms</h2>
+
+            @if (!_myGyms.Any())
+            {
+                <div class="empty-state">
+                    <p>You haven't requested access to any gym yet.</p>
+                    <p>Browse the available gyms below and click <strong>Request to Join</strong>.</p>
+                </div>
+            }
+            else
+            {
+                <div class="grid">
+                    @foreach (var item in _myGyms)
+                    {
+                        <article class="card @GetStatusClass(item.Link.Status)">
+                            <div class="card-header-row">
+                                <h3>@item.Gym.Name</h3>
+                                <span class="status-badge @GetBadgeClass(item.Link.Status)">@item.Link.Status</span>
+                            </div>
+                            <p class="card-meta">CNPJ: @item.Gym.CNPJ</p>
+
+                            @if (_locations.TryGetValue(item.Gym.Id, out var locs) && locs.Any())
+                            {
+                                <div class="locations-list">
+                                    @foreach (var loc in locs)
+                                    {
+                                        <span class="location-chip">@loc.Name - @loc.City</span>
+                                    }
+                                </div>
+                            }
+
+                            @if (item.Link.Status == "Pending")
+                            {
+                                <div class="status-info pending-info">
+                                    Waiting for gym admin approval. Requested @item.Link.CreatedAt.ToLocalTime().ToString("dd MMM yyyy").
+                                </div>
+                            }
+                            else if (item.Link.Status == "Approved")
+                            {
+                                <div class="status-info approved-info">
+                                    You can book rooms at this gym.
+                                </div>
+                            }
+                            else if (item.Link.Status == "Rejected")
+                            {
+                                var daysSince = (DateTime.UtcNow - item.Link.CreatedAt).TotalDays;
+                                var canReapply = daysSince >= 7;
+                                var daysLeft = canReapply ? 0 : (int)Math.Ceiling(7 - daysSince);
+
+                                <div class="status-info rejected-info">
+                                    @if (canReapply)
+                                    {
+                                        <p>Your previous request was rejected. You can re-apply now.</p>
+                                        <button class="btn-primary btn-sm" @onclick="() => RequestJoin(item.Gym)" disabled="@_requesting">
+                                            @(_requesting ? "Sending..." : "Re-apply")
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <p>Request rejected. You can re-apply in @daysLeft day(s).</p>
+                                    }
+                                </div>
+                            }
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        @* ── Available Gyms Section ───────────────────────────────────────── *@
+        <section class="section">
+            <h2 class="section-title">Available Gyms</h2>
+
+            @if (!_availableGyms.Any())
+            {
+                <div class="empty-state">
+                    <p>You have already requested access to all available gyms.</p>
+                </div>
+            }
+            else
+            {
+                <div class="grid">
+                    @foreach (var gym in _availableGyms)
+                    {
+                        <article class="card available-card">
+                            <h3>@gym.Name</h3>
+                            <p class="card-meta">CNPJ: @gym.CNPJ</p>
+
+                            @if (_locations.TryGetValue(gym.Id, out var locs) && locs.Any())
+                            {
+                                <div class="locations-list">
+                                    @foreach (var loc in locs)
+                                    {
+                                        <span class="location-chip">@loc.Name - @loc.City</span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="card-meta">No locations registered yet.</p>
+                            }
+
+                            <button class="btn-primary" @onclick="() => RequestJoin(gym)" disabled="@_requesting">
+                                @(_requesting ? "Sending..." : "Request to Join")
+                            </button>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        @if (!string.IsNullOrWhiteSpace(_actionMessage))
+        {
+            <div class="toast @(_actionIsError ? "toast-error" : "toast-success")">
+                @_actionMessage
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private bool _requesting;
+    private string? _actionMessage;
+    private bool _actionIsError;
+    private string? _identityId;
+
+    private List<ApiClient.GymRead> _allGyms = new();
+    private List<ApiClient.TrainerGymLinkSelf> _myLinks = new();
+    private Dictionary<int, List<ApiClient.GymLocationRead>> _locations = new();
+
+    // Derived views
+    private List<MyGymItem> _myGyms = new();
+    private List<ApiClient.GymRead> _availableGyms = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Resolve trainer identity
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            _identityId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(_identityId))
+            {
+                _error = "Unable to resolve your identity.";
+                return;
+            }
+
+            // Load data
+            _allGyms = await Api.GetGyms(true);
+            _myLinks = await Api.GetMyGymLinks();
+
+            foreach (var gym in _allGyms)
+            {
+                _locations[gym.Id] = await Api.GetGymLocations(gym.Id, true);
+            }
+
+            BuildViews();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BuildViews()
+    {
+        var linkedGymIds = _myLinks.Select(l => l.GymId).ToHashSet();
+
+        _myGyms = _myLinks
+            .Select(link =>
+            {
+                var gym = _allGyms.FirstOrDefault(g => g.Id == link.GymId);
+                return gym is not null ? new MyGymItem(gym, link) : null;
+            })
+            .Where(x => x is not null)
+            .Cast<MyGymItem>()
+            .OrderBy(x => x.Link.Status == "Approved" ? 0 : x.Link.Status == "Pending" ? 1 : 2)
+            .ThenBy(x => x.Gym.Name)
+            .ToList();
+
+        _availableGyms = _allGyms
+            .Where(g => !linkedGymIds.Contains(g.Id))
+            .OrderBy(g => g.Name)
+            .ToList();
+    }
+
+    private async Task RequestJoin(ApiClient.GymRead gym)
+    {
+        if (_requesting || string.IsNullOrWhiteSpace(_identityId)) return;
+        _requesting = true;
+        _actionMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await Api.RequestGymJoin(gym.Id, _identityId);
+            _actionMessage = $"Request sent to {gym.Name}! Waiting for approval.";
+            _actionIsError = false;
+
+            // Refresh links
+            _myLinks = await Api.GetMyGymLinks();
+            BuildViews();
+        }
+        catch (Exception ex)
+        {
+            _actionMessage = ex.Message;
+            _actionIsError = true;
+        }
+        finally
+        {
+            _requesting = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string GetStatusClass(string status) => status switch
+    {
+        "Approved" => "card-approved",
+        "Pending" => "card-pending",
+        "Rejected" => "card-rejected",
+        _ => ""
+    };
+
+    private static string GetBadgeClass(string status) => status switch
+    {
+        "Approved" => "badge-approved",
+        "Pending" => "badge-pending",
+        "Rejected" => "badge-rejected",
+        _ => ""
+    };
+
+    private record MyGymItem(ApiClient.GymRead Gym, ApiClient.TrainerGymLinkSelf Link);
+}
+
+<style>
+    .page-wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    .page-subtitle {
+        color: var(--text-muted);
+        font-size: 14px;
+        margin-bottom: 24px;
+    }
+
+    .section { margin-bottom: 36px; }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 14px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+    }
+
+    .card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+        padding: 18px;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .card h3 {
+        margin: 0 0 4px 0;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+
+    .card-meta {
+        color: var(--text-muted);
+        font-size: 12px;
+        margin: 0 0 10px 0;
+    }
+
+    /* Status cards */
+    .card-approved { border-color: rgba(14,240,255,0.4); }
+    .card-pending { border-color: rgba(255,200,50,0.4); }
+    .card-rejected { border-color: rgba(255,77,109,0.4); }
+    .available-card { border-color: var(--glass-border); }
+
+    /* Status badges */
+    .status-badge {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .badge-approved {
+        background: rgba(14,240,255,0.15);
+        color: #0ef0ff;
+        border: 1px solid rgba(14,240,255,0.3);
+    }
+
+    .badge-pending {
+        background: rgba(255,200,50,0.15);
+        color: #ffc832;
+        border: 1px solid rgba(255,200,50,0.3);
+    }
+
+    .badge-rejected {
+        background: rgba(255,77,109,0.15);
+        color: #ff4d6d;
+        border: 1px solid rgba(255,77,109,0.3);
+    }
+
+    /* Locations */
+    .locations-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+
+    .location-chip {
+        font-size: 11px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 6px;
+        padding: 3px 8px;
+        color: var(--text-secondary);
+    }
+
+    /* Status info */
+    .status-info {
+        font-size: 12px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin-top: 8px;
+    }
+
+    .pending-info {
+        background: rgba(255,200,50,0.08);
+        color: #ffc832;
+        border: 1px solid rgba(255,200,50,0.2);
+    }
+
+    .approved-info {
+        background: rgba(14,240,255,0.08);
+        color: #0ef0ff;
+        border: 1px solid rgba(14,240,255,0.2);
+    }
+
+    .rejected-info {
+        background: rgba(255,77,109,0.08);
+        color: #ff9aa2;
+        border: 1px solid rgba(255,77,109,0.2);
+    }
+
+    .rejected-info p { margin: 0 0 8px 0; }
+
+    /* Buttons */
+    .btn-primary {
+        background: linear-gradient(135deg, var(--accent-teal), var(--accent-magenta));
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 9px;
+        font-weight: 700;
+        font-size: 13px;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.2s;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-sm {
+        padding: 6px 14px;
+        font-size: 12px;
+        width: auto;
+        margin-top: 0;
+    }
+
+    /* Empty state */
+    .empty-state {
+        background: var(--glass-bg);
+        border: 1px dashed var(--glass-border);
+        border-radius: 14px;
+        padding: 24px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    .empty-state p { margin: 4px 0; }
+
+    /* Toast */
+    .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        padding: 14px 22px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 13px;
+        z-index: 9999;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    .toast-success {
+        background: rgba(14,240,255,0.15);
+        color: #0ef0ff;
+        border: 1px solid rgba(14,240,255,0.3);
+    }
+
+    .toast-error {
+        background: rgba(255,77,109,0.15);
+        color: #ff4d6d;
+        border: 1px solid rgba(255,77,109,0.3);
+    }
+
+    @@keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .error { color: #ff9aa2; }
+</style>

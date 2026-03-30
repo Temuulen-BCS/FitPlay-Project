@@ -1,0 +1,179 @@
+@page "/trainer/notifications"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Trainer")]
+@layout TrainerLayout
+@inject ApiClient Api
+
+<PageTitle>Notifications - FitPlay</PageTitle>
+
+<div class="notifications-page">
+    <div class="page-header">
+        <h1>Notifications</h1>
+        <p class="subtitle">Messages sent to you by gym admins</p>
+    </div>
+
+    <div class="filter-bar">
+        <button class="filter-btn @(_showUnreadOnly ? "" : "active")" @onclick="() => SetFilter(false)">All</button>
+        <button class="filter-btn @(_showUnreadOnly ? "active" : "")" @onclick="() => SetFilter(true)">
+            Unread
+            @if (_unreadTotal > 0)
+            {
+                <span class="filter-badge">@_unreadTotal</span>
+            }
+        </button>
+        @if (_notifications.Any(n => !n.IsRead))
+        {
+            <button class="btn-mark-all" @onclick="MarkAllAsReadAsync">Mark all as read</button>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading-state">Loading notifications...</div>
+    }
+    else if (!_visibleNotifications.Any())
+    {
+        <div class="empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="empty-icon">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <p>@(_showUnreadOnly ? "No unread notifications" : "No notifications yet")</p>
+            <span>@(_showUnreadOnly ? "You're all caught up!" : "Gym admins can send you notifications about members at your gym.")</span>
+        </div>
+    }
+    else
+    {
+        <div class="notifications-list">
+            @foreach (var n in _visibleNotifications)
+            {
+                <div class="notification-card @(n.IsRead ? "is-read" : "is-unread")">
+                    <div class="card-top">
+                        <div class="card-meta">
+                            @if (!n.IsRead)
+                            {
+                                <span class="unread-dot" title="Unread"></span>
+                            }
+                            <span class="gym-name">@(string.IsNullOrWhiteSpace(n.GymLocationName) ? "Gym" : n.GymLocationName)</span>
+                            <span class="card-date">@FormatDate(n.CreatedAt)</span>
+                        </div>
+                        @if (!n.IsRead)
+                        {
+                            <button class="btn-mark-read" @onclick="() => MarkAsReadAsync(n.Id)" title="Mark as read">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                Mark read
+                            </button>
+                        }
+                    </div>
+
+                    <p class="card-message">@n.Message</p>
+
+                    @if (!string.IsNullOrWhiteSpace(n.SubjectUserId))
+                    {
+                        <div class="card-subject">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                            <span>
+                                @(string.IsNullOrWhiteSpace(n.SubjectUserName)
+                                    ? $"User ID: {n.SubjectUserId}"
+                                    : n.SubjectUserName)
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="error-toast">@_errorMessage</div>
+    }
+</div>
+
+@code {
+    private List<ApiClient.TrainerNotificationRead> _notifications = new();
+    private bool _isLoading = true;
+    private bool _showUnreadOnly = false;
+    private string? _errorMessage;
+
+    private IEnumerable<ApiClient.TrainerNotificationRead> _visibleNotifications
+        => _showUnreadOnly ? _notifications.Where(n => !n.IsRead) : _notifications;
+
+    private int _unreadTotal => _notifications.Count(n => !n.IsRead);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadNotificationsAsync();
+    }
+
+    private async Task LoadNotificationsAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            _notifications = await Api.GetMyNotificationsAsync(unreadOnly: false);
+            // Sort: unread first, then by date descending
+            _notifications = _notifications
+                .OrderBy(n => n.IsRead)
+                .ThenByDescending(n => n.CreatedAt)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load notifications: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SetFilter(bool unreadOnly)
+    {
+        _showUnreadOnly = unreadOnly;
+        await Task.CompletedTask;
+    }
+
+    private async Task MarkAsReadAsync(int id)
+    {
+        try
+        {
+            await Api.MarkNotificationAsReadAsync(id);
+            var item = _notifications.FirstOrDefault(n => n.Id == id);
+            if (item is not null)
+            {
+                // Replace record with updated IsRead = true
+                var idx = _notifications.IndexOf(item);
+                _notifications[idx] = item with { IsRead = true };
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not mark notification as read: {ex.Message}";
+        }
+    }
+
+    private async Task MarkAllAsReadAsync()
+    {
+        var unread = _notifications.Where(n => !n.IsRead).ToList();
+        foreach (var n in unread)
+        {
+            try { await Api.MarkNotificationAsReadAsync(n.Id); }
+            catch { /* best-effort */ }
+        }
+        // Reload to sync state
+        await LoadNotificationsAsync();
+    }
+
+    private static string FormatDate(DateTime dt)
+    {
+        var now = DateTime.UtcNow;
+        var diff = now - dt.ToUniversalTime();
+        return diff.TotalMinutes < 1 ? "Just now"
+            : diff.TotalHours < 1 ? $"{(int)diff.TotalMinutes}m ago"
+            : diff.TotalDays < 1 ? $"{(int)diff.TotalHours}h ago"
+            : diff.TotalDays < 7 ? $"{(int)diff.TotalDays}d ago"
+            : dt.ToString("MMM d, yyyy");
+    }
+}

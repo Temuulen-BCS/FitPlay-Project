@@ -11,10 +11,12 @@ namespace FitPlay.Domain.Services;
 public class AchievementService
 {
     private readonly FitPlayContext _db;
+    private readonly IClockService _clock;
 
-    public AchievementService(FitPlayContext db)
+    public AchievementService(FitPlayContext db, IClockService clock)
     {
         _db = db;
+        _clock = clock;
     }
 
     /// <summary>
@@ -156,7 +158,7 @@ public class AchievementService
         if (completions.Count == 0) return 0;
 
         var streak = 0;
-        var expectedDate = DateTime.UtcNow.Date;
+        var expectedDate = _clock.UtcNow.Date;
 
         if (completions.FirstOrDefault() != expectedDate)
         {

@@ -1,0 +1,248 @@
+@page "/gym/trainers"
+@attribute [Authorize(Roles = "GymAdmin")]
+@layout GymAdminLayout
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using FitPlay_Blazor.Components.Layout
+@using FitPlay.Blazor.Services
+
+@inject ApiClient Api
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<PageTitle>Trainers - FitPlay Gym</PageTitle>
+
+<div class="gym-page">
+    <div class="page-header">
+        <div>
+            <p class="page-eyebrow">Gym Partner</p>
+            <h1 class="page-title">Trainer Requests</h1>
+            <p class="page-sub">Review and manage trainers who want to operate in your gym.</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMsg)) { <div class="alert-success">@_successMsg</div> }
+    @if (!string.IsNullOrEmpty(_errorMsg))   { <div class="alert-error">@_errorMsg</div>   }
+
+    @if (_loading)
+    {
+        <div class="gym-loading"><div class="loading-spinner"></div><p>Loading trainers…</p></div>
+    }
+    else if (_gym == null)
+    {
+        <div class="empty-state"><p>No gym found. <a href="/gym/setup">Register your gym first.</a></p></div>
+    }
+    else
+    {
+        <!-- Status filter tabs -->
+        <div class="tab-row">
+            @foreach (var tab in new[] { "All", "Pending", "Approved", "Rejected" })
+            {
+                var count = tab == "All"
+                    ? _links.Count
+                    : _links.Count(l => l.Status == tab);
+                <button class="tab @(_filter == tab ? "tab-active" : "")" @onclick="() => _filter = tab">
+                    @tab
+                    @if (count > 0)
+                    {
+                        <span class="tab-count @(tab == "Pending" ? "tab-count-pending" : "")">@count</span>
+                    }
+                </button>
+            }
+        </div>
+
+        @if (FilteredLinks.Count() == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <p>No @(_filter == "All" ? "" : _filter.ToLower() + " ")trainer requests found.</p>
+            </div>
+        }
+        else
+        {
+            <div class="trainers-table-wrap">
+                <table class="trainers-table">
+                    <thead>
+                        <tr>
+                            <th>Trainer</th>
+                            <th>Email</th>
+                            <th>Requested</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var link in FilteredLinks)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="trainer-cell">
+                                        <div class="trainer-avatar-sm">@GetInitials(link.TrainerName)</div>
+                                        <span class="trainer-cell-name">@link.TrainerName</span>
+                                    </div>
+                                </td>
+                                <td class="text-muted">@link.TrainerEmail</td>
+                                <td class="text-muted">@link.CreatedAt.ToString("dd MMM yyyy")</td>
+                                <td>
+                                    <span class="status-chip status-@link.Status.ToLower()">@link.Status</span>
+                                </td>
+                                <td>
+                                    <div class="actions-cell">
+                                        @if (link.Status == "Pending" || link.Status == "Rejected")
+                                        {
+                                            <button class="btn-approve" @onclick='() => UpdateStatus(link.Id, link.GymId, "Approved")' disabled="@(_processingId == link.Id)">
+                                                @if (_processingId == link.Id)
+                                                {
+                                                    <span class="btn-spinner-sm"></span>
+                                                }
+                                                else
+                                                {
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                                }
+                                                Approve
+                                            </button>
+                                        }
+                                        @if (link.Status == "Pending" || link.Status == "Approved")
+                                        {
+                                            <button class="btn-reject" @onclick='() => UpdateStatus(link.Id, link.GymId, "Rejected")' disabled="@(_processingId == link.Id)">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                                Reject
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _successMsg;
+    private string? _errorMsg;
+    private string _filter = "All";
+    private int? _processingId;
+
+    private ApiClient.GymRead? _gym;
+    private List<ApiClient.TrainerLinkRead> _links = new();
+
+    private IEnumerable<ApiClient.TrainerLinkRead> FilteredLinks =>
+        _filter == "All" ? _links : _links.Where(l => l.Status == _filter);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _gym = await Api.GetMyGym();
+            if (_gym != null)
+            {
+                _links = await Api.GetGymTrainerLinks(_gym.Id);
+                if (_links.Any(l => l.Status == "Pending"))
+                    _filter = "Pending";
+            }
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task UpdateStatus(int linkId, int gymId, string status)
+    {
+        _processingId = linkId;
+        _successMsg = _errorMsg = null;
+        try
+        {
+            await Api.UpdateTrainerLinkStatus(gymId, linkId, status);
+            _links = await Api.GetGymTrainerLinks(gymId);
+            _successMsg = $"Trainer {status.ToLower()} successfully.";
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _processingId = null; }
+    }
+
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', System.StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+            : name[0].ToString().ToUpperInvariant();
+    }
+}
+
+<style>
+    .gym-page { width: 100%; box-sizing: border-box; padding: 2.5rem 1.5rem 4rem; color: #0F172A; background: #F4F7FB; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+    .page-eyebrow { margin: 0 0 4px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.18em; color: #3B6FE8; }
+    .page-title { margin: 0 0 0.25rem; font-size: 2rem; font-weight: 700; }
+    .page-sub { margin: 0; color: #64748B; font-size: 0.92rem; }
+
+    .alert-success { background: #EEF3FD; border: 1px solid #C7D9F8; color: #3B6FE8; padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.9rem; }
+    .alert-error   { background: #FEF2F2; border: 1px solid #FECACA; color: #EF4444; padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.9rem; }
+
+    .gym-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 30vh; gap: 1rem; color: #64748B; }
+    .loading-spinner { width: 36px; height: 36px; border: 3px solid rgba(59,111,232,0.2); border-top-color: #3B6FE8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; color: #64748B; }
+    .empty-icon { width: 60px; height: 60px; background: #EEF3FD; border: 1px solid #C7D9F8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: #3B6FE8; }
+    .empty-state a { color: #3B6FE8; }
+
+    /* Tabs */
+    .tab-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .tab { display: inline-flex; align-items: center; gap: 6px; padding: 0.45rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; font-family: inherit; background: #ffffff; border: 1px solid #E8EDF5; color: #64748B; cursor: pointer; transition: all 0.15s; }
+    .tab:hover { color: #3B6FE8; border-color: #C7D9F8; }
+    .tab-active { background: #EEF3FD; border-color: #C7D9F8; color: #3B6FE8; }
+    .tab-count { background: #F1F5F9; color: #64748B; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 10px; }
+    .tab-count-pending { background: #FEF3C7; color: #B45309; }
+
+    /* Table */
+    .trainers-table-wrap { background: #ffffff; border: 1px solid #E8EDF5; border-radius: 14px; overflow: hidden; overflow-x: auto; }
+    .trainers-table { width: 100%; border-collapse: collapse; }
+    .trainers-table thead tr { border-bottom: 1px solid #E8EDF5; background: #F8FAFC; }
+    .trainers-table th { padding: 0.875rem 1rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; text-align: left; }
+    .trainers-table tbody tr { border-bottom: 1px solid #E8EDF5; transition: background 0.15s; }
+    .trainers-table tbody tr:last-child { border-bottom: none; }
+    .trainers-table tbody tr:hover { background: #F8FAFC; }
+    .trainers-table td { padding: 0.875rem 1rem; font-size: 0.88rem; vertical-align: middle; }
+    .text-muted { color: #64748B; }
+
+    /* Trainer cell */
+    .trainer-cell { display: flex; align-items: center; gap: 0.75rem; }
+    .trainer-avatar-sm { width: 34px; height: 34px; border-radius: 50%; background: #EEF3FD; border: 1px solid #C7D9F8; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; color: #3B6FE8; flex-shrink: 0; }
+    .trainer-cell-name { font-weight: 600; }
+
+    /* Status chips */
+    .status-chip { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+    .status-pending  { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
+    .status-approved { background: #EEF3FD; color: #3B6FE8; border: 1px solid #C7D9F8; }
+    .status-rejected { background: #FEF2F2; color: #EF4444; border: 1px solid #FECACA; }
+
+    /* Action buttons */
+    .actions-cell { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .btn-approve {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: #EEF3FD; color: #3B6FE8;
+        border: 1px solid #C7D9F8; border-radius: 20px;
+        padding: 0.3rem 0.75rem; font-size: 0.78rem; font-family: inherit;
+        font-weight: 600; cursor: pointer; transition: background 0.2s, box-shadow 0.2s;
+    }
+    .btn-approve:hover:not(:disabled) { background: #DCE8FF; }
+    .btn-approve:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-reject {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: #FEF2F2; color: #EF4444;
+        border: 1px solid #FECACA; border-radius: 20px;
+        padding: 0.3rem 0.75rem; font-size: 0.78rem; font-family: inherit;
+        font-weight: 600; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-reject:hover:not(:disabled) { background: #FEE2E2; }
+    .btn-reject:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-spinner-sm { width: 12px; height: 12px; border: 2px solid rgba(59,111,232,0.3); border-top-color: #3B6FE8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+</style>

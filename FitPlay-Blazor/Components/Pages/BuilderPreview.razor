@@ -1,0 +1,12 @@
+@page "/builder-preview"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+
+@inject IConfiguration Configuration
+
+@{
+    var apiKey = Configuration["Builder:ApiKey"] ?? string.Empty;
+}
+
+<builder-component model="page" api-key="@apiKey"></builder-component>
+<script async src="https://cdn.builder.io/js/webcomponents"></script>
