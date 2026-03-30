@@ -128,7 +128,7 @@ jobs:
       - name: Build API Docker image
         run: |
           docker build \
-            -f FitPlay.Api/Dockerfile \
+            -f Dockerfile \
             -t fitplay-api:pr-${{ github.event.pull_request.number }} \
             .
 
