@@ -12,8 +12,9 @@ namespace FitPlay.Api.Data
         public ApplicationDbContext CreateDbContext(string[] args)
         {
             var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-            optionsBuilder.UseNpgsql("Host=localhost;Database=fitplay_design;Username=postgres;Password=postgres",
-                b => b.MigrationsAssembly("FitPlay.Api"));
+
+            // Dummy connection string for design-time EF tooling (migrations add, etc.)
+            optionsBuilder.UseNpgsql("Host=localhost;Database=FitPlayDB;Username=postgres;Password=postgres");
 
             return new ApplicationDbContext(optionsBuilder.Options);
         }
