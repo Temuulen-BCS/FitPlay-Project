@@ -10,11 +10,29 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;        
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;       
-using Microsoft.OpenApi.Models;             
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Read connection string: prefer DATABASE_URL env var (Railway), fallback to appsettings
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+string connectionString;
+
+if (!string.IsNullOrEmpty(databaseUrl))
+{
+    // Railway Postgres provides a URI like: postgresql://user:pass@host:port/dbname
+    var uri = new Uri(databaseUrl);
+    var userInfo = uri.UserInfo.Split(':');
+    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')}" +
+                       $";Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+}
+else
+{
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException(
+            "No database connection string found. Set DATABASE_URL env var or ConnectionStrings:DefaultConnection in appsettings.");
+}
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -52,16 +70,13 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddDbContext<FitPlayContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly("FitPlay.Api").EnableRetryOnFailure()
+    options.UseNpgsql(
+        connectionString,
+        b => b.MigrationsAssembly("FitPlay.Api")
     ));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.EnableRetryOnFailure()
-    ));
+    options.UseNpgsql(connectionString));
 
 // Register gamification services
 builder.Services.AddScoped<ProgressService>();
@@ -115,17 +130,23 @@ var app = builder.Build();
 
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
+// Auto-create database schema on startup (for fresh Railway Postgres deploy)
+using (var scope = app.Services.CreateScope())
+{
+    var fitPlayDb = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+    await fitPlayDb.Database.EnsureCreatedAsync();
+
+    var identityDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await identityDb.Database.EnsureCreatedAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseHttpsRedirection();
 }
 
-// Exempt the Stripe webhook from HTTPS redirection so the Stripe CLI can POST
-// to http://localhost:5179/api/billing/webhook without getting a 307 redirect.
-app.UseWhen(
-    ctx => !ctx.Request.Path.StartsWithSegments("/api/billing/webhook"),
-    branch => branch.UseHttpsRedirection());
 
 app.UseAuthentication();   
 app.UseAuthorization();    
@@ -148,16 +169,6 @@ app.MapGet("/weatherforecast", () =>
 });
 
 app.MapControllers();
-
-// Seed roles on startup
-using (var scope = app.Services.CreateScope())
-{
-    var db1 = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var db2 = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
-
-    await db1.Database.MigrateAsync();
-    await db2.Database.MigrateAsync();
-}
 
 app.Run();
 
