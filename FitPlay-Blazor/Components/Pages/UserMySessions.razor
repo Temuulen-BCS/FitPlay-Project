@@ -31,6 +31,13 @@
     <!-- Tabs -->
     <div class="ms-tabs">
         <button class="ms-tab @(_tab == "upcoming" ? "active" : "")" @onclick='() => _tab = "upcoming"'>Upcoming</button>
+        <button class="ms-tab @(_tab == "ongoing" ? "active" : "")" @onclick='() => _tab = "ongoing"'>
+            Ongoing
+            @if (_ongoingCount > 0)
+            {
+                <span class="ms-tab-dot"></span>
+            }
+        </button>
         <button class="ms-tab @(_tab == "past" ? "active" : "")" @onclick='() => _tab = "past"'>Past</button>
         <button class="ms-tab @(_tab == "all" ? "active" : "")" @onclick='() => _tab = "all"'>All</button>
     </div>
@@ -68,12 +75,23 @@
                 var isPast = b.ScheduledAt < _nowUtc;
                 var isCancelled = string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
                 var isCompleted = string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase);
-                var canCancelBooking = !isPast && !isCancelled && !isCompleted;
+                var isOngoing = IsOngoing(b, _nowUtc);
+                var canCancelBooking = !isPast && !isCancelled && !isCompleted && !isOngoing;
 
-                <div class="ms-card @(isCancelled ? "card-cancelled" : isPast || isCompleted ? "card-past" : "card-upcoming")">
+                <div class="ms-card @(isCancelled ? "card-cancelled" : isOngoing ? "card-ongoing" : isPast || isCompleted ? "card-past" : "card-upcoming")">
                     <div class="ms-card-header">
                         <div class="ms-card-meta">
-                            <span class="schedule-badge @GetScheduleBadgeClass(b.Status)">@b.Status</span>
+                            @if (isOngoing)
+                            {
+                                <span class="schedule-badge badge-ongoing">
+                                    <span class="badge-pulse"></span>
+                                    Live
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="schedule-badge @GetScheduleBadgeClass(b.Status)">@b.Status</span>
+                            }
                         </div>
                         <div class="ms-card-actions">
                             @if (canCancelBooking)
@@ -146,6 +164,13 @@
     private int? _currentUserId;
     private DateTime _nowUtc = DateTime.UtcNow;
 
+    private static bool IsOngoing(ApiClient.ClassScheduleWithTrainer b, DateTime now)
+        => b.ScheduledAt <= now
+        && b.ScheduledAt.AddMinutes(b.DurationMinutes!.Value) > now
+        && string.Equals(b.Status, "Scheduled", StringComparison.OrdinalIgnoreCase);
+
+    private int _ongoingCount => _bookedClasses.Count(b => IsOngoing(b, _nowUtc));
+
     private List<ApiClient.ClassScheduleWithTrainer> _filtered
     {
         get
@@ -157,6 +182,7 @@
                 "upcoming" => _bookedClasses.Where(b =>
                     b.ScheduledAt >= now
                     && string.Equals(b.Status, "Scheduled", StringComparison.OrdinalIgnoreCase)),
+                "ongoing" => _bookedClasses.Where(b => IsOngoing(b, now)),
                 "past" => _bookedClasses.Where(b =>
                     b.ScheduledAt < now
                     || string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase)
@@ -402,6 +428,15 @@
     .card-upcoming { border-left: 3px solid rgba(14,240,255,0.5); }
     .card-past     { border-left: 3px solid rgba(255,180,0,0.4); opacity: 0.8; }
     .card-cancelled { border-left: 3px solid rgba(255,255,255,0.1); opacity: 0.55; }
+    .card-ongoing {
+        border-left: 3px solid #0ef0ff;
+        box-shadow: 0 0 0 1px rgba(14,240,255,0.15), 0 4px 24px rgba(14,240,255,0.12);
+        animation: ongoing-glow 2.5s ease-in-out infinite;
+    }
+    @@keyframes ongoing-glow {
+        0%, 100% { box-shadow: 0 0 0 1px rgba(14,240,255,0.15), 0 4px 24px rgba(14,240,255,0.12); }
+        50%       { box-shadow: 0 0 0 1px rgba(14,240,255,0.35), 0 4px 32px rgba(14,240,255,0.28); }
+    }
 
     .ms-card-header {
         display: flex;
@@ -423,6 +458,37 @@
     .badge-pending   { background: rgba(255,180,0,0.12);  color: #ffb400; border: 1px solid rgba(255,180,0,0.3); }
     .badge-cancelled { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
     .badge-unknown   { background: rgba(255,255,255,0.06); color: var(--text-muted,#9aa0b5); border: 1px solid rgba(255,255,255,0.1); }
+    .badge-ongoing {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: rgba(14,240,255,0.14); color: #0ef0ff;
+        border: 1px solid rgba(14,240,255,0.45);
+    }
+    .badge-pulse {
+        display: inline-block;
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: #0ef0ff;
+        box-shadow: 0 0 0 0 rgba(14,240,255,0.6);
+        animation: pulse-ring 1.4s ease-out infinite;
+    }
+    @@keyframes pulse-ring {
+        0%   { box-shadow: 0 0 0 0   rgba(14,240,255,0.6); }
+        70%  { box-shadow: 0 0 0 6px rgba(14,240,255,0); }
+        100% { box-shadow: 0 0 0 0   rgba(14,240,255,0); }
+    }
+
+    /* Tab live dot */
+    .ms-tab { position: relative; }
+    .ms-tab-dot {
+        display: inline-block;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #0ef0ff;
+        box-shadow: 0 0 5px rgba(14,240,255,0.8);
+        margin-left: 4px;
+        vertical-align: middle;
+        animation: pulse-ring 1.4s ease-out infinite;
+    }
 
     /* Card actions */
     .ms-card-actions { display: flex; gap: 0.5rem; align-items: center; }

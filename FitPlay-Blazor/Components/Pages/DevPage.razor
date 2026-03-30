@@ -8,7 +8,47 @@
 <div class="dev-page">
     <div class="page-header">
         <h1>Dev Tools</h1>
-        <p class="subtitle">Fake class completions for testing</p>
+        <p class="subtitle">Fake class completions and control server time for testing</p>
+    </div>
+
+    <!-- Time Travel Panel -->
+    <div class="form-card time-card">
+        <h2>Time Travel</h2>
+        <p class="form-desc">
+            Override the server clock used by all services, tabs and session filters.
+            The mock time is in-memory — it resets when the API restarts.
+        </p>
+
+        <div class="time-status @(_timeIsMocked ? "status-mocked" : "status-real")">
+            <span class="time-dot"></span>
+            <span class="time-status-label">@(_timeIsMocked ? "MOCKED" : "REAL TIME")</span>
+            <span class="time-value">@_serverTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</span>
+        </div>
+
+        <div class="time-inputs">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" class="dev-input" @bind="_mockDate" />
+            </div>
+            <div class="form-group">
+                <label>Time (UTC)</label>
+                <input type="time" class="dev-input" @bind="_mockTimeOfDay" step="60" />
+            </div>
+        </div>
+
+        <div class="time-actions">
+            <button class="btn-set-time" @onclick="SetMockTime" disabled="@_isTimeBusy">
+                @(_isTimeBusy ? "..." : "Set Mock Time")
+            </button>
+            <button class="btn-reset-time" @onclick="ResetMockTime" disabled="@(_isTimeBusy || !_timeIsMocked)">
+                Reset to Real Time
+            </button>
+        </div>
+
+        @if (_timeMessage is not null)
+        {
+            <div class="time-message">@_timeMessage</div>
+        }
     </div>
 
     @if (_isLoading)
@@ -275,9 +315,120 @@
         font-size: 13px;
         color: var(--text-muted);
     }
+
+    /* Time travel panel */
+    .time-card {
+        border-color: rgba(14, 240, 255, 0.25);
+    }
+
+    .time-status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        font-family: monospace;
+    }
+    .status-real    { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
+    .status-mocked  { background: rgba(14,240,255,0.08);  border: 1px solid rgba(14,240,255,0.3); color: #0ef0ff; }
+
+    .time-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .status-real   .time-dot { background: #9aa0b5; }
+    .status-mocked .time-dot {
+        background: #0ef0ff;
+        box-shadow: 0 0 6px rgba(14,240,255,0.8);
+        animation: pulse-dot 1.4s ease-out infinite;
+    }
+    @@keyframes pulse-dot {
+        0%   { box-shadow: 0 0 0 0   rgba(14,240,255,0.6); }
+        70%  { box-shadow: 0 0 0 5px rgba(14,240,255,0); }
+        100% { box-shadow: 0 0 0 0   rgba(14,240,255,0); }
+    }
+
+    .time-status-label { font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .time-value        { color: inherit; opacity: 0.85; }
+
+    .time-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .dev-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 10px;
+        color: var(--text-primary, #f8f9fb);
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.18s;
+        color-scheme: dark;
+    }
+    .dev-input:focus { border-color: rgba(14,240,255,0.45); }
+
+    .time-actions {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .btn-set-time {
+        flex: 1;
+        padding: 11px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #0ef0ff, #09c8d4);
+        color: #001e24;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .btn-set-time:hover:not(:disabled) { opacity: 0.88; }
+    .btn-set-time:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-reset-time {
+        flex: 1;
+        padding: 11px;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text-muted, #9aa0b5);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-reset-time:hover:not(:disabled) { border-color: rgba(255,255,255,0.35); color: #f8f9fb; }
+    .btn-reset-time:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .time-message {
+        font-size: 12px;
+        color: #0ef0ff;
+        opacity: 0.8;
+        font-family: monospace;
+    }
 </style>
 
 @code {
+    // ── Time travel state ──
+    private DateTime _serverTime = DateTime.UtcNow;
+    private bool _timeIsMocked;
+    private bool _isTimeBusy;
+    private string? _timeMessage;
+    private DateOnly _mockDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private TimeOnly _mockTimeOfDay = TimeOnly.FromDateTime(DateTime.UtcNow);
+
+    // ── Bookings state ──
     private List<ApiClient.DevScheduleItem> _schedules = new();
     private List<ApiClient.DevEnrollmentItem> _enrollments = new();
     private List<ApiClient.DevEnrollmentItem> _completedEnrollments = new();
@@ -292,7 +443,65 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadBookings();
+        await Task.WhenAll(LoadCurrentTime(), LoadBookings());
+    }
+
+    // ── Time travel methods ──
+
+    private async Task LoadCurrentTime()
+    {
+        try
+        {
+            var res = await Api.GetDevTime();
+            if (res is not null)
+            {
+                _serverTime = res.CurrentTime;
+                _timeIsMocked = res.IsMocked;
+                // Pre-fill the inputs with the current server time
+                _mockDate = DateOnly.FromDateTime(res.CurrentTime);
+                _mockTimeOfDay = TimeOnly.FromDateTime(res.CurrentTime);
+            }
+        }
+        catch { /* silent — not critical */ }
+    }
+
+    private async Task SetMockTime()
+    {
+        _isTimeBusy = true;
+        _timeMessage = null;
+        try
+        {
+            var combined = _mockDate.ToDateTime(_mockTimeOfDay, DateTimeKind.Utc);
+            var res = await Api.DevSetTime(combined);
+            if (res is not null)
+            {
+                _serverTime = res.CurrentTime;
+                _timeIsMocked = res.IsMocked;
+                _timeMessage = res.Message;
+            }
+        }
+        catch (Exception ex) { _timeMessage = $"Error: {ex.Message}"; }
+        finally { _isTimeBusy = false; }
+    }
+
+    private async Task ResetMockTime()
+    {
+        _isTimeBusy = true;
+        _timeMessage = null;
+        try
+        {
+            var res = await Api.DevResetTime();
+            if (res is not null)
+            {
+                _serverTime = res.CurrentTime;
+                _timeIsMocked = res.IsMocked;
+                _timeMessage = res.Message;
+                _mockDate = DateOnly.FromDateTime(res.CurrentTime);
+                _mockTimeOfDay = TimeOnly.FromDateTime(res.CurrentTime);
+            }
+        }
+        catch (Exception ex) { _timeMessage = $"Error: {ex.Message}"; }
+        finally { _isTimeBusy = false; }
     }
 
     private async Task LoadBookings()

@@ -1171,6 +1171,12 @@ public class ApiClient
     public async Task<DevTimeResponse?> GetDevTime()
         => await GetJsonAsync<DevTimeResponse>("/api/dev/time");
 
+    public async Task<DevTimeResponse?> DevSetTime(DateTime utcTime)
+        => await GetJsonAsync<DevTimeResponse>($"/api/dev/set-time?time={Uri.EscapeDataString(utcTime.ToString("yyyy-MM-ddTHH:mm:ssZ"))}");
+
+    public async Task<DevTimeResponse?> DevResetTime()
+        => await GetJsonAsync<DevTimeResponse>("/api/dev/reset-time");
+
     public async Task<DevCompleteResponse?> DevResetEnrollment(int enrollmentId)
     {
         var body = new { Id = enrollmentId };

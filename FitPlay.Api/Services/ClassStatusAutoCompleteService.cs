@@ -40,6 +40,55 @@ public sealed class ClassStatusAutoCompleteService : BackgroundService
             var clock = scope.ServiceProvider.GetRequiredService<IClockService>();
             var now = clock.UtcNow;
 
+            // ── REVERSE PASS (mock clock only) ──────────────────────────────────────
+            // When the dev clock is moved backward, un-complete any schedules/sessions/
+            // enrollments whose end time is now in the future again.
+            // This pass is intentionally skipped in production (IsMocked == false) so
+            // real completions are never reversed automatically.
+            int revertedSchedules = 0, revertedSessions = 0, revertedEnrollments = 0;
+
+            if (clock.IsMocked)
+            {
+                // Re-activate ClassSchedules whose booking end time is now in the future
+                var schedulesToReActivate = await db.ClassSchedules
+                    .Include(s => s.RoomBooking)
+                    .Where(s => s.Status == ClassScheduleStatus.Completed
+                        && s.RoomBooking != null
+                        && s.RoomBooking.EndTime > now)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var s in schedulesToReActivate)
+                    s.Status = ClassScheduleStatus.Scheduled;
+
+                revertedSchedules = schedulesToReActivate.Count;
+
+                // Re-activate ClassSessions whose end time is now in the future
+                var sessionsToReActivate = await db.ClassSessions
+                    .Where(s => s.Status == ClassSessionStatus.Completed
+                        && s.EndTime > now)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var s in sessionsToReActivate)
+                    s.Status = ClassSessionStatus.Scheduled;
+
+                revertedSessions = sessionsToReActivate.Count;
+
+                // Re-activate ClassEnrollments whose parent session end time is now in the future
+                var enrollmentsToReActivate = await db.ClassEnrollments
+                    .Include(e => e.ClassSession)
+                    .Where(e => e.Status == ClassEnrollmentStatus.Completed
+                        && e.ClassSession != null
+                        && e.ClassSession.EndTime > now)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var e in enrollmentsToReActivate)
+                    e.Status = ClassEnrollmentStatus.Confirmed;
+
+                revertedEnrollments = enrollmentsToReActivate.Count;
+            }
+
+            // ── FORWARD PASS ────────────────────────────────────────────────────────
+            // Mark ClassSchedules as Completed when their room booking has ended.
             var schedulesToComplete = await db.ClassSchedules
                 .Include(s => s.RoomBooking)
                 .Where(s => s.Status == ClassScheduleStatus.Scheduled
@@ -48,10 +97,9 @@ public sealed class ClassStatusAutoCompleteService : BackgroundService
                 .ToListAsync(cancellationToken);
 
             foreach (var schedule in schedulesToComplete)
-            {
                 schedule.Status = ClassScheduleStatus.Completed;
-            }
 
+            // Mark ClassSessions as Completed when their end time has passed.
             var sessionsToComplete = await db.ClassSessions
                 .Where(s => s.Status != ClassSessionStatus.Completed
                     && s.Status != ClassSessionStatus.Cancelled
@@ -59,23 +107,25 @@ public sealed class ClassStatusAutoCompleteService : BackgroundService
                 .ToListAsync(cancellationToken);
 
             foreach (var session in sessionsToComplete)
-            {
                 session.Status = ClassSessionStatus.Completed;
-            }
 
-            var updates = schedulesToComplete.Count + sessionsToComplete.Count;
-            if (updates == 0)
-            {
+            var totalChanges = revertedSchedules + revertedSessions + revertedEnrollments
+                             + schedulesToComplete.Count + sessionsToComplete.Count;
+
+            if (totalChanges == 0)
                 return;
-            }
 
             await db.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation(
-                "Auto-completed expired classes: {ScheduleCount} schedules and {SessionCount} sessions at {UtcNow}.",
-                schedulesToComplete.Count,
-                sessionsToComplete.Count,
-                now);
+            if (revertedSchedules + revertedSessions + revertedEnrollments > 0)
+                _logger.LogInformation(
+                    "[MockClock] Reverted expired classes: {S} schedules, {Ss} sessions, {E} enrollments at {UtcNow}.",
+                    revertedSchedules, revertedSessions, revertedEnrollments, now);
+
+            if (schedulesToComplete.Count + sessionsToComplete.Count > 0)
+                _logger.LogInformation(
+                    "Auto-completed expired classes: {ScheduleCount} schedules and {SessionCount} sessions at {UtcNow}.",
+                    schedulesToComplete.Count, sessionsToComplete.Count, now);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
