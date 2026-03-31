@@ -1,6 +1,5 @@
 @page "/Account/AccessDenied"
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JS
 
 <PageTitle>Access denied</PageTitle>
 
@@ -13,8 +12,6 @@
     [SupplyParameterFromQuery(Name = "ReturnUrl")]
     private string? ReturnUrl { get; set; }
 
-    private bool _shouldRedirect;
-
     protected override void OnInitialized()
     {
         if (!string.IsNullOrWhiteSpace(ReturnUrl))
@@ -26,16 +23,8 @@
                 decoded.Equals("/user/progress", StringComparison.OrdinalIgnoreCase) ||
                 decoded.Equals("/user/achievements", StringComparison.OrdinalIgnoreCase))
             {
-                _shouldRedirect = true;
+                NavigationManager.NavigateTo("/membership", forceLoad: true);
             }
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && _shouldRedirect)
-        {
-            await JS.InvokeVoidAsync("location.replace", "/membership");
         }
     }
 }
