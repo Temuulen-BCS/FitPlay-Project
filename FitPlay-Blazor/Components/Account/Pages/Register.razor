@@ -289,16 +289,18 @@
 
         if (UserManager.Options.SignIn.RequireConfirmedAccount)
         {
-            RedirectManager.RedirectTo(
+            var confirmUrl = NavigationManager.GetUriWithQueryParameters(
                 "Account/RegisterConfirmation",
-                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+                new Dictionary<string, object?> { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+            NavigationManager.NavigateTo(confirmUrl, forceLoad: true);
+            return;
         }
 
         // 5. Sign in and redirect based on role
         await SignInManager.SignInAsync(user, isPersistent: false);
 
         var destination = Input.AccountType == "Trainer" ? "/trainer/dashboard" : "/dashboard";
-        RedirectManager.RedirectTo(ReturnUrl ?? destination);
+        NavigationManager.NavigateTo(ReturnUrl ?? destination, forceLoad: true);
     }
 
     private ApplicationUser CreateUser()

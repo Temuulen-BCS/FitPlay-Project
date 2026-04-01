@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;       
 using Microsoft.OpenApi.Models;
 using System.Text;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -136,14 +137,27 @@ var app = builder.Build();
 
 StripeConfiguration.ApiKey = builder.Configuration[$"{StripeOptions.SectionName}:SecretKey"];
 
-// Auto-create database schema on startup (for fresh Railway Postgres deploy)
+// Ensure database tables exist on startup (non-destructive).
+// NEVER drop/recreate — that wipes all user data.
 using (var scope = app.Services.CreateScope())
 {
     var fitPlayDb = scope.ServiceProvider.GetRequiredService<FitPlayContext>();
+    var identityDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    // EnsureCreatedAsync creates the DB + tables if they don't exist yet.
+    // It is a no-op when the DB already has tables.
     await fitPlayDb.Database.EnsureCreatedAsync();
 
-    var identityDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await identityDb.Database.EnsureCreatedAsync();
+    try
+    {
+        // Create Identity tables if missing (throws if they already exist — safe to ignore).
+        var creator = identityDb.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
+        await creator.CreateTablesAsync();
+    }
+    catch
+    {
+        // Tables already exist — safe to ignore
+    }
 }
 
 if (app.Environment.IsDevelopment())
@@ -155,23 +169,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();   
 app.UseAuthorization();    
-
-app.MapGet("/weatherforecast", () =>
-{
-    var summaries = new[]
-    {
-        "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm",
-        "Balmy", "Hot", "Sweltering", "Scorching"
-    };
-
-    return Enumerable.Range(1, 5).Select(index =>
-        new
-        {
-            Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            TemperatureC = Random.Shared.Next(-20, 55),
-            Summary = summaries[Random.Shared.Next(summaries.Length)]
-        });
-});
 
 app.MapControllers();
 

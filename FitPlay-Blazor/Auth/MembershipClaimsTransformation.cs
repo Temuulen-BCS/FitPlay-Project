@@ -29,10 +29,6 @@ public class MembershipClaimsTransformation : IClaimsTransformation
         if (principal.Identity?.IsAuthenticated != true)
             return principal;
 
-        // Skip if both claims are already present
-        if (principal.HasClaim("membership", "active") && principal.HasClaim(c => c.Type == "full_name"))
-            return principal;
-
         var identityId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(identityId))
             return principal;
@@ -44,20 +40,26 @@ public class MembershipClaimsTransformation : IClaimsTransformation
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.IdentityUserId == identityId);
 
-            var claimsToAdd = new List<Claim>();
+            // Always clone so we can remove stale claims and add fresh ones
+            var clonedIdentity = principal.Identity is ClaimsIdentity ci ? ci.Clone() : new ClaimsIdentity(principal.Identity);
+
+            // Remove any existing membership claim so we always reflect current DB state
+            var existingMembershipClaims = clonedIdentity.FindAll("membership").ToList();
+            foreach (var c in existingMembershipClaims)
+                clonedIdentity.RemoveClaim(c);
 
             if (domainUser is not null)
             {
                 // Regular user: inject full_name and check membership
-                if (!string.IsNullOrWhiteSpace(domainUser.Name) && !principal.HasClaim("full_name", domainUser.Name))
-                    claimsToAdd.Add(new Claim("full_name", domainUser.Name));
+                if (!string.IsNullOrWhiteSpace(domainUser.Name) && !clonedIdentity.HasClaim("full_name", domainUser.Name))
+                    clonedIdentity.AddClaim(new Claim("full_name", domainUser.Name));
 
                 var hasActiveMembership = await _db.Subscriptions
                     .AsNoTracking()
                     .AnyAsync(s => s.ClientId == domainUser.Id && s.Status == "Active");
 
                 if (hasActiveMembership)
-                    claimsToAdd.Add(new Claim("membership", "active"));
+                    clonedIdentity.AddClaim(new Claim("membership", "active"));
             }
             else
             {
@@ -67,19 +69,11 @@ public class MembershipClaimsTransformation : IClaimsTransformation
                     .FirstOrDefaultAsync(t => t.IdentityUserId == identityId);
 
                 if (teacher is not null && !string.IsNullOrWhiteSpace(teacher.Name)
-                    && !principal.HasClaim("full_name", teacher.Name))
+                    && !clonedIdentity.HasClaim("full_name", teacher.Name))
                 {
-                    claimsToAdd.Add(new Claim("full_name", teacher.Name));
+                    clonedIdentity.AddClaim(new Claim("full_name", teacher.Name));
                 }
             }
-
-            if (claimsToAdd.Count == 0)
-                return principal;
-
-            // Clone the identity and add all new claims
-            var clonedIdentity = principal.Identity is ClaimsIdentity ci ? ci.Clone() : new ClaimsIdentity(principal.Identity);
-            foreach (var claim in claimsToAdd)
-                clonedIdentity.AddClaim(claim);
 
             return new ClaimsPrincipal(clonedIdentity);
         }
