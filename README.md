@@ -59,19 +59,11 @@ dotnet run --project FitPlay-Blazor
 
 ## Environment Variables
 
-Current template in `.env.example`:
-
-```env
-Stripe__SecretKey=sk_test_your_stripe_secret_key
-Stripe__WebhookSecret=whsec_your_webhook_secret
-Stripe__PriceId=price_your_price_id
-Stripe__PublishableKey=pk_test_your_publishable_key
-```
+Current template using dotnet user-secrets
 
 Notes:
 
-- `.env` is ignored by git and should never be committed.
-- Both API and Blazor projects are configured to load `.env` automatically.
+readme to set keys was sent by email to john 
 
 ## Railway Deployment
 
