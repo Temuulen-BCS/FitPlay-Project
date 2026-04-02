@@ -363,3 +363,8 @@ MigrationBackup/
 FodyWeavers.xsd
 /FitPlay.Api/appsettings.Development.json
 /FitPlay.Api/appsettings.json
+
+# Environment files
+.env
+.env.*
+!.env.example

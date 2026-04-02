@@ -13,6 +13,61 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 
+static string? FindEnvPath(string startDirectory)
+{
+    var dir = new DirectoryInfo(startDirectory);
+    while (dir is not null)
+    {
+        var candidate = Path.Combine(dir.FullName, ".env");
+        if (System.IO.File.Exists(candidate))
+        {
+            return candidate;
+        }
+
+        dir = dir.Parent;
+    }
+
+    return null;
+}
+
+static void LoadEnvFileIntoProcess(string path)
+{
+    foreach (var rawLine in System.IO.File.ReadAllLines(path))
+    {
+        var line = rawLine.Trim();
+        if (line.Length == 0 || line.StartsWith("#"))
+        {
+            continue;
+        }
+
+        var sep = line.IndexOf('=');
+        if (sep <= 0)
+        {
+            continue;
+        }
+
+        var key = line[..sep].Trim();
+        var value = line[(sep + 1)..].Trim();
+
+        if ((value.StartsWith("\"") && value.EndsWith("\""))
+            || (value.StartsWith("'") && value.EndsWith("'")))
+        {
+            value = value[1..^1];
+        }
+
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+        {
+            Environment.SetEnvironmentVariable(key, value);
+        }
+    }
+}
+
+var envPath = FindEnvPath(Directory.GetCurrentDirectory());
+if (envPath is not null)
+{
+    LoadEnvFileIntoProcess(envPath);
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Read connection string: prefer DATABASE_URL env var (Railway), fallback to appsettings
